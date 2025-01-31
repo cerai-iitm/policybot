@@ -1,3 +1,5 @@
-venv
-pdfs
+venv/
+pdfs/
 .qodo
+
+chroma_db/
