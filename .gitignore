@@ -1,5 +1,8 @@
 venv/
 pdfs/
 .qodo
+**__pycache__**
+pdfs.csv
 
 chroma_db/
+logs/
