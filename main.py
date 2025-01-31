@@ -1,7 +1,7 @@
 import os
 import sys
 from src.config.settings import PDFS_DIR
-from src.utils.logging_utils import setup_logging
+# from src.utils.logging_utils import setup_logging
 from src.document_processing.loader import load_pdf, split_text
 from src.qa_system.retriever import retrieve_docs, index_documents
 from src.qa_system.answering import answer_question
@@ -15,7 +15,7 @@ def preprocess_pdfs():
             index_documents(chunked_documents)
 
 def main():
-    setup_logging()
+    # setup_logging()
     
     if len(sys.argv) > 1 and sys.argv[1] == "preprocess":
         preprocess_pdfs()

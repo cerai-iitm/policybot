@@ -1,12 +1,13 @@
 import streamlit as st
 import tempfile
 import os
-from src.document_processing.loader import load_pdf, split_text
-from src.qa_system.retriever import retrieve_docs
+from src.document_processing.loader import upload_pdf, load_pdf, split_text
+from src.qa_system.retriever import retrieve_docs, index_documents
 from src.qa_system.answering import answer_question
 from src.qa_system.single_pdf import process_single_pdf
 from src.qa_system.direct_chat import get_direct_response
 from src.utils.logging_utils import setup_logger, log_direct_interaction
+from src.config.settings import PDFS_UPLOAD_DIR
 
 st.set_page_config(page_title="AI Policy Chatbot", layout="wide")
 
@@ -35,20 +36,21 @@ def handle_regular_chat():
             st.session_state.messages.append({"role": "assistant", "content": f"{response}{sources}"})
 
 def handle_single_pdf_chat():
+    logger = setup_logger("pdf_chat")
     uploaded_file = st.sidebar.file_uploader("Upload a PDF", type="pdf")
     
     if uploaded_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-            tmp_file.write(uploaded_file.getvalue())
-            tmp_file_path = tmp_file.name
-
-        if st.session_state.temp_pdf_docs is None:
-            documents = load_pdf(tmp_file_path)
-            chunked_docs = split_text(documents)
-            st.session_state.temp_pdf_docs = chunked_docs
-            st.sidebar.success("PDF processed successfully!")
+        if not os.path.exists(PDFS_UPLOAD_DIR):
+            os.makedirs(PDFS_UPLOAD_DIR)
+            
+        file_path = os.path.join(PDFS_UPLOAD_DIR, uploaded_file.name)
         
-        os.unlink(tmp_file_path)
+        if st.session_state.temp_pdf_docs is None:
+            upload_pdf(uploaded_file)
+            documents = load_pdf(file_path)
+            st.session_state.temp_pdf_docs = split_text(documents)
+            logger.info(f"Processed PDF: {uploaded_file.name} - {len(st.session_state.temp_pdf_docs)} chunks created")
+            st.sidebar.success("PDF processed successfully!")
 
     if query := st.chat_input("Ask about the uploaded PDF"):
         st.session_state.messages.append({"role": "user", "content": query})
@@ -58,7 +60,7 @@ def handle_single_pdf_chat():
         if st.session_state.temp_pdf_docs:
             with st.chat_message("assistant"):
                 related_docs = process_single_pdf(st.session_state.temp_pdf_docs, query)
-                response = answer_question(query, related_docs, mode="single_pdf_chat")
+                response = answer_question(query, related_docs, mode="pdf_chat")
                 st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
 

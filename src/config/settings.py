@@ -5,6 +5,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 PDFS_DIR = os.path.join(BASE_DIR, 'pdfs')
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
 PERSIST_DIR = os.path.join(BASE_DIR, 'chroma_db')
+PDFS_UPLOAD_DIR = os.path.join(BASE_DIR, 'pdfs_upload')
 
 # Model configurations
 MODEL_NAME = "deepseek-r1:1.5b"

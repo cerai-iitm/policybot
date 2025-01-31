@@ -1,5 +1,6 @@
 venv/
 pdfs/
+pdfs_upload/
 .qodo
 **__pycache__**
 pdfs.csv
