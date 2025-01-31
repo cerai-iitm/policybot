@@ -38,6 +38,14 @@ Launch the Streamlit application:
 streamlit run streamlit_app.py
 ```
 
+## Features (Modes of Chat)
+1. Regular Chat: A standard chat setup with RAG (Retrieval-Augmented Generation) enabled.
+
+2. Single PDF Chat: Upload a PDF and ask questions specifically about its content (RAG is applied only to that PDF).
+
+3. Direct Chat: No RAG; you can provide context manually within the chat itself.
+
+
 ## Notes
 - Ensure Ollama is running before starting the chatbot.
 - The preprocessing step is required every time new PDFs are added.
