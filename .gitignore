@@ -3,7 +3,7 @@ pdfs/
 pdfs_upload/
 .qodo
 **__pycache__**
-pdfs.csv
+# pdfs.csv
 
 chroma_db/
 logs/
