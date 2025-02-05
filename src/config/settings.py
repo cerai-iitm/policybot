@@ -12,15 +12,19 @@ MODEL_NAME = "deepseek-r1:latest"
 CHROMA_COLLECTION_NAME = 'pdf_documents'
 
 # Document processing configurations
-CHUNK_SIZE = 1000
+CHUNK_SIZE = 1400
 CHUNK_OVERLAP = 200
 
 # QA configurations
 RETRIEVAL_K = 5
 
+# New system instruction for the prompt.
+SYSTEM_INSTRUCTION = "Only use the provided context to answer and not anything else. If you don't know the answer, say 'I don't know it.'"
+
 # Prompt template
 QA_TEMPLATE = """
-You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.
+{{- if .System }}{{ .System }}{{ end }}
+You are an assistant for question-answering tasks.
 Question: {question} 
 Context: {context} 
 Answer:

@@ -46,11 +46,15 @@ def handle_single_pdf_chat():
         file_path = os.path.join(PDFS_UPLOAD_DIR, uploaded_file.name)
         
         if st.session_state.temp_pdf_docs is None:
-            upload_pdf(uploaded_file)
-            documents = load_pdf(file_path)
-            st.session_state.temp_pdf_docs = split_text(documents)
-            logger.info(f"Processed PDF: {uploaded_file.name} - {len(st.session_state.temp_pdf_docs)} chunks created")
-            st.sidebar.success("PDF processed successfully!")
+            try:
+                upload_pdf(uploaded_file)
+                documents = load_pdf(file_path)
+                st.session_state.temp_pdf_docs = split_text(documents)
+                logger.info(f"Processed PDF: {uploaded_file.name} - {len(st.session_state.temp_pdf_docs)} chunks created")
+                st.sidebar.success("PDF processed successfully!")
+            except Exception as e:
+                logger.error(f"Error processing PDF {uploaded_file.name}: {str(e)}")
+                st.sidebar.error("Failed to process PDF.")
 
     if query := st.chat_input("Ask about the uploaded PDF"):
         st.session_state.messages.append({"role": "user", "content": query})
