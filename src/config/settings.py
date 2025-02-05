@@ -8,7 +8,7 @@ PERSIST_DIR = os.path.join(BASE_DIR, 'chroma_db')
 PDFS_UPLOAD_DIR = os.path.join(BASE_DIR, 'pdfs_upload')
 
 # Model configurations
-MODEL_NAME = "deepseek-r1:1.5b"
+MODEL_NAME = "deepseek-r1:latest"
 CHROMA_COLLECTION_NAME = 'pdf_documents'
 
 # Document processing configurations
