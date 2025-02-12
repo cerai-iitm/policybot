@@ -2,9 +2,15 @@ import os
 import logging
 from typing import List
 from langchain_community.document_loaders import PyPDFLoader, PDFPlumberLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_experimental.text_splitter import SemanticChunker
+from langchain_ollama import OllamaEmbeddings  # Updated import
 from pypdf import PdfReader
-from ..config.settings import CHUNK_SIZE, CHUNK_OVERLAP, PDFS_UPLOAD_DIR
+from ..config.settings import (
+    MODEL_NAME,
+    SEMANTIC_BREAKPOINT_THRESHOLD,
+    MIN_CHUNK_SIZE,
+    PDFS_UPLOAD_DIR
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +52,27 @@ def load_pdf(file_path: str) -> List:
         return []
 
 def split_text(documents: List) -> List:
-    """Split documents into smaller chunks."""
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        add_start_index=True
-    )
-    return text_splitter.split_documents(documents)
+    """Split documents using semantic chunking."""
+    try:
+        embeddings = OllamaEmbeddings(model=MODEL_NAME)
+        text_splitter = SemanticChunker(
+            embeddings=embeddings,
+            add_start_index=True,
+            min_chunk_size=MIN_CHUNK_SIZE,
+            breakpoint_threshold_amount=SEMANTIC_BREAKPOINT_THRESHOLD
+        )
+        chunks = text_splitter.split_documents(documents)
+        logger.info(f"Created {len(chunks)} semantic chunks")
+        return chunks
+    except Exception as e:
+        logger.error(f"Error in semantic chunking: {str(e)}")
+        # Fallback to RecursiveCharacterTextSplitter if semantic chunking fails
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200,
+            add_start_index=True
+        )
+        chunks = text_splitter.split_documents(documents)
+        logger.warning("Falling back to regular chunking")
+        return chunks
