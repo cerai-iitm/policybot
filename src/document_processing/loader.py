@@ -9,7 +9,9 @@ from ..config.settings import (
     MODEL_NAME,
     SEMANTIC_BREAKPOINT_THRESHOLD,
     MIN_CHUNK_SIZE,
-    PDFS_UPLOAD_DIR
+    PDFS_UPLOAD_DIR,
+    CHUNK_SIZE,
+    CHUNK_OVERLAP
 )
 
 logger = logging.getLogger(__name__)
@@ -69,8 +71,8 @@ def split_text(documents: List) -> List:
         # Fallback to RecursiveCharacterTextSplitter if semantic chunking fails
         from langchain_text_splitters import RecursiveCharacterTextSplitter
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
+            chunk_size=CHUNK_SIZE,
+            chunk_overlap=CHUNK_OVERLAP,
             add_start_index=True
         )
         chunks = text_splitter.split_documents(documents)

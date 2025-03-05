@@ -1,6 +1,6 @@
 from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_ollama import OllamaEmbeddings
-from ..config.settings import MODEL_NAME
+from ..config.settings import MODEL_NAME, RETRIEVAL_K
 import tempfile
 
 def create_temp_db():
@@ -15,4 +15,4 @@ def create_temp_store():
 def process_single_pdf(documents, query):
     temp_store = create_temp_store()
     temp_store.add_documents(documents)
-    return temp_store.similarity_search(query, k=5)
+    return temp_store.similarity_search(query, k=RETRIEVAL_K)
