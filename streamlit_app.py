@@ -71,6 +71,11 @@ def handle_single_pdf_chat():
 def handle_direct_chat():
     logger = setup_logger("direct_chat")
     context = st.sidebar.text_area("Provide context (optional)", height=200)
+
+    model_template = st.sidebar.selectbox(
+        "Select Model Template",
+        ["Deepseek", "Mistral", "LLaMA", "Qwen", "Gemma"]
+    )
     
     if query := st.chat_input("Chat directly with the model"):
         st.session_state.messages.append({"role": "user", "content": query})
@@ -78,7 +83,11 @@ def handle_direct_chat():
             st.markdown(query)
 
         with st.chat_message("assistant"):
-            response = get_direct_response(query, context)
+            response = get_direct_response(
+                query, 
+                context, 
+                model_name=model_template,  
+            )
             st.markdown(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
             log_direct_interaction(logger, query, context, response)
