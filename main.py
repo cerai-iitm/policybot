@@ -2,10 +2,13 @@ import os
 import sys
 import logging
 from src.config.settings import PDFS_DIR
-# from src.utils.logging_utils import setup_logging
+from src.utils.logging_utils import configure_root_logger
 from src.document_processing.loader import load_pdf, split_text
 from src.qa_system.retriever import retrieve_docs, index_documents
 from src.qa_system.answering import answer_question
+
+# Configure the root logger to prevent propagation to console except for warnings and above
+configure_root_logger(logging.WARNING)
 
 def preprocess_pdfs():
     processed_count = 0

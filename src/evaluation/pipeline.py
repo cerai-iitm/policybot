@@ -82,7 +82,6 @@ class EvaluationPipeline:
             raise ValueError(f"Dataset missing columns: {missing_cols}")
             
         # Process each row
-        print(f"Processing {len(df)} evaluation pairs...")
         
         for idx, row in df.iterrows():
             context = row.get(context_col, "") if context_col in df.columns else ""
@@ -96,7 +95,7 @@ class EvaluationPipeline:
                     metadata={'source_row': idx}
                 )
             except Exception as e:
-                print(f"Error processing row {idx}: {str(e)}")
+                pass
                 
         return self.get_results_df()
     
@@ -121,16 +120,13 @@ class EvaluationPipeline:
             else:
                 raise ValueError(f"Unsupported format type: {format_type}")
                 
-            print(f"Results saved to {filename}")
             return filename
         else:
-            print("No results to save")
             return ""
     
     def generate_visualizations(self) -> None:
         """Generate visualizations from evaluation results"""
         if not self.results:
-            print("No results to visualize")
             return
             
         results_df = self.get_results_df()
@@ -178,4 +174,3 @@ class EvaluationPipeline:
         summary_stats = results_df[metric_cols].describe()
         summary_stats.to_csv(os.path.join(self.output_dir, f"summary_statistics_{self.timestamp}.csv"))
         
-        print(f"Visualizations saved to {self.output_dir}")

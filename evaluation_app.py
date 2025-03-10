@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import json
 import time
+import logging
 from datetime import datetime
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -11,7 +12,10 @@ from src.qa_system.answering import answer_question
 from src.evaluation.simple_evaluator import SimpleEvaluator
 from src.evaluation.pipeline import EvaluationPipeline
 from langchain_core.documents import Document
-from src.utils.logging_utils import setup_logger, log_evaluation
+from src.utils.logging_utils import setup_logger, log_evaluation, configure_root_logger
+
+# Configure the root logger to prevent propagation to console
+configure_root_logger(logging.ERROR)
 
 # Setup evaluation logger
 eval_logger = setup_logger("evaluation")

@@ -20,7 +20,6 @@ class SimpleEvaluator:
     
     def __init__(self, use_advanced_metrics=True):
         """Initialize the evaluator with necessary models"""
-        print("Loading semantic similarity model...")
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.rouge_scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
         
@@ -28,7 +27,6 @@ class SimpleEvaluator:
         self.advanced_metrics = None
         if use_advanced_metrics and has_advanced_metrics:
             self.advanced_metrics = AdvancedMetrics()
-            print("Advanced metrics initialized")
     
     def evaluate_answer(self, human_answer, llm_answer, context=None, question=None):
         """Evaluate LLM response against human answer and return scores"""
@@ -111,12 +109,12 @@ class SimpleEvaluator:
         weight_config = {
             # Basic metrics (always available)
             'basic': {
-                'similarity': 0.35,
-                'rougeL': 0.25,
+                'similarity': 0.40,  # Increased from 0.35
+                'rougeL': 0.30,      # Increased from 0.25
                 'rouge1': 0.05,
                 'rouge2': 0.05,
-                'question_relevance': 0.05,
-                'context_relevance': 0.05
+                'question_relevance': 0.10,  # Increased from 0.05
+                'context_relevance': 0.10     # Increased from 0.05
             },
             # Advanced metrics (if available)
             'advanced': {

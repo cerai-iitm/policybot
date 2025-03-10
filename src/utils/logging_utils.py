@@ -16,6 +16,8 @@ def setup_logger(mode):
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         logger.setLevel(logging.INFO)
+        # Prevent propagation to root logger (this stops console output)
+        logger.propagate = False
     return logger
 
 def log_rag_interaction(logger, question, context_docs, answer):
@@ -26,7 +28,6 @@ def log_rag_interaction(logger, question, context_docs, answer):
             f"\nSource: {doc.metadata.get('source', 'Unknown')}"
             f"\nContext: {doc.page_content}"
         )
-    
     log_entry = (
         f"\nQuestion: {question}\n"
         f"Sources and Contexts Used: {''.join(contexts_with_sources)}\n"
@@ -46,7 +47,6 @@ def log_direct_interaction(logger, question, context, response_data):
         answer = response_data.get("answer", "")
         reasoning = response_data.get("reasoning", "No structured reasoning provided")
         full_response = response_data.get("full_response", "")
-    
     log_entry = (
         f"\nQuestion: {question}\n"
         f"Provided Context: {context if context else 'None'}\n"
@@ -59,13 +59,33 @@ def log_direct_interaction(logger, question, context, response_data):
 
 def log_evaluation(logger, question, context, llm_answer, human_answer, results):
     """Log evaluation of LLM answers against human reference answers"""
+    metrics_details = "\n".join([f"{k}: {round(v, 3)}" for k, v in results.items()])
     log_entry = (
         f"\nQuestion: {question}\n"
         f"Context: {context[:200]}{'...' if len(context) > 200 else ''}\n"
         f"LLM Answer: {llm_answer}\n"
         f"Human Answer: {human_answer}\n"
-        f"Score: {results['final_score']}\n"
-        f"Detailed Metrics: {json.dumps({k: round(v, 3) for k, v in results.items()}, indent=2)}\n"
+        f"Evaluation Metrics:\n{metrics_details}\n"
         f"{'-'*80}"
     )
     logger.info(log_entry)
+
+def configure_root_logger(console_level=logging.WARNING):
+    """Configure the root logger to control console output"""
+    root_logger = logging.getLogger()
+    
+    # Set the root logger level
+    root_logger.setLevel(logging.INFO)
+    
+    # Remove any existing handlers to avoid duplication
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Add a console handler with the specified level
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(console_level)
+    formatter = logging.Formatter('%(levelname)s - %(name)s - %(message)s')
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    return root_logger

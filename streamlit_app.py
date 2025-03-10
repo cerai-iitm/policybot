@@ -1,13 +1,18 @@
 import streamlit as st
-import tempfile
+import re
 import os
 from src.document_processing.loader import upload_pdf, load_pdf, split_text
 from src.qa_system.retriever import retrieve_docs, index_documents
 from src.qa_system.answering import answer_question
 from src.qa_system.single_pdf import process_single_pdf
 from src.qa_system.direct_chat import get_direct_response
-from src.utils.logging_utils import setup_logger, log_direct_interaction
+from src.utils.logging_utils import setup_logger, log_direct_interaction, configure_root_logger
 from src.config.settings import PDFS_UPLOAD_DIR
+from src.evaluation.simple_evaluator import SimpleEvaluator
+import logging
+
+# Configure root logger to only show warnings and errors in console
+configure_root_logger(console_level=logging.WARNING)
 
 st.set_page_config(page_title="AI Policy Chatbot", layout="wide")
 
@@ -87,6 +92,10 @@ def handle_direct_chat():
     # Add toggle for showing reasoning steps
     st.session_state.show_reasoning = st.sidebar.checkbox("Show reasoning steps", value=st.session_state.show_reasoning)
     
+    # NEW: Add human reference answer for evaluation in the sidebar
+    human_ref = st.sidebar.text_area("Human Reference Answer for Evaluation", height=100, 
+                                     placeholder="Enter human answer to compare...", key="human_ref")
+    
     if query := st.chat_input("Chat directly with the model"):
         st.session_state.messages.append({"role": "user", "content": query})
         with st.chat_message("user"):
@@ -99,29 +108,76 @@ def handle_direct_chat():
                 model_name=model_template,  
             )
             
-            # Extract components
-            reasoning = response_data.get("reasoning", "")
-            answer = response_data.get("answer", "")
-            full_response = response_data.get("full_response", "")
+            # Extract only the final answer
+            final_answer = response_data.get("answer", "")
             
-            # Display the answer
-            st.markdown(answer)
+            # Display the final answer
+            st.markdown(final_answer)
             
-            # Show reasoning in an expander if available and enabled
-            if reasoning and st.session_state.show_reasoning:
+            # Show reasoning if available and enabled
+            if response_data.get("reasoning") and st.session_state.show_reasoning:
                 with st.expander("Show reasoning"):
-                    st.markdown(reasoning)
+                    st.markdown(response_data.get("reasoning"))
             
-            # Save to chat history with reasoning included
+            # Save to chat history with only the final answer
             st.session_state.messages.append({
                 "role": "assistant", 
-                "content": answer,
-                "reasoning": reasoning,
-                "full_response": full_response
+                "content": final_answer,
+                "reasoning": response_data.get("reasoning", ""),
+                "full_response": final_answer
             })
             
-            # Log the interaction
-            log_direct_interaction(logger, query, context, response_data)
+            # If a human reference is provided, perform evaluation using SimpleEvaluator
+            if human_ref.strip():
+                evaluator = SimpleEvaluator(use_advanced_metrics=False)
+                
+                # Extract the answer content from JSON objects in the response if present
+                final_answer_content = final_answer
+                
+                try:
+                    # Try to find JSON-like objects in the text
+                    import json
+                    import re
+                    
+                    # Look for JSON objects using a safer regex pattern that matches JSON structure
+                    json_pattern = r'(\{[^{}]*(\{[^{}]*\})*[^{}]*\})'
+                    json_objects = re.findall(json_pattern, final_answer)
+                    
+                    if json_objects:
+                        for json_str, _ in json_objects:
+                            try:
+                                # Try to parse as JSON (safer than eval)
+                                parsed_obj = json.loads(json_str)
+                                
+                                # Check if this is a "Final Answer" object
+                                if isinstance(parsed_obj, dict) and parsed_obj.get("title") == "Final Answer":
+                                    final_answer_content = parsed_obj.get("content", "")
+                                    break
+                            except json.JSONDecodeError:
+                                # If JSON parsing fails, continue with the next potential match
+                                continue
+                                
+                except Exception as e:
+                    # If any error occurs during parsing, fall back to using the full answer
+                    st.warning(f"Error parsing structured response: {str(e)}")
+                    
+                # Evaluate using simple metrics (only basic ones)
+                print("final_ans", final_answer_content)
+                print("******************************")
+                scores = evaluator.evaluate_answer(human_ref, final_answer_content, context, query)
+                st.info(f"Evaluation - Final Score: {scores.get('final_score', 'N/A')}")
+                
+                # Log what was compared
+                logger.info(f"Evaluation Comparison - Human Answer: {human_ref}")
+                logger.info(f"Evaluation Comparison - LLM Answer: {final_answer_content}")
+                logger.info(f"Evaluation Metrics: {scores}")
+            
+            # Also log the original response data for reference if needed
+            log_direct_interaction(logger, query, context, {
+                "answer": final_answer,
+                "reasoning": response_data.get("reasoning", ""),
+                "full_response": final_answer
+            })
 
 def main():
     st.title("AI Policy Chatbot")

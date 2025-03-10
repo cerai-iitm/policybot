@@ -53,12 +53,11 @@ For each reasoning step:
 5. Use thoughts as a scratchpad, writing out all reasoning explicitly.
 6. Consider multiple methods and explore alternative viewpoints.
 
-Once you've completed your reasoning, provide your final answer in this format:
+Once you've completed your reasoning, make sure to absolutely provide your final answer in the following format (title should always be "Final Answer", this is important) only not anything else:
 
 {{
     "title": "Final Answer",
-    "content": "Your comprehensive response based on context",
-    "next_action": "final_answer",
+    "content": "Your final answer",
     "confidence": [your final confidence score]
 }}
 """

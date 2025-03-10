@@ -35,7 +35,7 @@ def get_direct_response(query: str, context: str = "", model_name: str = "Defaul
                 ("system", SYSTEM_INSTRUCTION),
                 ("user", f"<｜User｜> {query}"),
                 ("system", f"Context: {context if context else 'No specific context provided.'}"),
-                ("assistant", "<｜Assistant｜> Please provide your reasoning and answer:")
+                # ("assistant", "<｜Assistant｜> Please provide your reasoning and answer:")
             ])
             model_instance = OllamaLLM(model="deepseek-r1:latest")
         elif model_name == "Mistral":
@@ -48,14 +48,15 @@ def get_direct_response(query: str, context: str = "", model_name: str = "Defaul
                 ("system", "<|start_header_id|>system<|end_header_id|>\n" + LLAMA_SYSTEM_INSTRUCTION + "<|eot_id|>"),
                 ("user", f"<|start_header_id|>user<|end_header_id|>\n{query}<|eot_id|>"),
                 ("system", f"<|start_header_id|>system<|end_header_id|>\nContext: {context if context else 'No specific context provided.'}<|eot_id|>"),
-                ("assistant", "<|start_header_id|>assistant<|end_header_id|>\nPlease provide your reasoning and answer:")
+                # ("assistant", "<|start_header_id|>assistant<|end_header_id|>\nPlease provide your reasoning and answer:")
+                # ("assistant", "<|start_header_id|>assistant<|end_header_id|>\nAnswer:")
             ])
             model_instance = OllamaLLM(model="llama3.1:8b")
         elif model_name == "Qwen":
             prompt = ChatPromptTemplate([
-                ("system", "instructionsystem\n" + GWEN_SYSTEM_INSTRUCTION + "\ninstructionsystem"),
-                ("user", f"instructionsuser\n{query}\ninstructionsuser"),
-                ("system", f"instructionsystem\nContext: {context if context else 'No specific context provided.'}\ninstructionsystem"),
+                ("system", "<|im_start|>system\n" + GWEN_SYSTEM_INSTRUCTION + "<|im_end|>"),
+                ("user", f"<|im_start|>user\n{query}<|im_end|>"),
+                ("system", f"<|im_start|>system\nContext: {context if context else 'No specific context provided.'}<|im_end|>"),
                 ("assistant", "instructionsassistant\nPlease provide your reasoning and answer:")
             ])
             model_instance = OllamaLLM(model="qwen2.5:7b")
@@ -63,7 +64,7 @@ def get_direct_response(query: str, context: str = "", model_name: str = "Defaul
             prompt = ChatPromptTemplate([
                 ("system", GEMMA_SYSTEM_INSTRUCTION),
                 ("user", f"<start_of_turn>user\nContext: {context if context else 'No specific context provided.'}\n\nQuery: {query}<end_of_turn>"),
-                ("assistant", "<start_of_turn>assistant\nPlease provide your reasoning and answer:")
+                # ("assistant", "<start_of_turn>assistant\nPlease provide your reasoning and answer:")
             ])
             model_instance = OllamaLLM(model="gemma:7b")
         else:
