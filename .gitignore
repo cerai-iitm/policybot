@@ -9,3 +9,4 @@ chroma_db/
 logs/
 
 LLM-Reasoner/
+llm_reasoner/

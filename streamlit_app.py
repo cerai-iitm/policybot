@@ -16,11 +16,18 @@ def init_session_state():
         st.session_state.messages = []
     if "temp_pdf_docs" not in st.session_state:
         st.session_state.temp_pdf_docs = None
+    if "show_reasoning" not in st.session_state:
+        st.session_state.show_reasoning = False
 
 def display_chat_messages():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            
+            # Display reasoning if available and enabled
+            if st.session_state.show_reasoning and message.get("role") == "assistant" and message.get("reasoning"):
+                with st.expander("Show reasoning"):
+                    st.markdown(message["reasoning"])
 
 def handle_regular_chat():
     if query := st.chat_input("What would you like to know?"):
@@ -77,20 +84,44 @@ def handle_direct_chat():
         ["Deepseek", "Mistral", "LLaMA", "Qwen", "Gemma"]
     )
     
+    # Add toggle for showing reasoning steps
+    st.session_state.show_reasoning = st.sidebar.checkbox("Show reasoning steps", value=st.session_state.show_reasoning)
+    
     if query := st.chat_input("Chat directly with the model"):
         st.session_state.messages.append({"role": "user", "content": query})
         with st.chat_message("user"):
             st.markdown(query)
 
         with st.chat_message("assistant"):
-            response = get_direct_response(
+            response_data = get_direct_response(
                 query, 
                 context, 
                 model_name=model_template,  
             )
-            st.markdown(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            log_direct_interaction(logger, query, context, response)
+            
+            # Extract components
+            reasoning = response_data.get("reasoning", "")
+            answer = response_data.get("answer", "")
+            full_response = response_data.get("full_response", "")
+            
+            # Display the answer
+            st.markdown(answer)
+            
+            # Show reasoning in an expander if available and enabled
+            if reasoning and st.session_state.show_reasoning:
+                with st.expander("Show reasoning"):
+                    st.markdown(reasoning)
+            
+            # Save to chat history with reasoning included
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": answer,
+                "reasoning": reasoning,
+                "full_response": full_response
+            })
+            
+            # Log the interaction
+            log_direct_interaction(logger, query, context, response_data)
 
 def main():
     st.title("AI Policy Chatbot")

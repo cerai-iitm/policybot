@@ -35,12 +35,24 @@ def log_rag_interaction(logger, question, context_docs, answer):
     )
     logger.info(log_entry)
 
-def log_direct_interaction(logger, question, context, answer):
-    """Log direct chat interactions"""
+def log_direct_interaction(logger, question, context, response_data):
+    """Log direct chat interactions with reasoning steps"""
+    # Handle both string responses and dictionary responses
+    if isinstance(response_data, str):
+        answer = response_data
+        reasoning = "No structured reasoning provided"
+        full_response = response_data
+    else:
+        answer = response_data.get("answer", "")
+        reasoning = response_data.get("reasoning", "No structured reasoning provided")
+        full_response = response_data.get("full_response", "")
+    
     log_entry = (
         f"\nQuestion: {question}\n"
         f"Provided Context: {context if context else 'None'}\n"
+        f"Reasoning Steps:\n{reasoning}\n"
         f"Answer: {answer}\n"
+        f"Full Response: {full_response}\n"
         f"{'-'*80}"
     )
     logger.info(log_entry)
