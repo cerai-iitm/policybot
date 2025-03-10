@@ -1,67 +1,25 @@
-import argparse
-import json
-import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 from rouge_score import rouge_scorer
-import torch
-import os
-import time
-from datetime import datetime
-
-# Import optional advanced metrics if available
-try:
-    from .advanced_metrics import AdvancedMetrics
-    has_advanced_metrics = True
-except ImportError:
-    has_advanced_metrics = False
 
 class SimpleEvaluator:
-    """A lightweight evaluator for LLM answers that doesn't require external API calls"""
+    """A lightweight evaluator for LLM answers that uses only basic metrics"""
     
-    def __init__(self, use_advanced_metrics=True):
+    def __init__(self):
         """Initialize the evaluator with necessary models"""
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.rouge_scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
-        
-        # Initialize advanced metrics if available and requested
-        self.advanced_metrics = None
-        if use_advanced_metrics and has_advanced_metrics:
-            self.advanced_metrics = AdvancedMetrics()
     
     def evaluate_answer(self, human_answer, llm_answer, context=None, question=None):
         """Evaluate LLM response against human answer and return scores"""
         
-        # Basic metrics (always available)
-        basic_metrics = self._get_basic_metrics(human_answer, llm_answer, context, question)
-        
-        # Advanced metrics (if available)
-        advanced_metrics = {}
-        if self.advanced_metrics:
-            # Entity analysis
-            advanced_metrics.update(self.advanced_metrics.entity_precision_recall(human_answer, llm_answer))
-            
-            # Numeric accuracy
-            advanced_metrics.update(self.advanced_metrics.numeric_accuracy(human_answer, llm_answer))
-            
-            # BLEU score with smoothing
-            advanced_metrics['bleu'] = self.advanced_metrics.calculate_bleu(human_answer, llm_answer)
-            
-            # Factual consistency (if context provided)
-            if context:
-                advanced_metrics.update(self.advanced_metrics.factual_consistency(context, human_answer, llm_answer))
-                
-            # BERTScore (more resource intensive)
-            # Only use for important evaluations or set a flag to enable
-            # advanced_metrics.update(self.advanced_metrics.get_bert_score(human_answer, llm_answer))
-        
-        # Combined metrics
-        all_metrics = {**basic_metrics, **advanced_metrics}
+        # Calculate basic metrics
+        metrics = self._get_basic_metrics(human_answer, llm_answer, context, question)
         
         # Calculate final score
-        final_score = self._calculate_final_score(all_metrics)
-        all_metrics['final_score'] = final_score
+        final_score = self._calculate_final_score(metrics)
+        metrics['final_score'] = final_score
         
-        return all_metrics
+        return metrics
     
     def _get_basic_metrics(self, human_answer, llm_answer, context=None, question=None):
         """Get basic evaluation metrics"""
@@ -105,26 +63,14 @@ class SimpleEvaluator:
     
     def _calculate_final_score(self, metrics):
         """Calculate final weighted score based on available metrics"""
-        # Define weights for different metric groups
+        # Define weights for different metrics
         weight_config = {
-            # Basic metrics (always available)
-            'basic': {
-                'similarity': 0.40,  # Increased from 0.35
-                'rougeL': 0.30,      # Increased from 0.25
-                'rouge1': 0.05,
-                'rouge2': 0.05,
-                'question_relevance': 0.10,  # Increased from 0.05
-                'context_relevance': 0.10     # Increased from 0.05
-            },
-            # Advanced metrics (if available)
-            'advanced': {
-                'entity_f1': 0.05,
-                'numeric_precision': 0.025,
-                'numeric_recall': 0.025,
-                'bleu': 0.05,
-                'fact_consistency': 0.05,
-                # 'bert_f1': 0.05  # Optional if using BERTScore
-            }
+            'similarity': 0.40,
+            'rougeL': 0.30,
+            'rouge1': 0.05,
+            'rouge2': 0.05,
+            'question_relevance': 0.10,
+            'context_relevance': 0.10,
         }
         
         # Calculate weighted score
@@ -132,71 +78,13 @@ class SimpleEvaluator:
         total_weight = 0.0
         
         # Process all weights that have matching metrics
-        for group, weights in weight_config.items():
-            for metric, weight in weights.items():
-                if metric in metrics:
-                    score += metrics[metric] * weight
-                    total_weight += weight
+        for metric, weight in weight_config.items():
+            if metric in metrics:
+                score += metrics[metric] * weight
+                total_weight += weight
         
         # Normalize by actual weights used
         if total_weight > 0:
             return round(score / total_weight, 3)
         else:
             return 0.0
-    
-    def evaluate_from_file(self, file_path, output_path=None):
-        """Evaluate answers from a CSV or JSON file with columns/keys for context, question, human_answer, llm_answer"""
-        if file_path.endswith('.csv'):
-            data = pd.read_csv(file_path)
-        elif file_path.endswith('.json'):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = pd.DataFrame(json.load(f))
-        else:
-            raise ValueError("File must be CSV or JSON")
-        
-        results = []
-        for _, row in data.iterrows():
-            context = row.get('context', '')
-            question = row.get('question', '')
-            human_answer = row['human_answer']
-            llm_answer = row['llm_answer']
-            
-            scores = self.evaluate_answer(human_answer, llm_answer, context, question)
-            results.append({
-                'question': question,
-                'human_answer': human_answer,
-                'llm_answer': llm_answer,
-                **scores
-            })
-        
-        results_df = pd.DataFrame(results)
-        
-        if output_path:
-            results_df.to_csv(output_path, index=False)
-        
-        return results_df
-
-def main():
-    parser = argparse.ArgumentParser(description='Evaluate LLM answers against human answers')
-    parser.add_argument('--file', help='Path to CSV or JSON file with answers')
-    parser.add_argument('--output', help='Path to save output results')
-    parser.add_argument('--human', help='Human answer text')
-    parser.add_argument('--llm', help='LLM answer text')
-    parser.add_argument('--context', help='Context text (optional)')
-    parser.add_argument('--question', help='Question text (optional)')
-    
-    args = parser.parse_args()
-    evaluator = SimpleEvaluator()
-    
-    if args.file:
-        results = evaluator.evaluate_from_file(args.file, args.output)
-        print(f"Average score: {results['final_score'].mean()}")
-        print(f"Results saved to {args.output}" if args.output else "")
-    elif args.human and args.llm:
-        scores = evaluator.evaluate_answer(args.human, args.llm, args.context, args.question)
-        print(json.dumps(scores, indent=2))
-    else:
-        parser.print_help()
-
-if __name__ == "__main__":
-    main()

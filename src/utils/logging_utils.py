@@ -3,6 +3,7 @@ from datetime import datetime
 import os
 from ..config.settings import LOGS_DIR
 import json
+import warnings
 
 def setup_logger(mode):
     """Setup a logger for a specific chat mode"""
@@ -59,7 +60,16 @@ def log_direct_interaction(logger, question, context, response_data):
 
 def log_evaluation(logger, question, context, llm_answer, human_answer, results):
     """Log evaluation of LLM answers against human reference answers"""
-    metrics_details = "\n".join([f"{k}: {round(v, 3)}" for k, v in results.items()])
+    metrics_details = "\n".join([
+        f"Similarity: {results.get('similarity', 0):.3f}",
+        f"ROUGE-1: {results.get('rouge1', 0):.3f}",
+        f"ROUGE-2: {results.get('rouge2', 0):.3f}",
+        f"ROUGE-L: {results.get('rougeL', 0):.3f}",
+        f"Question Relevance: {results.get('question_relevance', 0):.3f}",
+        f"Context Relevance: {results.get('context_relevance', 0):.3f}",
+        f"Final Score: {results.get('final_score', 0):.3f}"
+    ])
+    
     log_entry = (
         f"\nQuestion: {question}\n"
         f"Context: {context[:200]}{'...' if len(context) > 200 else ''}\n"
@@ -72,6 +82,12 @@ def log_evaluation(logger, question, context, llm_answer, human_answer, results)
 
 def configure_root_logger(console_level=logging.WARNING):
     """Configure the root logger to control console output"""
+    # Suppress specific torch warning
+    warnings.filterwarnings('ignore', message='.*Examining the path of torch.classes raised.*')
+    
+    # Filter out progress bar output
+    logging.getLogger('tqdm').setLevel(logging.WARNING)
+    
     root_logger = logging.getLogger()
     
     # Set the root logger level

@@ -1,6 +1,8 @@
 import streamlit as st
 import re
 import os
+import warnings
+import logging
 from src.document_processing.loader import upload_pdf, load_pdf, split_text
 from src.qa_system.retriever import retrieve_docs, index_documents
 from src.qa_system.answering import answer_question
@@ -9,7 +11,10 @@ from src.qa_system.direct_chat import get_direct_response
 from src.utils.logging_utils import setup_logger, log_direct_interaction, configure_root_logger
 from src.config.settings import PDFS_UPLOAD_DIR
 from src.evaluation.simple_evaluator import SimpleEvaluator
-import logging
+
+# Suppress torch warnings and progress bars
+warnings.filterwarnings('ignore', message='.*Examining the path of torch.classes raised.*')
+logging.getLogger('tqdm').setLevel(logging.WARNING)
 
 # Configure root logger to only show warnings and errors in console
 configure_root_logger(console_level=logging.WARNING)
@@ -92,7 +97,7 @@ def handle_direct_chat():
     # Add toggle for showing reasoning steps
     st.session_state.show_reasoning = st.sidebar.checkbox("Show reasoning steps", value=st.session_state.show_reasoning)
     
-    # NEW: Add human reference answer for evaluation in the sidebar
+    # Add human reference answer for evaluation in the sidebar
     human_ref = st.sidebar.text_area("Human Reference Answer for Evaluation", height=100, 
                                      placeholder="Enter human answer to compare...", key="human_ref")
     
@@ -129,7 +134,7 @@ def handle_direct_chat():
             
             # If a human reference is provided, perform evaluation using SimpleEvaluator
             if human_ref.strip():
-                evaluator = SimpleEvaluator(use_advanced_metrics=False)
+                evaluator = SimpleEvaluator()
                 
                 # Extract the answer content from JSON objects in the response if present
                 final_answer_content = final_answer
@@ -161,11 +166,9 @@ def handle_direct_chat():
                     # If any error occurs during parsing, fall back to using the full answer
                     st.warning(f"Error parsing structured response: {str(e)}")
                     
-                # Evaluate using simple metrics (only basic ones)
-                print("final_ans", final_answer_content)
-                print("******************************")
+                # Evaluate using only basic metrics
                 scores = evaluator.evaluate_answer(human_ref, final_answer_content, context, query)
-                st.info(f"Evaluation - Final Score: {scores.get('final_score', 'N/A')}")
+                st.info(f"Evaluation - Final Score: {scores.get('final_score', 0):.3f}")
                 
                 # Log what was compared
                 logger.info(f"Evaluation Comparison - Human Answer: {human_ref}")
