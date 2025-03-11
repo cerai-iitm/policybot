@@ -41,7 +41,7 @@ class SimpleEvaluator:
             human_question_rel = util.pytorch_cos_sim(human_emb, question_emb).item()
             llm_question_rel = util.pytorch_cos_sim(llm_emb, question_emb).item()
             # Compare model's relevance to the question with human's relevance
-            question_relevance = min(1.0, llm_question_rel / max(human_question_rel, 0.01))
+            question_relevance = (llm_question_rel / (human_question_rel + 1e-5)) ** 0.5
         
         # Context-based relevance (if context is provided)
         context_relevance = 0
@@ -50,7 +50,7 @@ class SimpleEvaluator:
             human_context_rel = util.pytorch_cos_sim(human_emb, context_emb).item()
             llm_context_rel = util.pytorch_cos_sim(llm_emb, context_emb).item()
             # Compare model's relevance to the context with human's relevance
-            context_relevance = min(1.0, llm_context_rel / max(human_context_rel, 0.01))
+            context_relevance = (llm_context_rel / (human_context_rel + 1e-5)) ** 0.5
         
         return {
             'similarity': similarity,
@@ -67,10 +67,10 @@ class SimpleEvaluator:
         weight_config = {
             'similarity': 0.40,
             'rougeL': 0.30,
-            'rouge1': 0.05,
-            'rouge2': 0.05,
-            'question_relevance': 0.10,
-            'context_relevance': 0.10,
+            'rouge1': 0.10,
+            'rouge2': 0.10,
+            'question_relevance': 0.05,
+            'context_relevance': 0.05,
         }
         
         # Calculate weighted score
