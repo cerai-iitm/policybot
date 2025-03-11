@@ -26,18 +26,11 @@ def init_session_state():
         st.session_state.messages = []
     if "temp_pdf_docs" not in st.session_state:
         st.session_state.temp_pdf_docs = None
-    if "show_reasoning" not in st.session_state:
-        st.session_state.show_reasoning = False
 
 def display_chat_messages():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-            
-            # Display reasoning if available and enabled
-            if st.session_state.show_reasoning and message.get("role") == "assistant" and message.get("reasoning"):
-                with st.expander("Show reasoning"):
-                    st.markdown(message["reasoning"])
 
 def handle_regular_chat():
     if query := st.chat_input("What would you like to know?"):
@@ -94,9 +87,6 @@ def handle_direct_chat():
         ["Deepseek", "Mistral", "LLaMA", "Qwen", "Gemma"]
     )
     
-    # Add toggle for showing reasoning steps
-    st.session_state.show_reasoning = st.sidebar.checkbox("Show reasoning steps", value=st.session_state.show_reasoning)
-    
     # Add human reference answer for evaluation in the sidebar
     human_ref = st.sidebar.text_area("Human Reference Answer for Evaluation", height=100, 
                                      placeholder="Enter human answer to compare...", key="human_ref")
@@ -107,79 +97,30 @@ def handle_direct_chat():
             st.markdown(query)
 
         with st.chat_message("assistant"):
-            response_data = get_direct_response(
+            response= get_direct_response(
                 query, 
                 context, 
                 model_name=model_template,  
             )
-            
-            # Extract only the final answer
-            final_answer = response_data.get("answer", "")
-            
-            # Display the final answer
-            st.markdown(final_answer)
-            
-            # Show reasoning if available and enabled
-            if response_data.get("reasoning") and st.session_state.show_reasoning:
-                with st.expander("Show reasoning"):
-                    st.markdown(response_data.get("reasoning"))
-            
-            # Save to chat history with only the final answer
+            st.markdown(response)
             st.session_state.messages.append({
                 "role": "assistant", 
-                "content": final_answer,
-                "reasoning": response_data.get("reasoning", ""),
-                "full_response": final_answer
+                "content": response,
             })
             
             # If a human reference is provided, perform evaluation using SimpleEvaluator
             if human_ref.strip():
                 evaluator = SimpleEvaluator()
-                
-                # Extract the answer content from JSON objects in the response if present
-                final_answer_content = final_answer
-                
-                try:
-                    # Try to find JSON-like objects in the text
-                    import json
-                    import re
-                    
-                    # Look for JSON objects using a safer regex pattern that matches JSON structure
-                    json_pattern = r'(\{[^{}]*(\{[^{}]*\})*[^{}]*\})'
-                    json_objects = re.findall(json_pattern, final_answer)
-                    
-                    if json_objects:
-                        for json_str, _ in json_objects:
-                            try:
-                                # Try to parse as JSON (safer than eval)
-                                parsed_obj = json.loads(json_str)
-                                
-                                # Check if this is a "Final Answer" object
-                                if isinstance(parsed_obj, dict) and parsed_obj.get("title") == "Final Answer":
-                                    final_answer_content = parsed_obj.get("content", "")
-                                    break
-                            except json.JSONDecodeError:
-                                # If JSON parsing fails, continue with the next potential match
-                                continue
-                                
-                except Exception as e:
-                    # If any error occurs during parsing, fall back to using the full answer
-                    st.warning(f"Error parsing structured response: {str(e)}")
-                    
-                # Evaluate using only basic metrics
-                scores = evaluator.evaluate_answer(human_ref, final_answer_content, context, query)
+                scores = evaluator.evaluate_answer(human_ref, response, context, query)
                 st.info(f"Evaluation - Final Score: {scores.get('final_score', 0):.3f}")
-                
-                # Log what was compared
+
                 logger.info(f"Evaluation Comparison - Human Answer: {human_ref}")
-                logger.info(f"Evaluation Comparison - LLM Answer: {final_answer_content}")
+                logger.info(f"Evaluation Comparison - LLM Answer: {response}")
                 logger.info(f"Evaluation Metrics: {scores}")
             
-            # Also log the original response data for reference if needed
+            # log the original response data for reference if needed
             log_direct_interaction(logger, query, context, {
-                "answer": final_answer,
-                "reasoning": response_data.get("reasoning", ""),
-                "full_response": final_answer
+                "answer": response,
             })
 
 def main():
