@@ -18,6 +18,8 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_core.documents import Document
 
+from langchain.embeddings import HuggingFaceEmbeddings
+
 # Suppress torch warnings and progress bars
 warnings.filterwarnings('ignore', message='.*Examining the path of torch.classes raised.*')
 logging.getLogger('tqdm').setLevel(logging.WARNING)
@@ -104,6 +106,25 @@ def handle_single_pdf_chat():
         ["Deepseek", "Mistral", "LLaMA", "Qwen", "Gemma"]
     )
     
+    # Add controls for chunk size and overlap
+    chunk_size = st.sidebar.slider("Chunk Size (words)", 
+                                  min_value=100, 
+                                  max_value=1000, 
+                                  value=500,
+                                  help="Larger chunks include more context, smaller chunks are more focused")
+    
+    chunk_overlap = st.sidebar.slider("Chunk Overlap (words)", 
+                                     min_value=0, 
+                                     max_value=200, 
+                                     value=100,
+                                     help="Overlap prevents important context from being split between chunks")
+    
+    k_documents = st.sidebar.slider("Number of chunks to retrieve", 
+                                  min_value=1, 
+                                  max_value=10, 
+                                  value=4,
+                                  help="More chunks provide more context but may add noise")
+    
     if uploaded_file:
         if not os.path.exists(PDFS_UPLOAD_DIR):
             os.makedirs(PDFS_UPLOAD_DIR)
@@ -124,10 +145,16 @@ def handle_single_pdf_chat():
                            f"{pdf_content['meta_data']['total_pages']} pages, "
                            f"Doc ID: {pdf_content['meta_data']['doc_id']}")
                 
-                # Chunk the text using single_pdf utils
-
-                # print(pdf_content["content"])
-                chunks = chunk_text(pdf_content['content'], pdf_content['meta_data']['file_name'], 500)
+                # Preprocess the text to improve quality
+                cleaned_text = pdf_content['content'].replace('\n\n', ' ').replace('  ', ' ')
+                
+                # Chunk the text using updated parameters
+                chunks = chunk_text(
+                    cleaned_text, 
+                    pdf_content['meta_data']['file_name'], 
+                    chunk_size,
+                    chunk_overlap
+                )
                 
                 # Convert chunks to LangChain documents
                 documents = []
@@ -164,7 +191,7 @@ def handle_single_pdf_chat():
                 
                 # Create embeddings and store in vector database
                 print("Embedding model:", embed_model)
-                embeddings = OllamaEmbeddings(model=embed_model)
+                embeddings = HuggingFaceEmbeddings(model_name = "BAAI/bge-base-en")
                 vector_store = InMemoryVectorStore(embeddings)
                 vector_store.add_documents(documents)
                 
@@ -176,7 +203,7 @@ def handle_single_pdf_chat():
                 }
                 
                 logger.info(f"Processed PDF: {uploaded_file.name} - "
-                           f"{len(documents)} chunks created and embedded with {embed_model}")
+                           f"{len(documents)} chunks created and embedded with BAAI/bge-base-en")
                 st.sidebar.success("PDF processed successfully!")
                 
             except Exception as e:
@@ -190,16 +217,21 @@ def handle_single_pdf_chat():
 
         if st.session_state.temp_pdf_docs:
             with st.chat_message("assistant"):
-                # Retrieve relevant documents
+                # Retrieve relevant documents with the user-specified k value
                 vector_store = st.session_state.temp_pdf_docs['vector_store']
-                related_docs = vector_store.similarity_search(query, k=4)
+                # Modify to get scores along with documents
+                retrieval_results = vector_store.similarity_search_with_score(query, k=k_documents)
+                related_docs = []
+                
+                # Process results to include similarity scores in metadata
+                for doc, score in retrieval_results:
+                    # Convert score to similarity (higher is better)
+                    similarity = round(float(score), 3)
+                    doc.metadata['similarity'] = similarity
+                    related_docs.append(doc)
                 
                 # Extract context from related documents
                 context = "\n\n".join([doc.page_content for doc in related_docs])
-
-                # print("------------------------------------------------")
-                # print("Context:", context)
-                # print("------------------------------------------------")
                 
                 # Use get_direct_response to leverage the same template system
                 response = get_direct_response(
@@ -208,12 +240,13 @@ def handle_single_pdf_chat():
                     model_name=model_template
                 )
                 
-                # Display the response with sources
+                # Display the response with sources and similarity scores
                 sources_display = "\n\nSources:\n"
                 for i, doc in enumerate(related_docs):
                     source = f"- {doc.metadata.get('source', 'Unknown')}"
                     chunk = f" (Chunk {doc.metadata.get('chunk_number', 'N/A')})"
-                    sources_display += f"{source}{chunk}\n"
+                    similarity = f" [Similarity: {doc.metadata.get('similarity', 'N/A')}]"
+                    sources_display += f"{source}{chunk}{similarity}\n"
                 
                 full_response = f"{response}{sources_display}"
                 st.markdown(full_response)
@@ -222,10 +255,9 @@ def handle_single_pdf_chat():
                 # Additional detailed logging for PDF chat
                 context_texts = []
                 for doc in related_docs:
-                    similarity_score = doc.metadata.get('similarity', 'Unknown') 
-                    # Sanitize context text before adding to list
+                    similarity_score = doc.metadata.get('similarity', 'Unknown')
                     safe_content = sanitize_text_for_logging(doc.page_content)
-                    context_texts.append(f"[Chunk {doc.metadata.get('chunk_number')}]: {safe_content}")
+                    context_texts.append(f"[Chunk {doc.metadata.get('chunk_number')}, Similarity: {similarity_score}]: {safe_content}")
                 
                 # Sanitize all data for logging
                 safe_query = sanitize_text_for_logging(query)
@@ -236,11 +268,9 @@ def handle_single_pdf_chat():
                 logger.info(f"PDF Chat - PDF: {st.session_state.temp_pdf_docs['metadata']['file_name']}")
                 logger.info(f"PDF Chat - Model: {model_template}")
                 
-                # Use a different approach for logging contexts to avoid long lines
-                for i, context in enumerate(context_texts):
-                    logger.info(f"PDF Chat - Context {i+1}: {context}")
-                
-                logger.info(f"PDF Chat - Response: {safe_response}")
+                # Log each context with its similarity score
+                # for i, context in enumerate(context_texts):
+                #     logger.info(f"PDF Chat - Context {i+1}: {context}")
                 
                 # Create sanitized copies of related docs for logging
                 safe_related_docs = []

@@ -30,7 +30,7 @@ def log_rag_interaction(logger, question, context_docs, answer):
         for doc in context_docs:
             contexts_with_sources.append(
                 f"\nSource: {doc.metadata.get('source', 'Unknown')}"
-                f"\nContext: {doc.page_content}"
+                f"\nContext: [Chunk {doc.metadata.get('chunk_number')}], Similarity: {doc.metadata.get('similarity', 'Unknown')} : {doc.page_content}"
             )
         log_entry = (
             f"\nQuestion: {question}\n"

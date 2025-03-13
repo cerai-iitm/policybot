@@ -22,7 +22,7 @@ class PDFLoader:
           for page_num, page in enumerate(pdf_reader.pages, 1):
               text = page.extract_text()
               if text.strip():
-                  text_content += f"\n\n=== Page {page_num} ===\n\n"
+                #   text_content += f"\n\n=== Page {page_num} ===\n\n"
                   text_content += text
 
       doc_id = hashlib.sha256(str(path).encode()).hexdigest()[:16]
