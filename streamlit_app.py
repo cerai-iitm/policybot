@@ -3,6 +3,7 @@ import re
 import os
 import warnings
 import logging
+import unicodedata
 from src.document_processing.loader import upload_pdf
 from src.qa_system.retriever import retrieve_docs
 from src.qa_system.answering import answer_question
@@ -50,6 +51,50 @@ def handle_regular_chat():
             st.markdown(f"{response}{sources}")
             st.session_state.messages.append({"role": "assistant", "content": f"{response}{sources}"})
 
+def sanitize_text_for_logging(text):
+    """
+    Sanitize text to remove or replace problematic Unicode characters for logging.
+    """
+    if isinstance(text, str):
+        # Replace special Unicode characters with ASCII equivalents
+        # Replace bullet points and other special characters
+        replacements = {
+            '\u25aa': '*',  # Replace black small square with asterisk
+            '\u2022': '*',  # Replace bullet with asterisk
+            '\u25a0': '*',  # Replace black square with asterisk
+            '\u25a1': '*',  # Replace white square with asterisk
+            '\u25cf': '*',  # Replace black circle with asterisk
+            '\u25cb': '*',  # Replace white circle with asterisk
+            '\u25c6': '*',  # Replace black diamond with asterisk
+            '\u25c7': '*',  # Replace white diamond with asterisk
+            '\u2014': '-',  # Replace em dash with hyphen
+            '\u2013': '-',  # Replace en dash with hyphen
+            '\u2018': "'",  # Replace left single quote with apostrophe
+            '\u2019': "'",  # Replace right single quote with apostrophe
+            '\u201c': '"',  # Replace left double quote with quotation mark
+            '\u201d': '"',  # Replace right double quote with quotation mark
+            '\u2026': '...',  # Replace ellipsis with three dots
+            '\u00a0': ' ',   # Replace non-breaking space with regular space
+            '\u2212': '-',   # Replace minus sign with hyphen
+            '\u25e6': 'o',   # Replace white bullet with lowercase 'o'
+            '\u2610': '[]',  # Replace ballot box with brackets
+            '\u2611': '[x]', # Replace ballot box with X with marked brackets
+            '\u2612': '[x]', # Replace ballot box with X with marked brackets
+            '\u25b6': '>',   # Replace right-pointing triangle with greater than
+            '\u25b2': '^',   # Replace up-pointing triangle with caret
+            '\u25bc': 'v',   # Replace down-pointing triangle with lowercase 'v'
+            '\u25c0': '<',   # Replace left-pointing triangle with less than
+            '\u00b7': '*',   # Replace middle dot with asterisk
+            '\u2212': '-',   # Replace minus sign with hyphen
+        }
+        
+        for unicode_char, replacement in replacements.items():
+            text = text.replace(unicode_char, replacement)
+        
+        # Normalize to closest ASCII equivalent where possible
+        text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    return text
+
 def handle_single_pdf_chat():
     logger = setup_logger("pdf_chat")
     uploaded_file = st.sidebar.file_uploader("Upload a PDF", type="pdf")
@@ -80,7 +125,9 @@ def handle_single_pdf_chat():
                            f"Doc ID: {pdf_content['meta_data']['doc_id']}")
                 
                 # Chunk the text using single_pdf utils
-                chunks = chunk_text(pdf_content['content'], pdf_content['meta_data']['file_name'], 1000)
+
+                # print(pdf_content["content"])
+                chunks = chunk_text(pdf_content['content'], pdf_content['meta_data']['file_name'], 500)
                 
                 # Convert chunks to LangChain documents
                 documents = []
@@ -149,6 +196,10 @@ def handle_single_pdf_chat():
                 
                 # Extract context from related documents
                 context = "\n\n".join([doc.page_content for doc in related_docs])
+
+                # print("------------------------------------------------")
+                # print("Context:", context)
+                # print("------------------------------------------------")
                 
                 # Use get_direct_response to leverage the same template system
                 response = get_direct_response(
@@ -168,20 +219,40 @@ def handle_single_pdf_chat():
                 st.markdown(full_response)
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
                 
-                # Log the interaction
-                log_rag_interaction(logger, query, related_docs, response)
-                
                 # Additional detailed logging for PDF chat
                 context_texts = []
                 for doc in related_docs:
                     similarity_score = doc.metadata.get('similarity', 'Unknown') 
-                    context_texts.append(f"[Chunk {doc.metadata.get('chunk_number')}]: {doc.page_content[:100]}...")
+                    # Sanitize context text before adding to list
+                    safe_content = sanitize_text_for_logging(doc.page_content)
+                    context_texts.append(f"[Chunk {doc.metadata.get('chunk_number')}]: {safe_content}")
                 
-                logger.info(f"PDF Chat - Query: {query}")
+                # Sanitize all data for logging
+                safe_query = sanitize_text_for_logging(query)
+                safe_response = sanitize_text_for_logging(response)
+                
+                # Log with sanitized text
+                logger.info(f"PDF Chat - Query: {safe_query}")
                 logger.info(f"PDF Chat - PDF: {st.session_state.temp_pdf_docs['metadata']['file_name']}")
                 logger.info(f"PDF Chat - Model: {model_template}")
-                logger.info(f"PDF Chat - Contexts: {', '.join(context_texts)}")
-                logger.info(f"PDF Chat - Response: {response}")
+                
+                # Use a different approach for logging contexts to avoid long lines
+                for i, context in enumerate(context_texts):
+                    logger.info(f"PDF Chat - Context {i+1}: {context}")
+                
+                logger.info(f"PDF Chat - Response: {safe_response}")
+                
+                # Create sanitized copies of related docs for logging
+                safe_related_docs = []
+                for doc in related_docs:
+                    safe_doc = Document(
+                        page_content=sanitize_text_for_logging(doc.page_content),
+                        metadata=doc.metadata
+                    )
+                    safe_related_docs.append(safe_doc)
+                
+                # Log with sanitized text
+                log_rag_interaction(logger, safe_query, safe_related_docs, safe_response)
 
 def handle_direct_chat():
     logger = setup_logger("direct_chat")
