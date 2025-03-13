@@ -3,14 +3,19 @@ import re
 import os
 import warnings
 import logging
-from src.document_processing.loader import upload_pdf, load_pdf, split_text
-from src.qa_system.retriever import retrieve_docs, index_documents
+from src.document_processing.loader import upload_pdf
+from src.qa_system.retriever import retrieve_docs
 from src.qa_system.answering import answer_question
-from src.qa_system.single_pdf import process_single_pdf
+from src.qa_system.single_pdf import process_single_pdf, create_temp_store
 from src.qa_system.direct_chat import get_direct_response
-from src.utils.logging_utils import setup_logger, log_direct_interaction, configure_root_logger
+from src.utils.logging_utils import setup_logger, log_direct_interaction, configure_root_logger, log_rag_interaction
 from src.config.settings import PDFS_UPLOAD_DIR
 from src.evaluation.simple_evaluator import SimpleEvaluator
+from src.single_pdf.pdf_loader import PDFLoader
+from src.single_pdf.utils import chunk_text, is_readable
+from langchain_ollama import OllamaEmbeddings
+from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_core.documents import Document
 
 # Suppress torch warnings and progress bars
 warnings.filterwarnings('ignore', message='.*Examining the path of torch.classes raised.*')
@@ -48,6 +53,11 @@ def handle_regular_chat():
 def handle_single_pdf_chat():
     logger = setup_logger("pdf_chat")
     uploaded_file = st.sidebar.file_uploader("Upload a PDF", type="pdf")
+
+    model_template = st.sidebar.selectbox(
+        "Select Model Template",
+        ["Deepseek", "Mistral", "LLaMA", "Qwen", "Gemma"]
+    )
     
     if uploaded_file:
         if not os.path.exists(PDFS_UPLOAD_DIR):
@@ -57,13 +67,73 @@ def handle_single_pdf_chat():
         
         if st.session_state.temp_pdf_docs is None:
             try:
+                # Upload PDF to file system
                 upload_pdf(uploaded_file)
-                documents = load_pdf(file_path)
-                st.session_state.temp_pdf_docs = split_text(documents)
-                logger.info(f"Processed PDF: {uploaded_file.name} - {len(st.session_state.temp_pdf_docs)} chunks created")
+                
+                # Load PDF using PDFLoader
+                pdf_loader = PDFLoader()
+                pdf_content = pdf_loader.load(file_path)
+                
+                # Log PDF metadata
+                logger.info(f"PDF loaded: {pdf_content['meta_data']['file_name']}, "
+                           f"{pdf_content['meta_data']['total_pages']} pages, "
+                           f"Doc ID: {pdf_content['meta_data']['doc_id']}")
+                
+                # Chunk the text using single_pdf utils
+                chunks = chunk_text(pdf_content['content'], pdf_content['meta_data']['file_name'], 1000)
+                
+                # Convert chunks to LangChain documents
+                documents = []
+                for chunk in chunks:
+                    if is_readable(chunk['properties']['content']):
+                        doc = Document(
+                            page_content=chunk['properties']['content'],
+                            metadata={
+                                'source': chunk['properties']['source'],
+                                'chunk_number': chunk['properties']['chunk_number'],
+                                'doc_id': pdf_content['meta_data']['doc_id']
+                            }
+                        )
+                        documents.append(doc)
+
+                total_text_length = len(pdf_content['content'])
+                st.sidebar.markdown("### PDF Details")
+                st.sidebar.markdown(f"- **Pages**: {pdf_content['meta_data']['total_pages']}")
+                st.sidebar.markdown(f"- **Total text length**: {total_text_length} characters")
+                st.sidebar.markdown(f"- **Chunks created**: {len(chunks)}")
+                st.sidebar.markdown(f"- **Readable chunks**: {len(documents)}")
+                
+                # Select the embedding model based on user selection
+                if model_template == "Deepseek":
+                    embed_model = "deepseek-r1:latest"
+                elif model_template == "Mistral":
+                    embed_model = "mistral:latest"
+                elif model_template == "LLaMA":
+                    embed_model = "llama3.1:8b"
+                elif model_template == "Qwen":
+                    embed_model = "qwen2.5:7b"
+                else:
+                    embed_model = "gemma:7b"
+                
+                # Create embeddings and store in vector database
+                print("Embedding model:", embed_model)
+                embeddings = OllamaEmbeddings(model=embed_model)
+                vector_store = InMemoryVectorStore(embeddings)
+                vector_store.add_documents(documents)
+                
+                # Store in session state
+                st.session_state.temp_pdf_docs = {
+                    'documents': documents,
+                    'vector_store': vector_store,
+                    'metadata': pdf_content['meta_data']
+                }
+                
+                logger.info(f"Processed PDF: {uploaded_file.name} - "
+                           f"{len(documents)} chunks created and embedded with {embed_model}")
                 st.sidebar.success("PDF processed successfully!")
+                
             except Exception as e:
-                logger.error(f"Error processing PDF {uploaded_file.name}: {str(e)}")
+                logger.error(f"Error processing PDF {uploaded_file.name}", exc_info=True)
                 st.sidebar.error("Failed to process PDF.")
 
     if query := st.chat_input("Ask about the uploaded PDF"):
@@ -73,10 +143,45 @@ def handle_single_pdf_chat():
 
         if st.session_state.temp_pdf_docs:
             with st.chat_message("assistant"):
-                related_docs = process_single_pdf(st.session_state.temp_pdf_docs, query)
-                response = answer_question(query, related_docs, mode="pdf_chat")
-                st.markdown(response)
-                st.session_state.messages.append({"role": "assistant", "content": response})
+                # Retrieve relevant documents
+                vector_store = st.session_state.temp_pdf_docs['vector_store']
+                related_docs = vector_store.similarity_search(query, k=4)
+                
+                # Extract context from related documents
+                context = "\n\n".join([doc.page_content for doc in related_docs])
+                
+                # Use get_direct_response to leverage the same template system
+                response = get_direct_response(
+                    query,
+                    context,
+                    model_name=model_template
+                )
+                
+                # Display the response with sources
+                sources_display = "\n\nSources:\n"
+                for i, doc in enumerate(related_docs):
+                    source = f"- {doc.metadata.get('source', 'Unknown')}"
+                    chunk = f" (Chunk {doc.metadata.get('chunk_number', 'N/A')})"
+                    sources_display += f"{source}{chunk}\n"
+                
+                full_response = f"{response}{sources_display}"
+                st.markdown(full_response)
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                
+                # Log the interaction
+                log_rag_interaction(logger, query, related_docs, response)
+                
+                # Additional detailed logging for PDF chat
+                context_texts = []
+                for doc in related_docs:
+                    similarity_score = doc.metadata.get('similarity', 'Unknown') 
+                    context_texts.append(f"[Chunk {doc.metadata.get('chunk_number')}]: {doc.page_content[:100]}...")
+                
+                logger.info(f"PDF Chat - Query: {query}")
+                logger.info(f"PDF Chat - PDF: {st.session_state.temp_pdf_docs['metadata']['file_name']}")
+                logger.info(f"PDF Chat - Model: {model_template}")
+                logger.info(f"PDF Chat - Contexts: {', '.join(context_texts)}")
+                logger.info(f"PDF Chat - Response: {response}")
 
 def handle_direct_chat():
     logger = setup_logger("direct_chat")
