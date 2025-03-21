@@ -4,6 +4,10 @@ import os
 import warnings
 import logging
 import unicodedata
+import json
+import pandas as pd
+import csv
+from datetime import datetime
 from src.document_processing.loader import upload_pdf
 from src.qa_system.retriever import retrieve_docs
 from src.qa_system.answering import answer_question
@@ -106,18 +110,24 @@ def handle_single_pdf_chat():
         ["Deepseek", "Mistral", "LLaMA", "Qwen", "Gemma"]
     )
     
-    # Add controls for chunk size and overlap
-    chunk_size = st.sidebar.slider("Chunk Size (words)", 
-                                  min_value=100, 
-                                  max_value=1000, 
+    # Add controls for chunk size and overlap (semantic chunking)
+    st.sidebar.markdown("### Chunking Settings")
+    chunking_method = st.sidebar.radio(
+        "Chunking Method",
+        ["Semantic", "Basic"]
+    )
+    
+    chunk_size = st.sidebar.slider("Target Chunk Size (words)", 
+                                  min_value=400, 
+                                  max_value=600, 
                                   value=500,
-                                  help="Larger chunks include more context, smaller chunks are more focused")
+                                  help="Semantic chunker uses this as a target size")
     
     chunk_overlap = st.sidebar.slider("Chunk Overlap (words)", 
-                                     min_value=0, 
-                                     max_value=200, 
-                                     value=100,
-                                     help="Overlap prevents important context from being split between chunks")
+                                     min_value=50, 
+                                     max_value=100, 
+                                     value=75,
+                                     help="Overlap between chunks")
     
     k_documents = st.sidebar.slider("Number of chunks to retrieve", 
                                   min_value=1, 
@@ -148,7 +158,7 @@ def handle_single_pdf_chat():
                 # Preprocess the text to improve quality
                 cleaned_text = pdf_content['content'].replace('\n\n', ' ').replace('  ', ' ')
                 
-                # Chunk the text using updated parameters
+                # Chunk the text using semantic chunking
                 chunks = chunk_text(
                     cleaned_text, 
                     pdf_content['meta_data']['file_name'], 
@@ -176,6 +186,7 @@ def handle_single_pdf_chat():
                 st.sidebar.markdown(f"- **Total text length**: {total_text_length} characters")
                 st.sidebar.markdown(f"- **Chunks created**: {len(chunks)}")
                 st.sidebar.markdown(f"- **Readable chunks**: {len(documents)}")
+                st.sidebar.markdown(f"- **Chunking method**: {chunking_method}")
                 
                 # Select the embedding model based on user selection
                 if model_template == "Deepseek":
@@ -234,6 +245,7 @@ def handle_single_pdf_chat():
                 context = "\n\n".join([doc.page_content for doc in related_docs])
                 
                 # Use get_direct_response to leverage the same template system
+                print("Model template:", model_template)
                 response = get_direct_response(
                     query,
                     context,
@@ -318,7 +330,38 @@ def handle_direct_chat():
             if human_ref.strip():
                 evaluator = SimpleEvaluator()
                 scores = evaluator.evaluate_answer(human_ref, response, context, query)
-                st.info(f"Evaluation - Final Score: {scores.get('final_score', 0):.3f}")
+                
+                # Display all individual scores
+                st.subheader("Evaluation Metrics")
+                
+                # Create columns for metrics display
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### Similarity Scores")
+                    st.info(f"SBERT Similarity: {scores.get('similarity', 0):.3f}")
+                    st.info(f"Question Relevance: {scores.get('question_relevance', 0):.3f}")
+                    st.info(f"Context Relevance: {scores.get('context_relevance', 0):.3f}")
+                
+                with col2:
+                    st.markdown("### Text Comparison Scores")
+                    st.info(f"ROUGE-1 F1: {scores.get('rouge1', 0):.3f}")
+                    st.info(f"ROUGE-2 F1: {scores.get('rouge2', 0):.3f}")
+                    st.info(f"ROUGE-L F1: {scores.get('rougeL', 0):.3f}")
+                
+                # Create a second row for advanced metrics
+                col3, col4 = st.columns(2)
+                
+                with col3:
+                    st.markdown("### Machine Translation Metrics")
+                    st.info(f"BLEU Score: {scores.get('bleu', 0):.3f}")
+                    st.info(f"METEOR Score: {scores.get('meteor', 0):.3f}")
+                
+                with col4:
+                    st.markdown("### BERT Scores")
+                    st.info(f"BERT F1: {scores.get('bert_f1', 0):.3f}")
+                    st.info(f"BERT Precision: {scores.get('bert_precision', 0):.3f}")
+                    st.info(f"BERT Recall: {scores.get('bert_recall', 0):.3f}")
 
                 logger.info(f"Evaluation Comparison - Human Answer: {human_ref}")
                 logger.info(f"Evaluation Comparison - LLM Answer: {response}")
@@ -329,13 +372,236 @@ def handle_direct_chat():
                 "answer": response,
             })
 
+def handle_batch_evaluation():
+    logger = setup_logger("batch_evaluation")
+    st.header("Batch Evaluation")
+    
+    # Allow selecting model template
+    model_template = st.selectbox(
+        "Select Model Template for Batch Processing",
+        ["Deepseek", "Mistral", "LLaMA", "Qwen", "Gemma"]
+    )
+    
+    # File uploader for JSON data
+    uploaded_file = st.file_uploader("Upload JSON file with evaluation data", type=["json"])
+    
+    # Function to clear cache between questions
+    def clear_cache():
+        # Clear Streamlit's cache to prevent interference between questions
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        # Also clear any session state variables that might affect context
+        if "temp_context" in st.session_state:
+            del st.session_state.temp_context
+    
+    if uploaded_file:
+        try:
+            # Load the JSON data
+            json_data = json.load(uploaded_file)
+            
+            # Check if this is the new nested format or the old flat format
+            is_nested_format = any("qa_pairs" in item for item in json_data)
+            
+            if is_nested_format:
+                # Count total number of questions
+                total_questions = sum(len(item.get("qa_pairs", [])) for item in json_data)
+                st.success(f"Loaded {len(json_data)} contexts with {total_questions} total questions")
+                
+                # Show preview of the data
+                with st.expander("Preview JSON data (nested format)"):
+                    for item in json_data:
+                        item["qa_pairs"] = item["qa_pairs"]
+                    st.json(json_data)
+                
+                st.info("Using nested format: Multiple questions per context")
+            else:
+                st.success(f"Loaded {len(json_data)} examples for evaluation")
+                
+                # Show preview of the data
+                with st.expander("Preview JSON data (flat format)"):
+                    st.json(json_data)
+                
+                st.info("Using flat format: One question per context")
+            
+            # Start evaluation button
+            if st.button("Start Batch Evaluation"):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                results_container = st.container()
+                
+                # Initialize evaluator
+                evaluator = SimpleEvaluator()
+                
+                # Prepare results list
+                results = []
+                
+                # Process based on format
+                if is_nested_format:
+                    # Calculate total QA pairs for progress tracking
+                    total_qa_pairs = sum(len(item.get("qa_pairs", [])) for item in json_data)
+                    processed_qa_pairs = 0
+                    
+                    # Process each context with its multiple questions
+                    for context_item in json_data:
+                        context = context_item.get("context", "")
+                        context_id = context_item.get("id", "unknown_context")
+                        
+                        # Process each question-answer pair for this context
+                        qa_pairs = context_item.get("qa_pairs", [])
+                        for qa_idx, qa_pair in enumerate(qa_pairs):
+                            question = qa_pair.get("question", "")
+                            human_answer = qa_pair.get("human_answer", "")
+                            
+                            # Generate unique ID for this QA pair
+                            example_id = f"{context_id}_q{qa_idx+1}"
+                            
+                            status_text.text(f"Processing: Context {context_id}, Question {qa_idx+1}/{len(qa_pairs)}")
+                            
+                            # Get LLM response
+                            llm_answer = get_direct_response(
+                                question,
+                                context,
+                                model_name=model_template
+                            )
+                            
+                            # Evaluate the response
+                            scores = evaluator.evaluate_answer(human_answer, llm_answer, context, question)
+                            
+                            # Combine all data
+                            result = {
+                                "id": example_id,
+                                "context_id": context_id,
+                                "model": model_template,
+                                "question": question,
+                                "context": context,
+                                "human_answer": human_answer,
+                                "llm_answer": llm_answer,
+                                **scores
+                            }
+                            
+                            results.append(result)
+                            
+                            # Update progress
+                            processed_qa_pairs += 1
+                            progress_bar.progress(processed_qa_pairs / total_qa_pairs)
+                            
+                            # Log the processing
+                            logger.info(f"Processed example {example_id} with model {model_template}, scores: {scores}")
+                            
+                            # Clear cache to prevent interference with next question
+                            clear_cache()
+                else:
+                    # Original flat processing
+                    for i, example in enumerate(json_data):
+                        status_text.text(f"Processing example {i+1}/{len(json_data)}")
+                        
+                        # Extract data from the example
+                        context = example.get("context", "")
+                        question = example.get("question", "")
+                        human_answer = example.get("human_answer", "")
+                        example_id = example.get("id", f"example_{i+1}")
+                        
+                        # Get LLM response
+                        llm_answer = get_direct_response(
+                            question,
+                            context,
+                            model_name=model_template
+                        )
+                        
+                        # Evaluate the response
+                        scores = evaluator.evaluate_answer(human_answer, llm_answer, context, question)
+                        
+                        # Combine all data
+                        result = {
+                            "id": example_id,
+                            "model": model_template,
+                            "question": question,
+                            "context": context,
+                            "human_answer": human_answer,
+                            "llm_answer": llm_answer,
+                            **scores
+                        }
+                        
+                        results.append(result)
+                        
+                        # Update progress
+                        progress_bar.progress((i + 1) / len(json_data))
+                        
+                        # Log the processing
+                        logger.info(f"Processed example {example_id} with model {model_template}, scores: {scores}")
+                        
+                        # Clear cache to prevent interference with next question
+                        clear_cache()
+                
+                # Convert to DataFrame
+                df = pd.DataFrame(results)
+                
+                # Generate CSV
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                csv_filename = f"batch_evaluation_{model_template}_{timestamp}.csv"
+                csv_path = os.path.join(os.getcwd(), csv_filename)
+                df.to_csv(csv_path, index=False)
+                
+                # Show results
+                if is_nested_format:
+                    status_text.text(f"Completed processing {len(results)} questions across {len(json_data)} contexts with {model_template} model!")
+                else:
+                    status_text.text(f"Completed processing {len(json_data)} examples with {model_template} model!")
+                
+                with results_container:
+                    st.success(f"Evaluation complete! Results saved to {csv_filename}")
+                    
+                    # Display model info prominently
+                    st.info(f"Model used: {model_template}")
+                    
+                    # Display dataframe with pagination and filtering
+                    st.dataframe(df, use_container_width=True)
+                    
+                    # Download link
+                    csv = df.to_csv(index=False)
+                    st.download_button(
+                        label="Download CSV",
+                        data=csv,
+                        file_name=csv_filename,
+                        mime="text/csv"
+                    )
+                    
+                    # Display average scores
+                    st.subheader(f"Average Scores for {model_template}")
+                    numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+                    avg_scores = df[numeric_cols].mean().to_dict()
+                    
+                    # Show averages in columns
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("### Similarity Averages")
+                        st.info(f"SBERT Similarity: {avg_scores.get('similarity', 0):.3f}")
+                        # st.info(f"Question Relevance: {avg_scores.get('question_relevance', 0):.3f}")
+                        # st.info(f"Context Relevance: {avg_scores.get('context_relevance', 0):.3f}")
+                    
+                    with col2:
+                        st.markdown("### Text Comparison Averages")
+                        # st.info(f"ROUGE-1 F1: {avg_scores.get('rouge1', 0):.3f}")
+                        # st.info(f"ROUGE-2 F1: {avg_scores.get('rouge2', 0):.3f}")
+                        st.info(f"ROUGE-L F1: {avg_scores.get('rougeL', 0):.3f}")
+                    
+                    # If using nested format, provide context-level analysis
+                    if is_nested_format and "context_id" in df.columns:
+                        st.subheader("Context-Level Analysis")
+                        context_group = df.groupby("context_id")[numeric_cols].mean()
+                        st.dataframe(context_group, use_container_width=True)
+                    
+        except Exception as e:
+            st.error(f"Error processing batch evaluation: {str(e)}")
+            logger.error(f"Batch evaluation error", exc_info=True)
+
 def main():
     st.title("AI Policy Chatbot")
     init_session_state()
 
     chat_mode = st.sidebar.radio(
         "Select Chat Mode",
-        ["Regular Chat", "Single PDF Chat", "Direct Chat"]
+        ["Regular Chat", "Single PDF Chat", "Direct Chat", "Batch Evaluation"]
     )
 
     display_chat_messages()
@@ -344,6 +610,8 @@ def main():
         handle_regular_chat()
     elif chat_mode == "Single PDF Chat":
         handle_single_pdf_chat()
+    elif chat_mode == "Batch Evaluation":
+        handle_batch_evaluation()
     else:
         handle_direct_chat()
 

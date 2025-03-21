@@ -1,5 +1,9 @@
 from sentence_transformers import SentenceTransformer, util
 from rouge_score import rouge_scorer
+import nltk
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+from nltk.translate.meteor_score import meteor_score
+from bert_score import BERTScorer
 
 class SimpleEvaluator:
     """A lightweight evaluator for LLM answers that uses only basic metrics"""
@@ -8,16 +12,38 @@ class SimpleEvaluator:
         """Initialize the evaluator with necessary models"""
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.rouge_scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+        # Initialize BERT scorer
+        self.bert_scorer = BERTScorer(lang="en", rescale_with_baseline=True)
+        # Make sure NLTK downloads are available - fixing the resource names
+        nltk.download('punkt_tab')
+        try:
+            nltk.data.find('tokenizers/punkt')
+        except LookupError:
+            print("Downloading punkt tokenizer...")
+            nltk.download('punkt')
+        
+        try:
+            nltk.data.find('corpora/wordnet')
+        except LookupError:
+            print("Downloading wordnet...")
+            nltk.download('wordnet')
+        
+        # Also download omw-1.4 which might be needed for meteor
+        try:
+            nltk.data.find('corpora/omw-1.4')
+        except LookupError:
+            print("Downloading Open Multilingual Wordnet...")
+            nltk.download('omw-1.4')
     
     def evaluate_answer(self, human_answer, llm_answer, context=None, question=None):
         """Evaluate LLM response against human answer and return scores"""
         
-        # Calculate basic metrics
+        # Calculate all metrics
         metrics = self._get_basic_metrics(human_answer, llm_answer, context, question)
         
-        # Calculate final score
-        final_score = self._calculate_final_score(metrics)
-        metrics['final_score'] = final_score
+        # Add advanced metrics
+        advanced_metrics = self._get_advanced_metrics(human_answer, llm_answer)
+        metrics.update(advanced_metrics)
         
         return metrics
     
@@ -53,38 +79,55 @@ class SimpleEvaluator:
             context_relevance = (llm_context_rel / (human_context_rel + 1e-5)) ** 0.5
         
         return {
-            'similarity': similarity,
-            'rouge1': rouge1,
-            'rouge2': rouge2, 
-            'rougeL': rougeL,
-            'question_relevance': question_relevance,
-            'context_relevance': context_relevance
+            'similarity': round(similarity, 3),
+            # 'rouge1': round(rouge1, 3),
+            # 'rouge2': round(rouge2, 3), 
+            'rougeL': round(rougeL, 3),
+            # 'question_relevance': round(question_relevance, 3),
+            # 'context_relevance': round(context_relevance, 3)
+        }
+    
+    def _get_advanced_metrics(self, human_answer, llm_answer):
+        """Calculate advanced NLP metrics like BLEU, METEOR, and BERT Score"""
+        # Calculate BLEU score
+        smoothie = SmoothingFunction().method1
+        human_tokens = nltk.word_tokenize(human_answer.lower())
+        llm_tokens = nltk.word_tokenize(llm_answer.lower())
+        
+        # Handle empty responses for BLEU
+        if not human_tokens or not llm_tokens:
+            bleu_score = 0
+        else:
+            try:
+                bleu_score = sentence_bleu([human_tokens], llm_tokens, weights=(0.25, 0.25, 0.25, 0.25), smoothing_function=smoothie)
+            except:
+                bleu_score = 0
+        
+        # Calculate METEOR score
+        try:
+            meteor = meteor_score([human_tokens], llm_tokens)
+        except:
+            meteor = 0
+        
+        # Calculate BERTScore
+        try:
+            P, R, F1 = self.bert_scorer.score([llm_answer], [human_answer])
+            bert_precision = P.item()
+            bert_recall = R.item()
+            bert_f1 = F1.item()
+        except:
+            bert_precision = 0
+            bert_recall = 0
+            bert_f1 = 0
+            
+        return {
+            'bleu': round(bleu_score, 3),
+            'meteor': round(meteor, 3),
+            'bert_precision': round(bert_precision, 3),
+            'bert_recall': round(bert_recall, 3),
+            'bert_f1': round(bert_f1, 3)
         }
     
     def _calculate_final_score(self, metrics):
-        """Calculate final weighted score based on available metrics"""
-        # Define weights for different metrics
-        weight_config = {
-            'similarity': 0.40,
-            'rougeL': 0.30,
-            'rouge1': 0.10,
-            'rouge2': 0.10,
-            'question_relevance': 0.05,
-            'context_relevance': 0.05,
-        }
-        
-        # Calculate weighted score
-        score = 0.0
-        total_weight = 0.0
-        
-        # Process all weights that have matching metrics
-        for metric, weight in weight_config.items():
-            if metric in metrics:
-                score += metrics[metric] * weight
-                total_weight += weight
-        
-        # Normalize by actual weights used
-        if total_weight > 0:
-            return round(score / total_weight, 3)
-        else:
-            return 0.0
+        """Return all individual metrics instead of calculating a final weighted score"""
+        return metrics
