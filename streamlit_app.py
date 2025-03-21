@@ -538,7 +538,7 @@ def handle_batch_evaluation():
                 
                 # Generate CSV
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                csv_filename = f"batch_evaluation_{model_template}_{timestamp}.csv"
+                csv_filename = f"newTemp_batch_evaluation_{model_template}_{timestamp}.csv"
                 csv_path = os.path.join(os.getcwd(), csv_filename)
                 df.to_csv(csv_path, index=False)
                 

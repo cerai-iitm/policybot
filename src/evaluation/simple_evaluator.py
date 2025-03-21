@@ -13,7 +13,7 @@ class SimpleEvaluator:
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.rouge_scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
         # Initialize BERT scorer
-        self.bert_scorer = BERTScorer(lang="en", rescale_with_baseline=True)
+        self.bert_scorer = BERTScorer(lang="en", rescale_with_baseline=False)
         # Make sure NLTK downloads are available - fixing the resource names
         nltk.download('punkt_tab')
         try:
