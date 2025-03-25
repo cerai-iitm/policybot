@@ -8,6 +8,6 @@ pdfs_upload/
 chroma_db/
 logs/
 
-LLM-Reasoner/
-llm_reasoner/
-HawkinsRAG/
+temp_csv_ans/
+*.csv
+*.txt

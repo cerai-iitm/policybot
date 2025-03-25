@@ -2,6 +2,13 @@ from langchain_ollama.llms import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate
 from ..config.settings import SYSTEM_INSTRUCTION, MISTRAL_SYSTEM_INSTRUCTION, LLAMA_SYSTEM_INSTRUCTION, GWEN_SYSTEM_INSTRUCTION, GEMMA_SYSTEM_INSTRUCTION
 
+import re
+
+def clean_deepseek_response(response: str) -> str:
+    """Removes <think>...</think> reasoning and returns only the final answer."""
+    response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL)  # Remove reasoning part
+    return response.strip()
+
 # Function to extract reasoning steps and final answer
 def get_prompt_for_model(query: str, context: str = "", model_name: str = "Default") -> ChatPromptTemplate:
     """Get the appropriate prompt template for a given model"""
@@ -68,6 +75,8 @@ def get_direct_response(query: str, context: str = "", model_name: str = "Defaul
         chain = prompt | model_instance
         response = chain.invoke({})
 
+        if model_name == "Deepseek":
+            response = clean_deepseek_response(response)
         return response
         
     except Exception as e:

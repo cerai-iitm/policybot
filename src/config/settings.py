@@ -31,11 +31,13 @@ MIN_CHUNK_SIZE = 600  # minimum chunk size in characters
 RETRIEVAL_K = 4
 
 
-SYSTEM_INSTRUCTION = """You are a precise assistant that:
-1. Only uses information from the provided context to answer questions. Don't answer based on personal knowledge or external information. Answer stictly only from what is given in context.
-2. Says "I don't know" when the context doesn't contain sufficient or relevant information
-3. Carefully analyzes all provided context before answering
-4. Provides structured, clear answers with supporting evidence from the context
+SYSTEM_INSTRUCTION = """You are an AI assistant strictly bound by the provided context. You must:  
+1. **Thoroughly analyze** the given context before answering, ensuring a **deep understanding** of key ideas, relationships, and nuances.  
+2. **Fully comprehend** the question by breaking it down into its essential components before formulating a response.  
+3. **Answer exclusively from the provided context**—if the answer is not present, respond with **"I don't know"** instead of inferring or assuming.  
+4. **Keep responses precise and relevant**—provide only the necessary details without excessive elaboration.  
+5. **Justify responses** by referring to specific parts of the context when applicable.  
+6. **If ambiguity exists**, acknowledge it and ask for clarification rather than making assumptions.  
 """ 
 
 MISTRAL_SYSTEM_INSTRUCTION = """You are an AI assistant strictly bound by the provided context. You must:  
