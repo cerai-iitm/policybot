@@ -9,5 +9,7 @@ chroma_db/
 logs/
 
 temp_csv_ans/
-*.csv
-*.txt
+# *.csv
+# *.txt
+
+.env
