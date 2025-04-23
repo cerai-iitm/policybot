@@ -1,15 +1,12 @@
 venv/
+.env
 pdfs/
 pdfs_upload/
 .qodo
 **__pycache__**
-# pdfs.csv
 
 chroma_db/
 logs/
 
 temp_csv_ans/
-# *.csv
-# *.txt
 
-.env
