@@ -1,7 +1,6 @@
 import os
 import logging
 from typing import List
-import google.generativeai as genai
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -13,8 +12,6 @@ logger = logging.getLogger(__name__)
 
 class VectorStoreManager:
     def __init__(self, collection_name: str = "single_pdf"):
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-
         self.embedding_function = GoogleGenerativeAIEmbeddings(
             model=settings.EMBEDDING_MODEL_NAME,
             google_api_key=settings.GEMINI_API_KEY
@@ -49,7 +46,6 @@ class VectorStoreManager:
         
         try:
             self.vector_store.add_documents(documents)
-            self.vector_store.persist()
             logger.info(f"Added {len(documents)} documents to vector store")
             return True
         except Exception as e:
@@ -67,10 +63,13 @@ class VectorStoreManager:
             )
 
             filtered_results = []
+            logger.info(f"Raw results count: {len(results)}")
+            
             for doc, score in results:
                 # Note: Chroma returns distance metrics where lower is better
                 # Converting to similarity score where higher is better (1 - distance)
                 similarity = 1 - score
+                logger.info(f"Document similarity score: {similarity:.4f}, threshold: {settings.SIMILARITY_THRESHOLD}")
                 if similarity >= settings.SIMILARITY_THRESHOLD:
                     filtered_results.append(doc)
             
@@ -81,7 +80,6 @@ class VectorStoreManager:
             return []
     
     def clear(self) -> bool:
-        """Clear all documents from the vector store"""
         try:
             self.vector_store.delete_collection()
             self.vector_store = self._create_or_load_vector_store()

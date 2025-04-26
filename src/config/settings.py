@@ -1,5 +1,5 @@
 import os
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,21 +8,23 @@ class Settings(BaseSettings):
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     PDFS_DIR: str = os.path.join(BASE_DIR, 'pdfs')
     UPLOADS_DIR: str = os.path.join(BASE_DIR, 'uploads')
-    VECTOR_STORE_DIR: str = os.path.join(BASE_DIR, 'vector_store')
+    VECTOR_STORE_DIR: str = os.path.join(BASE_DIR, 'db')
+    LOGS_DIR: str = os.path.join(BASE_DIR, 'logs')
     
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
-    os.makedirs(VECTOR_STORE_DIR, exist_ok=True)
+    def create_directories(self):
+        for directory in [self.PDFS_DIR, self.UPLOADS_DIR, self.VECTOR_STORE_DIR, self.LOGS_DIR]:
+            os.makedirs(directory, exist_ok=True)
     
     GEMINI_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
 
-    GEMINI_MODEL_NAME: str = "gemini-1.5-pro"
-    EMBEDDING_MODEL_NAME: str = "models/embedding-001"
+    GEMINI_MODEL_NAME: str = "models/gemini-2.0-flash"
+    EMBEDDING_MODEL_NAME: str = "models/text-embedding-004"
     
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
     
     TOP_K_RESULTS: int = 4
-    SIMILARITY_THRESHOLD: float = 0.7  
+    SIMILARITY_THRESHOLD: float = 0.3  
     
     SYSTEM_PROMPT: str = """You are an AI assistant specialized in analyzing AI policy documents. 
     Your task is to provide accurate, informative answers based ONLY on the context provided.
@@ -49,4 +51,5 @@ class Settings(BaseSettings):
     """
 
 settings = Settings()
+settings.create_directories() 
 

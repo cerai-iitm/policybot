@@ -2,13 +2,21 @@ import os
 import logging
 from typing import List
 from pathlib import Path
-import pdfplumber
+import warnings
+from unstructured.partition.pdf import partition_pdf
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
 from ..config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Configure pdfminer logger to suppress warnings
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
+
+# Suppress other common warnings from PDF processing libraries
+warnings.filterwarnings("ignore", category=UserWarning, module="pdfminer")
+warnings.filterwarnings("ignore", category=UserWarning, module="pikepdf")
 
 class PDFProcessor:
     def __init__(self):
@@ -24,19 +32,49 @@ class PDFProcessor:
             documents = []
             pdf_filename = Path(file_path).name
             
-            with pdfplumber.open(file_path) as pdf:
-                for i, page in enumerate(pdf.pages):
-                    text = page.extract_text() or ""
-                    if text.strip(): 
-                        doc = Document(
-                            page_content=text,
-                            metadata={
-                                "source": pdf_filename,
-                                "page": i + 1,
-                                "file_path": file_path
-                            }
-                        )
-                        documents.append(doc)
+            # Use unstructured to extract PDF content with better handling of layouts
+            elements = partition_pdf(
+                filename=file_path,
+                strategy="fast",  # Use "fast" instead of "hi_res" to avoid Poppler dependency
+                extract_images_in_pdf=False,  # Set to True if you need images
+                infer_table_structure=True,   # Good for policy documents with tables
+            )
+            
+            # Group text by page
+            current_page = 1
+            current_text = ""
+            
+            for element in elements:
+                element_page = getattr(getattr(element, "metadata", None), "page_number", current_page)
+                
+                if element_page != current_page and current_text.strip():
+                    # Save the previous page
+                    doc = Document(
+                        page_content=current_text.strip(),
+                        metadata={
+                            "source": pdf_filename,
+                            "page": current_page,
+                            "file_path": file_path
+                        }
+                    )
+                    documents.append(doc)
+                    current_text = ""
+                    current_page = element_page
+                
+                # Add this element's text to the current page
+                current_text += str(element) + "\n"
+            
+            # Add the last page
+            if current_text.strip():
+                doc = Document(
+                    page_content=current_text.strip(),
+                    metadata={
+                        "source": pdf_filename,
+                        "page": current_page,
+                        "file_path": file_path
+                    }
+                )
+                documents.append(doc)
             
             logger.info(f"Successfully extracted {len(documents)} pages from {pdf_filename}")
             return documents

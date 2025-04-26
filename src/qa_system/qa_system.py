@@ -1,6 +1,5 @@
 import logging
 from typing import List, Dict, Any
-import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
@@ -11,8 +10,6 @@ logger = logging.getLogger(__name__)
 
 class QASystem:   
     def __init__(self):
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        
         self.llm = ChatGoogleGenerativeAI(
             model=settings.GEMINI_MODEL_NAME,
             google_api_key=settings.GEMINI_API_KEY,
@@ -21,7 +18,6 @@ class QASystem:
             top_k=40,
             max_output_tokens=4096,
         )
-        
         self.qa_prompt = PromptTemplate(
             input_variables=["system_prompt", "context", "question"],
             template=settings.QA_PROMPT_TEMPLATE,
@@ -62,7 +58,7 @@ class QASystem:
                 context=context,
                 question=question
             )
-            e
+            
             response = self.llm.invoke(prompt_value)
             answer = response.content
             
@@ -75,7 +71,7 @@ class QASystem:
                 if source not in sources:
                     sources.append(source)
             
-            logger.info(f"Generated answer with {len(sources)} sources")
+            logger.info(f"Generated answer with {len(sources)} sources\n{'#'*100}\n")
             return {
                 "answer": answer,
                 "sources": sources

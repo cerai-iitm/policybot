@@ -28,6 +28,22 @@ def setup_rag_logger():
     
     return logger
 
+def setup_app_logger():
+    """Setup general application logger to save to a file"""
+    logger = logging.getLogger()
+    
+    if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+        log_file = os.path.join(LOGS_DIR, f'app_{datetime.now().strftime("%Y%m%d")}.log')
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+
+        logger.addHandler(file_handler)
+        logger.setLevel(logging.INFO)
+    
+    return logger
+
 def log_interaction(question: str, documents: List[Document], answer: str):
     logger = setup_rag_logger()
     
@@ -49,24 +65,24 @@ def log_interaction(question: str, documents: List[Document], answer: str):
             }
             context_details.append(doc_details)
             
-            chunk_header = f"\n\n{'='*40}\nCHUNK #{i+1}: [Source: {source}, Page: {page}, Index: {chunk_index}]\n{'='*40}\n"
+            chunk_header = f"\n{'='*40}\nCHUNK #{i+1}: [Source: {source}, Page: {page}, Index: {chunk_index}]\n{'='*40}\n"
             chunk_content = f"{doc.page_content}\n"
             full_chunk_texts.append(chunk_header + chunk_content)
         
-        log_entry = {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "question": question,
-            "answer": answer,
-            "retrieved_chunks": {
-                "count": len(documents),
-                "details": context_details
-            }
-        }
+        # log_entry = {
+        #     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        #     "question": question,
+        #     "answer": answer,
+        #     "retrieved_chunks": {
+        #         "count": len(documents),
+        #         "details": context_details
+        #     }
+        # }
         
-        formatted_log = json.dumps(log_entry, indent=2, ensure_ascii=False)
+        # formatted_log = json.dumps(log_entry, indent=2, ensure_ascii=False)
         
         logger.info(f"\n{'#'*100}\nQUESTION: {question}\n{'#'*100}")
-        logger.info(formatted_log)
+        # logger.info(formatted_log)
         
         if full_chunk_texts:
             logger.info(f"\nRETRIEVED CHUNKS (Full Content):\n{''.join(full_chunk_texts)}")
