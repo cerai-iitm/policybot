@@ -20,12 +20,15 @@ class Settings(BaseSettings):
     GEMINI_MODEL_NAME: str = "models/gemini-2.0-flash"
     EMBEDDING_MODEL_NAME: str = "models/text-embedding-004"
     
-    CHUNK_SIZE: int = 1000
-    CHUNK_OVERLAP: int = 200
+    # Optimized chunking parameters for policy documents
+    CHUNK_SIZE: int = 1200  # Increased to capture more context in policy sections
+    CHUNK_OVERLAP: int = 300  # Increased overlap to maintain context across chunks
     
-    TOP_K_RESULTS: int = 4
-    SIMILARITY_THRESHOLD: float = 0.3  
+    # Enhanced retrieval parameters
+    TOP_K_RESULTS: int = 10  # Retrieve more candidates for reranking
+    SIMILARITY_THRESHOLD: float = 0.45  # Slightly lowered to catch more potential matches before reranking
     
+    # Policy-specific system prompt
     SYSTEM_PROMPT: str = """You are an AI assistant specialized in analyzing AI policy documents. 
     Your task is to provide accurate, informative answers based ONLY on the context provided.
     
@@ -35,21 +38,25 @@ class Settings(BaseSettings):
     3. If the context doesn't contain the answer, say "I don't have enough information to answer this question"
     4. Be concise but thorough in your explanations
     5. When appropriate, cite specific policy sections by name/number
-    6. Do not make up information or use prior knowledge outside the provided context
-    7. Always maintain a balanced, objective tone
+    6. Use formal language appropriate for policy documentation
+    7. When citing sections, refer to them as they appear in the document (e.g., "Section 3.2", "Article IV")
+    8. Do not make up information or use prior knowledge outside the provided context
+    9. Always maintain a balanced, objective tone
     """
     
+    # Enhanced prompt template with improved instructions
     QA_PROMPT_TEMPLATE: str = """
     {system_prompt}
     
-    Context information:
+    Context:
+    ---
     {context}
+    ---
     
     Question: {question}
     
-    Answer:
     """
 
 settings = Settings()
-settings.create_directories() 
+settings.create_directories()
 

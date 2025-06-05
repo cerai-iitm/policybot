@@ -27,9 +27,11 @@ class QASystem:
         if not documents:
             return "No relevant information found."
         
+        # Sort documents by source, page, hierarchy level, and chunk index for better context flow
         sorted_docs = sorted(documents, key=lambda x: (
             x.metadata.get("source", ""), 
             x.metadata.get("page", 0),
+            x.metadata.get("hierarchy_level", 999),  # Sort by hierarchy level if available
             x.metadata.get("chunk_index", 0)
         ))
 
@@ -37,8 +39,14 @@ class QASystem:
         for doc in sorted_docs:
             source = doc.metadata.get("source", "Unknown Source")
             page = doc.metadata.get("page", "Unknown Page")
+            section_title = doc.metadata.get("section_title", "")
             
-            context_part = f"[Document: {source}, Page: {page}]\n{doc.page_content}\n"
+            # Include section title in the context
+            header_parts = [f"Document: {source}", f"Page: {page}"]
+            if section_title:
+                header_parts.append(f"Section: {section_title}")
+                
+            context_part = f"[{', '.join(header_parts)}]\n{doc.page_content}\n"
             context_parts.append(context_part)
         
         return "\n".join(context_parts)

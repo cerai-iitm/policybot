@@ -70,13 +70,11 @@ class SinglePDFApp:
                 "answer": "Please upload a PDF document first.",
                 "sources": []
             }
-            
         try:
             collection_name = f"pdf_{Path(self.current_pdf_path).stem}"
             vector_store = VectorStoreManager(collection_name=collection_name)
-            
-            retrieved_docs = vector_store.similarity_search(question)
-            
+            # Use hybrid_search for better retrieval
+            retrieved_docs = vector_store.hybrid_search(question)
             if not retrieved_docs:
                 response = {
                     "answer": "I couldn't find relevant information in the document to answer your question.",
@@ -84,14 +82,10 @@ class SinglePDFApp:
                 }
                 log_interaction(question, [], response["answer"])
                 return response
-                
             qa_system = QASystem()
             result = qa_system.answer_question(question, retrieved_docs)
-            
             log_interaction(question, retrieved_docs, result["answer"])
-            
             return result
-            
         except Exception as e:
             logger.error(f"Error answering question: {str(e)}")
             return {

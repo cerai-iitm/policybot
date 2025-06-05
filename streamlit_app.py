@@ -3,7 +3,7 @@ import streamlit as st
 import logging
 from datetime import datetime
 
-os.environ["STREAMLIT_WATCHED_MODULES"] = "false"
+os.environ["STREAMLIT_SERVER_ENABLE_FILE_WATCHER"] = "false"
 
 from src.utils.log_utils import setup_app_logger
 
