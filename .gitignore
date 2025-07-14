@@ -1,0 +1,6 @@
+.venv
+data
+src/db
+src/data
+db
+app.log
