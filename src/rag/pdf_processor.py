@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 from collections import defaultdict
@@ -62,6 +61,7 @@ class PDFProcessor:
 
     def _process_pdf(self) -> list[Document] | None:
         file_path = os.path.join(cfg.DATA_DIR, self.file_name)
+        logger.info(f"Using Unstructured to process PDF: {self.file_name}")
 
         if not os.path.exists(file_path):
             logger.error(f"PDF file not found: {file_path}")
@@ -88,15 +88,16 @@ class PDFProcessor:
         existing_docs = self.collection.get(where={"source": self.file_name}, limit=1)
         if existing_docs and existing_docs.get("ids"):
             logger.info(
-                f"Document embeddings already exist in the collection for {self.file_name}."
+                f"Document embeddings already exist in the database for {self.file_name}."
             )
             return True
         logger.info(
-            f"No existing embeddings found in the collection for {self.file_name}."
+            f"No existing embeddings found in the database for {self.file_name}."
         )
         return False
 
     def _run_splitter(self, docs: List[Document]) -> List[Document] | None:
+        logger.info(f"Running splitter on {len(docs)} documents for {self.file_name}.")
         try:
             embedding_model, device = load_embedding_model()
             splitter = SemanticChunker(
@@ -117,7 +118,7 @@ class PDFProcessor:
 
     def _embed_docs(self, docs: List[Document]) -> np.ndarray | None:
         try:
-            logger.info(f"Embedding {len(docs)} documents for {self.file_name}.")
+            logger.info(f"Embedding {len(docs)} chunks for {self.file_name}.")
             embedding_model, device = load_embedding_model()
             all_embeddings = []
 
@@ -152,7 +153,7 @@ class PDFProcessor:
                 embeddings=embeddings.tolist(),
                 metadatas=[{"source": self.file_name} for _ in range(len(docs))],
             )
-            logger.info(f"Stored embeddings for {len(docs)} documents.")
+            logger.info(f"Stored embeddings for {len(docs)} chunks.")
         except Exception as e:
             logger.error(f"Error storing embeddings: {e}")
 

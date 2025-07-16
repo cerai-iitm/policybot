@@ -129,7 +129,6 @@ def format_response_to_text(success: bool, message: str = "", error: str = "") -
 
 def run_retriever(query: str, file_name: str, top_k: int = cfg.TOP_K) -> List[str]:
     try:
-
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
         with tempfile.NamedTemporaryFile(
@@ -140,6 +139,7 @@ def run_retriever(query: str, file_name: str, top_k: int = cfg.TOP_K) -> List[st
         env = os.environ.copy()
         env["PYTHONPATH"] = project_root
 
+        logger.info(f"Starting retriever subprocess for file: {file_name}")
         result = subprocess.run(
             [
                 "python",
@@ -179,7 +179,6 @@ def run_retriever(query: str, file_name: str, top_k: int = cfg.TOP_K) -> List[st
             return chunks
 
         finally:
-
             try:
                 os.unlink(temp_file_path)
             except OSError:
@@ -197,7 +196,6 @@ def run_retriever(query: str, file_name: str, top_k: int = cfg.TOP_K) -> List[st
 
 def process_pdf(file_name: str) -> Dict[str, Any]:
     try:
-
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 
         with tempfile.NamedTemporaryFile(
@@ -208,6 +206,7 @@ def process_pdf(file_name: str) -> Dict[str, Any]:
         env = os.environ.copy()
         env["PYTHONPATH"] = project_root
 
+        logger.info(f"Starting PDF processor subprocess for file: {file_name}")
         result = subprocess.run(
             ["python", "src/rag/pdf_processor.py", file_name, temp_file_path],
             capture_output=True,
@@ -237,10 +236,10 @@ def process_pdf(file_name: str) -> Dict[str, Any]:
                 return {"success": False, "error": "Empty response from PDF processor"}
 
             response = parse_response_from_text(content)
+            logger.info(f"PDF processing completed")
             return response
 
         finally:
-
             try:
                 os.unlink(temp_file_path)
             except OSError:

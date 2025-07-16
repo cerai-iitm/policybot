@@ -7,6 +7,8 @@ services:
     volumes:
       - .:/app
       - ./data:/app/data
+      - ./logs:/app/logs    
+      - ./db:/app/db        
     environment:
       - IN_DOCKER=1
       - OLLAMA_IP=host.docker.internal

@@ -83,9 +83,7 @@ class LLM_Interface:
             raise ValueError("Query cannot be empty")
 
         history = chat_manager.get_history(session_id)
-        logger.info(
-            f"Preparing inputs with {len(context_chunks)} context chunks and {len(history)} history messages"
-        )
+        logger.info(f"Preparing inputs with {len(context_chunks)} context chunks")
 
         return {
             "context_chunks": context_chunks,
@@ -101,12 +99,12 @@ class LLM_Interface:
         query: str,
     ) -> str:
         try:
-            logger.info(f"Generating response for query: {query[:50]}...")
+            logger.info(f"Generating response for query: {query[:30]}...")
             inputs = self.prepare_inputs(
                 session_id, chat_manager, context_chunks, query
             )
             response = self.chain.invoke(inputs)
-            logger.info(f"Generated response: {response[:100]}...")
+            logger.info(f"Generated response: {response[:30]}...")
             return response
         except ValueError as ve:
             logger.error(f"Input validation error: {ve}")

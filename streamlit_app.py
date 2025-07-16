@@ -29,6 +29,7 @@ if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 if "session_id" not in st.session_state:
     st.session_state["session_id"] = str(uuid.uuid4())
+    logger.debug(f"Created new session with id: {st.session_state["session_id"]}")
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
 if "current_query" not in st.session_state:
@@ -46,6 +47,7 @@ if pdf_file is not None:
 
             with open(pdf_path, "wb") as f:
                 f.write(pdf_file.getbuffer())
+            logger.info(f"PDF file saved to: {pdf_path}")
 
             with st.spinner("Processing PDF..."):
                 result = process_pdf(file_name=pdf_file.name)
@@ -118,6 +120,7 @@ if st.session_state.get("current_query") and "selected_filename" in st.session_s
     chat_manager.add_message(
         session_id=st.session_state["session_id"], role="user", message=query
     )
+    logger.info("User query received and processing initiated")
 
     try:
         with st.spinner("Retrieving chunks..."):

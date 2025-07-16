@@ -2,6 +2,51 @@
 
 A Retrieval-Augmented Generation (RAG) application for extracting and answering questions from Policy documents using LLMs.
 
+### Key Features
+
+- **Document Processing**: Automated extraction and chunking of text from PDF policy documents
+- **Semantic Search**: Advanced retrieval using vector embeddings for finding relevant document sections
+- **Conversational AI**: Natural language question-answering with context awareness
+- **Chat History**: Persistent conversation management for continuous dialogue
+
+### How It Works
+
+1. **Document Ingestion**: Upload PDF policy documents which are processed and split into manageable chunks
+2. **Vector Storage**: Text chunks are converted to embeddings and stored in a vector database for efficient retrieval
+3. **Query Processing**: User questions are embedded and matched against the document corpus using semantic similarity
+4. **Response Generation**: Retrieved context is combined with the user's question and fed to a Large Language Model (LLM) for generating accurate, contextual answers
+5. **Interactive Chat**: Users can ask follow-up questions with maintained conversation context
+
+---
+
+## Project Structure
+
+```
+policybot/
+├── src/
+│   ├── config.py
+│   ├── logger.py
+│   ├── rag/
+│   │   ├── __init__.py
+│   │   ├── chat_manager.py
+│   │   ├── LLM_interface.py
+│   │   ├── pdf_processor.py
+│   │   └── retriever.py
+│   └── util/
+│       ├── __init__.py
+│       └── util.py
+├── data/ (created at runtime)
+├── db/ (created at runtime)
+├── logs/ (created at runtime)
+├── streamlit_app.py
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+├── .gitignore
+├── .dockerignore
+└── README.md
+```
+
 ---
 
 ## Installation & Usage
@@ -58,7 +103,7 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
 4. **Start and Build the App**
 
    ```bash
-   docker-compose up --build
+   docker-compose up
    ```
 
    This will:
@@ -71,7 +116,7 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
    - To enter the running Docker container and view logs:
 
      ```bash
-     docker exec -it rag_app tail -f app.log
+     docker exec -it rag_app tail -f logs/app.log
      ```
 
 </details>
