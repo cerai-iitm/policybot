@@ -61,7 +61,7 @@ class PDFProcessor:
 
     def _process_pdf(self) -> list[Document] | None:
         file_path = os.path.join(cfg.DATA_DIR, self.file_name)
-        logger.info(f"Using Unstructured to process PDF: {self.file_name}")
+        logger.info(f"Extrcting text from PDF file: {file_path}")
 
         if not os.path.exists(file_path):
             logger.error(f"PDF file not found: {file_path}")

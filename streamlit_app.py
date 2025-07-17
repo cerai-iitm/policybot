@@ -6,7 +6,7 @@ import streamlit as st
 from src.config import cfg
 from src.logger import logger
 from src.rag import ChatManager, LLM_Interface
-from src.util import process_pdf, run_retriever
+from src.util import get_pdf_files_with_embeddings, process_pdf, run_retriever
 
 st.set_page_config(page_title="Policy Chatbot", layout="centered")
 
@@ -34,11 +34,47 @@ if "messages" not in st.session_state:
     st.session_state["messages"] = []
 if "current_query" not in st.session_state:
     st.session_state["current_query"] = None
+if "selected_filename" not in st.session_state:
+    st.session_state["selected_filename"] = None
+if "pdf_files" not in st.session_state:
+    st.session_state["pdf_files"] = get_pdf_files_with_embeddings()
+if "test" not in st.session_state:
+    st.session_state["test"] = 0
+if "show_success_message" not in st.session_state:
+    st.session_state["show_success_message"] = False
+if "show_error_message" not in st.session_state:
+    st.session_state["show_error_message"] = False
+if "error_message" not in st.session_state:
+    st.session_state["error_message"] = None
 
+
+def update_session_state():
+    st.session_state["selected_filename"] = st.session_state["pdf_file_selector"]
+    st.success(f"Selected PDF file: {st.session_state['selected_filename']}")
+    logger.info(
+        f"Updated selected file using selector to: {st.session_state['selected_filename']}"
+    )
+
+
+st.sidebar.selectbox(
+    "Select a PDF file",
+    key="pdf_file_selector",
+    options=st.session_state["pdf_files"],
+    index=(
+        0
+        if st.session_state["pdf_files"] and not st.session_state["selected_filename"]
+        else (
+            st.session_state["pdf_files"].index(st.session_state["selected_filename"])
+            if st.session_state["selected_filename"] in st.session_state["pdf_files"]
+            else 0
+        )
+    ),
+    help="Select a previously uploaded PDF file to use for querying.",
+    on_change=update_session_state,
+)
 
 pdf_file = st.sidebar.file_uploader("Upload a PDF file", type=cfg.ALLOWED_EXTENSIONS)
 
-success_placeholder = st.sidebar.empty()
 if pdf_file is not None:
     if st.sidebar.button("Process PDF"):
         try:
@@ -47,26 +83,36 @@ if pdf_file is not None:
 
             with open(pdf_path, "wb") as f:
                 f.write(pdf_file.getbuffer())
-            logger.info(f"PDF file saved to: {pdf_path}")
+            logger.info(f"Uploaded PDF file saved to: {pdf_path}")
 
             with st.spinner("Processing PDF..."):
                 result = process_pdf(file_name=pdf_file.name)
 
             if result.get("success", False):
                 st.session_state["selected_filename"] = pdf_file.name
-                success_placeholder.success(
-                    "PDF file uploaded and processed successfully!"
-                )
+                st.session_state["pdf_files"] = get_pdf_files_with_embeddings()
+                st.session_state["show_success_message"] = True
+                st.rerun()
             else:
                 error_msg = result.get("error", "Unknown error occurred")
-                success_placeholder.error(
-                    f"An error occurred while processing the PDF: {error_msg}"
-                )
+                st.session_state["error_message"] = error_msg
+                st.session_state["show_error_message"] = True
 
         except Exception as e:
-            success_placeholder.error(
-                f"An error occurred while processing the PDF: {e}"
-            )
+            st.session_state["error_message"] = e
+            st.session_state["show_error_message"] = True
+
+if st.session_state["show_success_message"]:
+    st.success(
+        f"PDF file uploaded and processed successfully: {st.session_state["selected_filename"]}"
+    )
+    st.session_state["show_success_message"] = False
+
+if st.session_state["show_error_message"]:
+    st.error(
+        f"An error occured while processing PDF: {st.session_state["error_message"]}"
+    )
+    st.session_state["show_error_message"] = False
 
 st.title("Policy Chatbot")
 
