@@ -1,13 +1,12 @@
 import os
 import sys
-from collections import defaultdict
 from typing import List
 
 import chromadb
 import numpy as np
+import pymupdf
 from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
-from unstructured.partition.pdf import partition_pdf
 
 from src.config import cfg
 from src.logger import logger
@@ -20,21 +19,6 @@ class PDFProcessor:
         self.collection = self.chroma_client.get_or_create_collection(
             name=cfg.COLLECTION_NAME
         )
-
-    def _group_texts_by_page(self, elements):
-        grouped = defaultdict(list)
-        for element in elements:
-            if hasattr(element, "text") and element.text and element.text.strip():
-                page = (
-                    getattr(element.metadata, "page_number", 0)
-                    if hasattr(element, "metadata")
-                    else 0
-                )
-                grouped[page].append(element.text)
-        return [
-            Document(page_content="\n".join(texts), metadata={"page_number": page})
-            for page, texts in grouped.items()
-        ]
 
     def process_pdf(self, file_name: str) -> bool:
         self.file_name = file_name
@@ -61,24 +45,35 @@ class PDFProcessor:
 
     def _process_pdf(self) -> list[Document] | None:
         file_path = os.path.join(cfg.DATA_DIR, self.file_name)
-        logger.info(f"Extrcting text from PDF file: {file_path}")
+        logger.info(f"Extracting text from PDF file: {file_path}")
 
         if not os.path.exists(file_path):
             logger.error(f"PDF file not found: {file_path}")
             return None
 
         try:
-            elements = partition_pdf(
-                filename=file_path, strategy="auto", infer_table_structure=True
-            )
+            pdf_doc = pymupdf.open(file_path)
+            documents = []
 
-            docs = self._group_texts_by_page(elements)
+            for page_num, page in enumerate(pdf_doc):
+                text = page.get_text("text").strip()
 
-            if not docs:
+                metadata = {
+                    "page_number": page_num + 1,
+                    "source": self.file_name,
+                }
+
+                doc = Document(page_content=text, metadata=metadata)
+                documents.append(doc)
+            pdf_doc.close()
+
+            if not documents:
                 logger.info(f"No text found in PDF {self.file_name}.")
                 return None
-            logger.info(f"Extracted {len(docs)} page documents from {self.file_name}.")
-            return docs
+            logger.info(
+                f"Extracted {len(documents)} page documents from {self.file_name}."
+            )
+            return documents
 
         except Exception as e:
             logger.error(f"Error processing PDF {self.file_name}: {e}")

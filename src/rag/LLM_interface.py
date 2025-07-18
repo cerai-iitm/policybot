@@ -57,7 +57,7 @@ class LLM_Interface:
             return "No relevant context available."
 
         context = "\n".join(formatted_chunks)
-        logger.info(f"Formatted context with {len(formatted_chunks)} valid chunks")
+        logger.info(f"Formatted prompt with {len(formatted_chunks)} chunks for LLM")
         return f"Retrieved Information:\n{context}"
 
     def _format_history(self, history: List[BaseMessage]) -> List[BaseMessage]:
@@ -83,7 +83,6 @@ class LLM_Interface:
             raise ValueError("Query cannot be empty")
 
         history = chat_manager.get_history(session_id)
-        logger.info(f"Preparing inputs with {len(context_chunks)} context chunks")
 
         return {
             "context_chunks": context_chunks,
@@ -99,10 +98,10 @@ class LLM_Interface:
         query: str,
     ) -> str:
         try:
-            logger.info(f"Generating response for query: {query[:30]}...")
             inputs = self.prepare_inputs(
                 session_id, chat_manager, context_chunks, query
             )
+            logger.info(f"Generating response for query: {query[:30]}...")
             response = self.chain.invoke(inputs)
             logger.info(f"Generated response: {response[:30]}...")
             return response
