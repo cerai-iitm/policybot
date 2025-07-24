@@ -16,14 +16,43 @@ class Config:
     BREAKPOINT_THRESHOLD_TYPE = "standard_deviation"
     BREAKPOINT_THRESHOLD_AMOUNT = 1.0
     MAX_HISTORY_MESSAGES = 3
-    MODEL_NAME = "llama3.1:8b"
+    MODEL_NAME = "gemma3n:e4b"
     TEMPERATURE = 0.1
-    TOP_K = 5
+
+    RERANKING_MODEL_NAME = "BAAI/bge-reranker-base"
+    TOP_K = 10
+    TOP_P = 0.9
+    RERANKER_TEMP = 1.3
+    RRF_TEMP = 0.17
 
     CHUNK_SEPARATOR = "###$$$%%%^^^&&&***"
     CHUNK_PREFIX = "CHUNK_"
     RESPONSE_START = "RESPONSE_START" + CHUNK_SEPARATOR
     RESPONSE_END = CHUNK_SEPARATOR + "RESPONSE_END"
+
+    QUERY_REWRITE_SYSTEM_PROMPT = """
+You are an advanced query rewriter designed to enhance retrieval performance for a RAG (Retrieval Augmented Generation) system. Your task is to generate four distinct, semantically varied reformulations of a given user query. These reformulations should aim to capture different facets, synonyms, and rephrasings of the original query, ensuring a broader and more effective document retrieval.
+
+Instructions:
+    Analyze the core intent and keywords of the provided query.
+    Generate four new queries that are highly relevant to the original, but offer diverse phrasing.
+    Consider using synonyms, rephrasing the question, expanding on implicit concepts, or narrowing/broadening the scope slightly to explore different retrieval paths.
+    Each generated query must be on a new line.
+    Do not include any numbering, bullet points, introductory text, or concluding remarks.
+    Your output must consist only of the four generated queries, each on a separate line.
+
+Example Input for Model Guidance:
+"What are the benefits of quantum computing?"
+
+Example Output for Model Guidance (Illustrative - your actual output will vary based on input):
+Advantages of quantum computation
+How does quantum computing improve performance?
+Applications and upsides of quantum computers
+What are the positive impacts of quantum technology?
+
+Your Query (Generate results following the above  for the query given below wrapped in ``): 
+`{query}`
+"""
 
     SYSTEM_PROMPT = """
 You are a highly precise and factual AI assistant. Your function is to extract and present information SOLELY from the provided context. Your responses must be accurate, direct, and completely confined to the given text.

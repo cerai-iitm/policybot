@@ -1,8 +1,7 @@
 from typing import Dict, List
 
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.schema import StrOutputParser
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage
 from langchain_ollama.llms import OllamaLLM
 
 from src.config import cfg
@@ -70,6 +69,23 @@ class LLM_Interface:
             recent_history = recent_history[1:]
 
         return recent_history
+
+    def generate_rewritten_queries(self, query: str) -> List[str]:
+        try:
+            response = self.llm.invoke(
+                cfg.QUERY_REWRITE_SYSTEM_PROMPT.format(query=query)
+            )
+
+            rewritten_queries = response.split("\n")
+            rewritten_queries = [
+                query.strip() for query in rewritten_queries if query.strip()
+            ]
+            rewritten_queries.append(query.strip())
+            return rewritten_queries[:5]
+
+        except Exception as e:
+            logger.error(f"Error generating rewritten queries: {e}")
+            return []
 
     def prepare_inputs(
         self,

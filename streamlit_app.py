@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 
 import streamlit as st
@@ -37,7 +38,11 @@ if "current_query" not in st.session_state:
 if "pdf_files" not in st.session_state:
     st.session_state["pdf_files"] = get_pdf_files_with_embeddings()
 if "selected_filename" not in st.session_state:
-    st.session_state["selected_filename"] = None if len(st.session_state["pdf_files"]) == 0 else st.session_state["pdf_files"][0]
+    st.session_state["selected_filename"] = (
+        None
+        if len(st.session_state["pdf_files"]) == 0
+        else st.session_state["pdf_files"][0]
+    )
 if "test" not in st.session_state:
     st.session_state["test"] = 0
 if "show_success_message" not in st.session_state:

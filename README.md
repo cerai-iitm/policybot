@@ -71,7 +71,7 @@ policybot/
      ```
    - (Optional) Pull the model, e.g.:
      ```bash
-     ollama pull llama3.1:8b
+     ollama pull gemma3n:e4b
      ```
    - The app inside Docker will connect to Ollama using the special host name `host.docker.internal:11434` (default in `docker-compose.yml`).
 
