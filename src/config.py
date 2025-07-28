@@ -18,6 +18,7 @@ class Config:
     MAX_HISTORY_MESSAGES = 3
     MODEL_NAME = "gemma3n:e4b"
     TEMPERATURE = 0.1
+    MAX_CONTEXT_TOKENS = 32000
 
     RERANKING_MODEL_NAME = "BAAI/bge-reranker-base"
     TOP_K = 10
@@ -30,27 +31,46 @@ class Config:
     RESPONSE_START = "RESPONSE_START" + CHUNK_SEPARATOR
     RESPONSE_END = CHUNK_SEPARATOR + "RESPONSE_END"
 
+    OLLAMA_PORT = os.environ.get("OLLAMA_PORT", "11434")
+    OLLAMA_IP = os.environ.get("OLLAMA_IP", "host.docker.internal")
+
+    if os.environ.get("IN_DOCKER") == "1":
+        OLLAMA_URL = f"http://{OLLAMA_IP}:{OLLAMA_PORT}"
+    else:
+        OLLAMA_URL = f"http://localhost:11434"
+
     QUERY_REWRITE_SYSTEM_PROMPT = """
 You are an advanced query rewriter designed to enhance retrieval performance for a RAG (Retrieval Augmented Generation) system. Your task is to generate four distinct, semantically varied reformulations of a given user query. These reformulations should aim to capture different facets, synonyms, and rephrasings of the original query, ensuring a broader and more effective document retrieval.
 
-Instructions:
-    Analyze the core intent and keywords of the provided query.
-    Generate four new queries that are highly relevant to the original, but offer diverse phrasing.
-    Consider using synonyms, rephrasing the question, expanding on implicit concepts, or narrowing/broadening the scope slightly to explore different retrieval paths.
-    Each generated query must be on a new line.
-    Do not include any numbering, bullet points, introductory text, or concluding remarks.
-    Your output must consist only of the four generated queries, each on a separate line.
+**Context Enhancement:**
+You will be provided with a document summary that contains relevant background information. Use this summary to inform your query reformulations by:
+- Incorporating domain-specific terminology and keywords present in the summary
+- Understanding the broader context and scope of available information
+- Leveraging technical terms, entities, and concepts mentioned in the summary
+- Ensuring reformulations align with the knowledge base content
 
-Example Input for Model Guidance:
+**Instructions:**
+- Analyze the core intent and keywords of the provided query.
+-  Review the provided summary to understand the relevant context and terminology.
+- Generate four new queries that are highly relevant to the original, but offer diverse phrasing.
+- Consider using synonyms, rephrasing the question, expanding on implicit concepts, or narrowing/broadening the scope slightly to explore different retrieval paths.
+- Incorporate relevant terms and concepts from the summary where appropriate.
+- Each generated query must be on a new line.
+- Do not include any numbering, bullet points, introductory text, or concluding remarks.
+- Your output must consist only of the four generated queries, each on a separate line.
+
+**Example Input for Model Guidance:**
 "What are the benefits of quantum computing?"
 
-Example Output for Model Guidance (Illustrative - your actual output will vary based on input):
+**Example Output for Model Guidance (Illustrative - your actual output will vary based on input):**
 Advantages of quantum computation
 How does quantum computing improve performance?
 Applications and upsides of quantum computers
 What are the positive impacts of quantum technology?
 
-Your Query (Generate results following the above  for the query given below wrapped in ``): 
+**Summary:** {summary}
+
+Your Query (Generate results following the above for the query given below wrapped in ``): 
 `{query}`
 """
 
@@ -78,13 +98,25 @@ You are a highly precise and factual AI assistant. Your function is to extract a
 5.  **Verify:** Confirm that your answer is 100% accurate, derived *only* from the context, and meets all specified formatting.
 """
 
-    OLLAMA_PORT = os.environ.get("OLLAMA_PORT", "11434")
-    OLLAMA_IP = os.environ.get("OLLAMA_IP", "host.docker.internal")
+    GENERATED_EXAMPLE_DOCUMENT_PROMPT = """
+You are an expert information retrieval system. Your goal is to generate a highly detailed and comprehensive hypothetical document that directly answers the given query, primarily using information from the provided summary. This hypothetical document should anticipate the kind of content a perfectly relevant document would contain.
 
-    if os.environ.get("IN_DOCKER") == "1":
-        OLLAMA_URL = f"http://{OLLAMA_IP}:{OLLAMA_PORT}"
-    else:
-        OLLAMA_URL = f"http://localhost:11434"
+Focus on extracting and synthesizing key facts, entities, definitions, processes, and relationships from the summary that are most pertinent to answering the query. If the summary does not contain enough information to fully answer the query, make logical inferences and add plausible, contextually relevant details to create a complete and coherent hypothetical answer. *Do not invent facts that contradict the summary.* The purpose is to create a rich, semantically similar document to aid in robust retrieval of actual documents.
+
+Include a strong emphasis on **keywords** and **key phrases** that are highly relevant to the query and the summarized content. Think about different ways a user might search for this information.
+
+---
+**Summary:**
+{summary}
+
+---
+**Query:**
+{query}
+
+---
+**Hypothetical Document:**
+
+    """
 
 
 cfg = Config()

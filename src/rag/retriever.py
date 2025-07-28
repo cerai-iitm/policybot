@@ -8,7 +8,7 @@ from FlagEmbedding import FlagReranker
 from src.config import cfg
 from src.logger import logger
 from src.rag.LLM_interface import LLM_Interface
-from src.util import free_embedding_model, load_embedding_model
+from src.util import free_embedding_model, get_summary_from_sqlite, load_embedding_model
 
 
 class Retriever:
@@ -95,7 +95,13 @@ class Retriever:
         try:
             embedding_model, device = load_embedding_model("cpu")
             logger.info("Generating rewritten queries for better retrieval")
-            rewritten_queries = self.interface.generate_rewritten_queries(query=query)
+            summary = get_summary_from_sqlite(file_name)
+            if not summary:
+                logger.warning(f"No summary found for file: {file_name}")
+                summary = "No relevant context available."
+            rewritten_queries = self.interface.generate_rewritten_queries(
+                query=query, summary=summary
+            )
             logger.debug(f"Debugging query rewriting: {rewritten_queries}")
 
             logger.info("Generating query embeddings")

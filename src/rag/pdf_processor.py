@@ -5,12 +5,20 @@ from typing import List
 import chromadb
 import numpy as np
 import pymupdf
+from langchain.chains.summarize import load_summarize_chain
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
 
 from src.config import cfg
 from src.logger import logger
-from src.util import free_embedding_model, load_embedding_model
+from src.rag import LLM_Interface
+from src.util import (
+    free_embedding_model,
+    get_summary_from_sqlite,
+    load_embedding_model,
+    save_summary_to_sqlite,
+)
 
 
 class PDFProcessor:
@@ -19,6 +27,7 @@ class PDFProcessor:
         self.collection = self.chroma_client.get_or_create_collection(
             name=cfg.COLLECTION_NAME
         )
+        self.interface = LLM_Interface()
 
     def process_pdf(self, file_name: str) -> bool:
         self.file_name = file_name
@@ -41,7 +50,45 @@ class PDFProcessor:
         logger.info(
             f"Successfully processed and stored embeddings for {self.file_name}."
         )
+        self.create_summary(docs)
+        logger.info(f"Summary created for {self.file_name}.")
         return True
+
+    def _split_text_by_tokens(self, text: str, tokens_per_chunk: int) -> List[str]:
+        words = text.split()
+        words_per_chunk = int(tokens_per_chunk / 1.33)
+        chunks = []
+        for i in range(0, len(words), words_per_chunk):
+            chunk = " ".join(words[i : i + words_per_chunk])
+            chunks.append(chunk)
+        return chunks
+
+    def create_summary(self, docs: List[Document]) -> tuple[str, str] | None:
+        logger.info(f"Creating summary for {self.file_name}.")
+        try:
+            existing_summary = get_summary_from_sqlite(self.file_name)
+            if existing_summary:
+                logger.info(
+                    f"Summary already exists for {self.file_name}. Skipping sumamary creation."
+                )
+                return self.file_name, existing_summary
+
+            text = "\n".join([doc.page_content for doc in docs])
+            doc = Document(page_content=text, metadata={"source": self.file_name})
+            splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=0)
+            recursive_docs = splitter.split_documents([doc])
+            logger.info(
+                f"Split text into {len(recursive_docs)} chunks for summarization."
+            )
+
+            chain = load_summarize_chain(self.interface.llm, chain_type="map_reduce")
+            summary = chain.invoke({"input_documents": recursive_docs})
+            save_summary_to_sqlite(self.file_name, summary["output_text"])
+            return self.file_name, summary["output_text"]
+
+        except Exception as e:
+            logger.error(f"Error creating summary for {self.file_name}: {e}")
+            return
 
     def _process_pdf(self) -> list[Document] | None:
         file_path = os.path.join(cfg.DATA_DIR, self.file_name)
@@ -201,6 +248,4 @@ if __name__ == "__main__":
             with open(output_file, "w", encoding="utf-8") as f:
                 f.write(error_result)
         except:
-
             print(error_result)
-        sys.exit(1)

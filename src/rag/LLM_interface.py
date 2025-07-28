@@ -18,6 +18,7 @@ class LLM_Interface:
             model=cfg.MODEL_NAME,
             temperature=cfg.TEMPERATURE,
             base_url=cfg.OLLAMA_URL,
+            num_ctx=cfg.MAX_CONTEXT_TOKENS,
         )
         self.chain = self._create_chain()
 
@@ -70,18 +71,25 @@ class LLM_Interface:
 
         return recent_history
 
-    def generate_rewritten_queries(self, query: str) -> List[str]:
+    def generate_rewritten_queries(self, query: str, summary: str) -> List[str]:
         try:
+            document = self.llm.invoke(
+                cfg.GENERATED_EXAMPLE_DOCUMENT_PROMPT.format(
+                    query=query, summary=summary
+                )
+            )
+
             response = self.llm.invoke(
-                cfg.QUERY_REWRITE_SYSTEM_PROMPT.format(query=query)
+                cfg.QUERY_REWRITE_SYSTEM_PROMPT.format(query=query, summary=summary)
             )
 
             rewritten_queries = response.split("\n")
+            rewritten_queries.append(document.strip())
             rewritten_queries = [
                 query.strip() for query in rewritten_queries if query.strip()
             ]
             rewritten_queries.append(query.strip())
-            return rewritten_queries[:5]
+            return rewritten_queries
 
         except Exception as e:
             logger.error(f"Error generating rewritten queries: {e}")
