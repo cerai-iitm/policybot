@@ -194,7 +194,7 @@ if st.session_state.get("current_query") and "selected_filename" in st.session_s
                 )
 
         with st.chat_message("assistant"):
-            st.write(response)
+            st.markdown(response)
             if chunks:
                 with st.expander("View Context Chunks"):
                     for i, chunk in enumerate(chunks):

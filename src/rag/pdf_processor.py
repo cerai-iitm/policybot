@@ -23,7 +23,7 @@ from src.util import (
 
 class PDFProcessor:
     def __init__(self) -> None:
-        self.chroma_client = chromadb.PersistentClient(path=cfg.DB_DIR)
+        self.chroma_client = chromadb.PersistentClient(path=cfg.CHROMA_DIR)
         self.collection = self.chroma_client.get_or_create_collection(
             name=cfg.COLLECTION_NAME
         )

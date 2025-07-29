@@ -37,6 +37,7 @@ policybot/
 │       └── util.py
 ├── data/ (created at runtime)
 ├── db/ (created at runtime)
+├── chroma/ (created at runtime)
 ├── logs/ (created at runtime)
 ├── streamlit_app.py
 ├── requirements.txt

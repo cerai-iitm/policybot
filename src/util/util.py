@@ -261,7 +261,7 @@ def process_pdf(file_name: str) -> Dict[str, Any]:
 
 def get_pdf_files_with_embeddings():
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
-    client = chromadb.PersistentClient(path=cfg.DB_DIR)
+    client = chromadb.PersistentClient(path=cfg.CHROMA_DIR)
     collection = client.get_or_create_collection(name=cfg.COLLECTION_NAME)
     pdf_files = [f for f in os.listdir(cfg.DATA_DIR) if f.lower().endswith(".pdf")]
     valid_files = []
@@ -273,7 +273,7 @@ def get_pdf_files_with_embeddings():
 
 
 def has_embeddings(file_name: str) -> bool:
-    client = chromadb.PersistentClient(path=cfg.DB_DIR)
+    client = chromadb.PersistentClient(path=cfg.CHROMA_DIR)
     collection = client.get_or_create_collection(name=cfg.COLLECTION_NAME)
     existing = collection.get(where={"source": file_name}, limit=1)
     return bool(existing and existing.get("ids"))
@@ -282,8 +282,8 @@ def has_embeddings(file_name: str) -> bool:
 def save_summary_to_sqlite(file_name: str, summary: str):
     import sqlite3
 
-    os.makedirs(cfg.DATA_DIR, exist_ok=True)
-    db_path = os.path.join(cfg.DATA_DIR, "summaries.db")
+    os.makedirs(cfg.DB_DIR, exist_ok=True)
+    db_path = os.path.join(cfg.DB_DIR, "summaries.db")
     conn = sqlite3.connect(db_path)
     try:
         c = conn.cursor()
@@ -311,7 +311,7 @@ def save_summary_to_sqlite(file_name: str, summary: str):
 def get_summary_from_sqlite(file_name: str) -> str | None:
     import sqlite3
 
-    db_path = os.path.join(cfg.DATA_DIR, "summaries.db")
+    db_path = os.path.join(cfg.DB_DIR, "summaries.db")
     if not os.path.exists(db_path):
         return None
     conn = sqlite3.connect(db_path)

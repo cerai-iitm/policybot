@@ -17,7 +17,7 @@ class Retriever:
         interface: LLM_Interface,
         top_k: int = 5,
     ) -> None:
-        self.chroma_client = chromadb.PersistentClient(path=cfg.DB_DIR)
+        self.chroma_client = chromadb.PersistentClient(path=cfg.CHROMA_DIR)
         self.collection = self.chroma_client.get_or_create_collection(
             name=cfg.COLLECTION_NAME
         )

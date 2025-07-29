@@ -7,6 +7,7 @@ class Config:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_DIR = os.path.join(BASE_DIR, "data")
     DB_DIR = os.path.join(BASE_DIR, "db")
+    CHROMA_DIR = os.path.join(BASE_DIR, "chroma")
 
     COLLECTION_NAME = "pdf_embeddings"
 
@@ -88,7 +89,7 @@ You are a highly precise and factual AI assistant. Your function is to extract a
 **Output Format:**
 * Present answers clearly and concisely.
 * Use bullet points or numbered lists if the information from the context naturally lends itself to such organization.
-* Do not use LaTeX formatting. Use standard Markdown for all text.
+* Use proper markdown formatting for the entire resposnse, including headings, bullet points, and emphasis where appropriate. Do not use any other styles like Latex or HTML. Use proper markdown syntax for generating the output. 
 
 **Task Execution Steps:**
 1.  **Read Question:** Understand the user's query precisely.
