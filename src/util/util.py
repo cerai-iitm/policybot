@@ -2,15 +2,18 @@ import os
 import subprocess
 import tempfile
 import time
+import warnings
+from gc import set_debug
 from typing import Any, Dict, List
 
 import chromadb
-import streamlit as st
 import torch
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from src.config import cfg
 from src.logger import logger
+
+warnings.filterwarnings("ignore")
 
 
 def load_embedding_model(device=None):
@@ -72,7 +75,7 @@ def parse_chunks_from_text(content: str) -> List[str]:
 def format_chunks_to_text(chunks: List[str]) -> str:
     try:
         formatted_chunks = []
-        for i, chunk in enumerate(chunks):
+        for _, chunk in enumerate(chunks):
             formatted_chunks.append(f"{cfg.CHUNK_PREFIX}{chunk}")
 
         content = cfg.CHUNK_SEPARATOR.join(formatted_chunks)
@@ -127,136 +130,156 @@ def format_response_to_text(success: bool, message: str = "", error: str = "") -
         return f"{cfg.RESPONSE_START}ERROR\n{str(e)}{cfg.RESPONSE_END}"
 
 
-def run_retriever(query: str, file_name: str, top_k: int = cfg.TOP_K) -> List[str]:
+def run_retriever(query: str, file_name: str, top_k: int):
+    import os
+    import subprocess
+    import tempfile
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
+    with tempfile.NamedTemporaryFile(
+        mode="w+", suffix=".txt", delete=False, encoding="utf-8"
+    ) as temp_file:
+        temp_file_path = temp_file.name
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = project_root
+
+    process = subprocess.Popen(
+        [
+            "python",
+            "src/rag/retriever.py",
+            query,
+            file_name,
+            str(top_k),
+            temp_file_path,
+        ],
+        cwd=project_root,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
     try:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-
-        with tempfile.NamedTemporaryFile(
-            mode="w+", suffix=".txt", delete=False, encoding="utf-8"
-        ) as temp_file:
-            temp_file_path = temp_file.name
-
-        env = os.environ.copy()
-        env["PYTHONPATH"] = project_root
-
-        logger.info(f"Starting retriever subprocess for file: {file_name}")
-        result = subprocess.run(
-            [
-                "python",
-                "src/rag/retriever.py",
-                file_name,
-                query,
-                str(top_k),
-                temp_file_path,
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=project_root,
-            env=env,
-        )
-
-        max_wait_time = 30
-        wait_time = 0
-        while (
-            not os.path.exists(temp_file_path) or os.path.getsize(temp_file_path) == 0
-        ):
-            time.sleep(0.1)
-            wait_time += 0.1
-            if wait_time > max_wait_time:
-                logger.error("Timeout waiting for retriever output file")
-                return []
-
+        if process.stdout is not None:
+            for line in iter(process.stdout.readline, ""):
+                if line:
+                    yield {"progress": line.strip()}
+            process.stdout.close()
+        process.wait()
+    finally:
         try:
-            with open(temp_file_path, "r", encoding="utf-8") as f:
-                content = f.read().strip()
+            os.unlink(temp_file_path)
+        except OSError:
+            pass
 
-            if not content:
-                logger.warning("Retriever returned empty output")
-                return []
+    if process.returncode != 0:
+        yield {
+            "success": False,
+            "error": f"Retriever failed with exit code {process.returncode}",
+        }
+        return
 
-            chunks = parse_chunks_from_text(content)
-            return chunks
+    if not os.path.exists(temp_file_path) or os.path.getsize(temp_file_path) == 0:
+        yield {"success": False, "error": "No output from retriever"}
+        return
 
-        finally:
-            try:
-                os.unlink(temp_file_path)
-            except OSError:
-                pass
-
-    except subprocess.CalledProcessError as e:
-        st.error(f"Retriever script failed: {e.stderr}")
-        logger.error(f"Retriever script error: {e}")
-        return []
-    except Exception as e:
-        st.error(f"An error occurred while running the retriever: {e}")
-        logger.error(f"Error running retriever: {e}")
-        return []
+    with open(temp_file_path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+    yield {"success": True, "chunks": content}
 
 
-def process_pdf(file_name: str) -> Dict[str, Any]:
+def process_pdf(file_name: str):
+    import os
+    import subprocess
+    import tempfile
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
+    with tempfile.NamedTemporaryFile(
+        mode="w+", suffix=".txt", delete=False, encoding="utf-8"
+    ) as temp_file:
+        temp_file_path = temp_file.name
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = project_root
+
+    logger.info(f"Starting PDF processor subprocess for file: {file_name}")
+    process = subprocess.Popen(
+        ["python", "src/rag/pdf_processor.py", file_name, temp_file_path],
+        cwd=project_root,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
     try:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-
-        with tempfile.NamedTemporaryFile(
-            mode="w+", suffix=".txt", delete=False, encoding="utf-8"
-        ) as temp_file:
-            temp_file_path = temp_file.name
-
-        env = os.environ.copy()
-        env["PYTHONPATH"] = project_root
-
-        logger.info(f"Starting PDF processor subprocess for file: {file_name}")
-        result = subprocess.run(
-            ["python", "src/rag/pdf_processor.py", file_name, temp_file_path],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=project_root,
-            env=env,
-        )
-
-        max_wait_time = 300
-        wait_time = 0
-        while (
-            not os.path.exists(temp_file_path) or os.path.getsize(temp_file_path) == 0
-        ):
-            time.sleep(0.5)
-            wait_time += 0.5
-            if wait_time > max_wait_time:
-                logger.error("Timeout waiting for PDF processor output file")
-                return {"success": False, "error": "Timeout waiting for PDF processor"}
-
+        if process.stdout is not None:
+            for line in iter(process.stdout.readline, ""):
+                if line:
+                    yield {"progress": line.strip()}
+            process.stdout.close()
+        process.wait()
+    finally:
         try:
-            with open(temp_file_path, "r", encoding="utf-8") as f:
-                content = f.read().strip()
+            os.unlink(temp_file_path)
+        except OSError:
+            pass
 
-            if not content:
-                logger.warning("PDF processor returned empty output")
-                return {"success": False, "error": "Empty response from PDF processor"}
+    if process.returncode != 0:
+        yield {
+            "success": False,
+            "error": f"PDF processor failed with exit code {process.returncode}",
+        }
+        return
 
-            response = parse_response_from_text(content)
-            logger.info(f"PDF processing completed")
-            return response
+    if not os.path.exists(temp_file_path) or os.path.getsize(temp_file_path) == 0:
+        yield {"success": False, "error": "No output from PDF processor"}
+        return
 
-        finally:
-            try:
-                os.unlink(temp_file_path)
-            except OSError:
-                pass
+    with open(temp_file_path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+    response = parse_response_from_text(content)
+    yield response
 
-    except subprocess.CalledProcessError as e:
-        error_msg = (
-            f"PDF processor script failed with exit code {e.returncode}: {e.stderr}"
-        )
-        st.error(error_msg)
-        logger.error(f"PDF processor error: {e}")
-        return {"success": False, "error": error_msg}
-    except Exception as e:
-        error_msg = f"An error occurred while running the PDF processor: {e}"
-        st.error(error_msg)
-        logger.error(f"Error running PDF processor: {e}")
-        return {"success": False, "error": error_msg}
+
+def run_pdf_processor(file_name: str):
+    import os
+    import subprocess
+
+    temp_file_path = cfg.TEMP_FILE_PATH
+    # Optionally clear the file before use
+    open(temp_file_path, "w").close()
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    env = os.environ.copy()
+    env["PYTHONPATH"] = project_root
+
+    process = subprocess.Popen(
+        ["python", "src/rag/pdf_processor.py", file_name, temp_file_path],
+        cwd=project_root,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    try:
+        if process.stdout is not None:
+            for line in iter(process.stdout.readline, ""):
+                if line:
+                    yield {"progress": line.strip()}
+            process.stdout.close()
+        process.wait()
+    finally:
+        pass  # Do not delete the temp file here
+
+    yield {"temp_file_path": temp_file_path, "returncode": process.returncode}
 
 
 def get_pdf_files_with_embeddings():
@@ -322,6 +345,92 @@ def get_summary_from_sqlite(file_name: str) -> str | None:
         return row[0] if row else None
     finally:
         conn.close()
+
+
+def read_pdf_processor_result(temp_file_path: str):
+    import os
+
+    if not os.path.exists(temp_file_path) or os.path.getsize(temp_file_path) == 0:
+        return {"success": False, "error": "No output from PDF processor"}
+
+    with open(temp_file_path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+
+    try:
+        os.unlink(temp_file_path)
+    except OSError:
+        pass
+
+    response = parse_response_from_text(content)
+    return response
+
+
+def run_retriever_subprocess(query: str, file_name: str, top_k: int):
+    import os
+    import subprocess
+    import tempfile
+
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
+    with tempfile.NamedTemporaryFile(
+        mode="w+", suffix=".txt", delete=False, encoding="utf-8"
+    ) as temp_file:
+        temp_file_path = temp_file.name
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = project_root
+
+    process = subprocess.Popen(
+        [
+            "python",
+            "src/rag/retriever.py",
+            file_name,
+            query,
+            str(top_k),
+            temp_file_path,
+        ],
+        cwd=project_root,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    try:
+        if process.stdout is not None:
+            for line in iter(process.stdout.readline, ""):
+                if line:
+                    yield {"progress": line.strip()}
+            process.stdout.close()
+        process.wait()
+    finally:
+        pass
+
+    yield {"temp_file_path": temp_file_path, "returncode": process.returncode}
+
+
+def read_retriever_result(temp_file_path: str):
+    import os
+
+    if not os.path.exists(temp_file_path) or os.path.getsize(temp_file_path) == 0:
+        return {"success": False, "error": "No output from retriever"}
+
+    with open(temp_file_path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+
+    try:
+        os.unlink(temp_file_path)
+    except OSError:
+        pass
+
+    chunks = parse_chunks_from_text(content)
+    if not chunks:
+        return {
+            "success": False,
+            "error": "No relevant information found in the document for your query.",
+        }
+    return {"success": True, "chunks": chunks}
 
 
 if __name__ == "__main__":

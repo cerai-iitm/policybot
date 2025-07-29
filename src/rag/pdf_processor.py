@@ -1,5 +1,6 @@
 import os
 import sys
+import warnings
 from typing import List
 
 import chromadb
@@ -9,16 +10,16 @@ from langchain.chains.summarize import load_summarize_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
+from transformers import logging as hf_logging
 
 from src.config import cfg
 from src.logger import logger
 from src.rag import LLM_Interface
-from src.util import (
-    free_embedding_model,
-    get_summary_from_sqlite,
-    load_embedding_model,
-    save_summary_to_sqlite,
-)
+from src.util import (free_embedding_model, get_summary_from_sqlite,
+                      load_embedding_model, save_summary_to_sqlite)
+
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
+hf_logging.set_verbosity_error()
 
 
 class PDFProcessor:
@@ -64,7 +65,8 @@ class PDFProcessor:
         return chunks
 
     def create_summary(self, docs: List[Document]) -> tuple[str, str] | None:
-        logger.info(f"Creating summary for {self.file_name}.")
+        logger.info(f"Creating a summary for {self.file_name}.")
+        print(f"Creating a summary for {self.file_name}...", flush=True)
         try:
             existing_summary = get_summary_from_sqlite(self.file_name)
             if existing_summary:
@@ -93,6 +95,7 @@ class PDFProcessor:
     def _process_pdf(self) -> list[Document] | None:
         file_path = os.path.join(cfg.DATA_DIR, self.file_name)
         logger.info(f"Extracting text from PDF file: {file_path}")
+        print(f"Extracting text from PDF file: {self.file_name}", flush=True)
 
         if not os.path.exists(file_path):
             logger.error(f"PDF file not found: {file_path}")
@@ -127,6 +130,7 @@ class PDFProcessor:
             return None
 
     def _check_existing_embeddings(self) -> bool:
+        print(f"Checking existing embeddings for {self.file_name}...", flush=True)
         existing_docs = self.collection.get(where={"source": self.file_name}, limit=1)
         if existing_docs and existing_docs.get("ids"):
             logger.info(
@@ -140,6 +144,7 @@ class PDFProcessor:
 
     def _run_splitter(self, docs: List[Document]) -> List[Document] | None:
         logger.info(f"Running splitter on {len(docs)} documents for {self.file_name}.")
+        print(f"Running splitter for creating chunks ...", flush=True)
         try:
             embedding_model, device = load_embedding_model()
             splitter = SemanticChunker(
@@ -161,6 +166,7 @@ class PDFProcessor:
     def _embed_docs(self, docs: List[Document]) -> np.ndarray | None:
         try:
             logger.info(f"Embedding {len(docs)} chunks for {self.file_name}.")
+            print(f"Embedding chunks ...", flush=True)
             embedding_model, device = load_embedding_model()
             all_embeddings = []
 
@@ -187,6 +193,7 @@ class PDFProcessor:
             return None
 
     def _store_embeddings(self, docs: List[Document], embeddings: np.ndarray) -> None:
+        print(f"Saving embeddings to db ...", flush=True)
         try:
             ids = [f"{self.file_name}_{i}" for i in range(len(docs))]
             self.collection.add(

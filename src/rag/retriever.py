@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from typing import List, Optional
 
@@ -9,6 +10,15 @@ from src.config import cfg
 from src.logger import logger
 from src.rag.LLM_interface import LLM_Interface
 from src.util import free_embedding_model, get_summary_from_sqlite, load_embedding_model
+
+warnings.filterwarnings(
+    "ignore", message="You're using a XLMRobertaTokenizerFast tokenizer.*"
+)
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
+
+from transformers import logging as hf_logging
+
+hf_logging.set_verbosity_error()
 
 
 class Retriever:
@@ -95,16 +105,19 @@ class Retriever:
         try:
             embedding_model, device = load_embedding_model("cpu")
             logger.info("Generating rewritten queries for better retrieval")
+            print("Retrieving summary for the file", flush=True)
             summary = get_summary_from_sqlite(file_name)
             if not summary:
                 logger.warning(f"No summary found for file: {file_name}")
                 summary = "No relevant context available."
+            print("Generating rewritten queries...", flush=True)
             rewritten_queries = self.interface.generate_rewritten_queries(
                 query=query, summary=summary
             )
             logger.debug(f"Debugging query rewriting: {rewritten_queries}")
 
             logger.info("Generating query embeddings")
+            print("Calculating query embeddings...", flush=True)
             query_embeddings = [
                 embedding_model.embed_query(rewritten_query)
                 for rewritten_query in rewritten_queries
@@ -113,6 +126,7 @@ class Retriever:
             free_embedding_model(embedding_model, device)
 
             logger.info("Retrieving relevant chunks from the database")
+            print("Retrieving relevant chunks from the database...", flush=True)
             results = self.collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
@@ -120,6 +134,7 @@ class Retriever:
                 include=["documents", "metadatas", "distances"],
             )
             logger.info("Performing rank fusion on retrieved results")
+            print("Performing rank fusion ...", flush=True)
             ranked_chunk_ids = self.reciprocal_rank_fusion(results["ids"], k=top_k)
 
             id_to_doc = {}
@@ -133,7 +148,7 @@ class Retriever:
                 for chunk_id in ranked_chunk_ids
                 if chunk_id in id_to_doc
             ]
-
+            print("Reranking filtered chunks...", flush=True)
             reranked_chunks = self.rerank_chunks(query, filtered_chunks)
             return reranked_chunks
         except Exception as e:
@@ -185,4 +200,6 @@ if __name__ == "__main__":
                 f.write(error_result)
         except:
             print(error_result)
+        sys.exit(1)
+        sys.exit(1)
         sys.exit(1)

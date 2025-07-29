@@ -2,8 +2,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-import coloredlogs
-
 
 def get_logger(name: str = "app") -> logging.Logger:
     logger = logging.getLogger(name)
@@ -24,15 +22,10 @@ def get_logger(name: str = "app") -> logging.Logger:
         maxBytes=10 * 1024 * 1024,
         backupCount=5,
     )
+
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-
-    coloredlogs.install(
-        level="INFO",
-        logger=logger,
-        fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
 
     return logger
 

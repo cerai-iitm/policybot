@@ -40,6 +40,8 @@ class Config:
     else:
         OLLAMA_URL = f"http://localhost:11434"
 
+    TEMP_FILE_PATH = "/tmp/policybot_temp.txt"
+
     QUERY_REWRITE_SYSTEM_PROMPT = """
 You are an advanced query rewriter designed to enhance retrieval performance for a RAG (Retrieval Augmented Generation) system. Your task is to generate four distinct, semantically varied reformulations of a given user query. These reformulations should aim to capture different facets, synonyms, and rephrasings of the original query, ensuring a broader and more effective document retrieval.
 

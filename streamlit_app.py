@@ -1,5 +1,4 @@
 import os
-import sys
 import uuid
 
 import streamlit as st
@@ -7,7 +6,9 @@ import streamlit as st
 from src.config import cfg
 from src.logger import logger
 from src.rag import ChatManager, LLM_Interface
-from src.util import get_pdf_files_with_embeddings, process_pdf, run_retriever
+from src.util import (get_pdf_files_with_embeddings, read_pdf_processor_result,
+                      read_retriever_result, run_pdf_processor,
+                      run_retriever_subprocess)
 
 st.set_page_config(page_title="Policy Chatbot", layout="centered")
 
@@ -30,7 +31,7 @@ if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 if "session_id" not in st.session_state:
     st.session_state["session_id"] = str(uuid.uuid4())
-    logger.debug(f"Created new session with id: {st.session_state["session_id"]}")
+    logger.debug(f"Created new session with id: {st.session_state['session_id']}")
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
 if "current_query" not in st.session_state:
@@ -91,31 +92,48 @@ if pdf_file is not None:
             logger.info(f"Uploaded PDF file saved to: {pdf_path}")
 
             with st.spinner("Processing PDF..."):
-                result = process_pdf(file_name=pdf_file.name)
+                progress_text = st.empty()
+                temp_file_path = None
+                returncode = None
 
-            if result.get("success", False):
-                st.session_state["selected_filename"] = pdf_file.name
-                st.session_state["pdf_files"] = get_pdf_files_with_embeddings()
-                st.session_state["show_success_message"] = True
-                st.rerun()
-            else:
-                error_msg = result.get("error", "Unknown error occurred")
-                st.session_state["error_message"] = error_msg
-                st.session_state["show_error_message"] = True
+                for update in run_pdf_processor(pdf_file.name):
+                    if "progress" in update:
+                        # Update the text inside the spinner
+                        progress_text.info(update["progress"])
+                    elif "temp_file_path" in update:
+                        temp_file_path = update["temp_file_path"]
+                        returncode = update["returncode"]
+
+                progress_text.empty()
+
+                if returncode == 0 and temp_file_path:
+                    result = read_pdf_processor_result(temp_file_path)
+                    if result.get("success"):
+                        st.session_state["selected_filename"] = pdf_file.name
+                        st.session_state["pdf_files"] = get_pdf_files_with_embeddings()
+                        st.session_state["show_success_message"] = True
+                        st.rerun()
+                    else:
+                        error_msg = result.get("error", "Unknown error occurred")
+                        st.session_state["error_message"] = error_msg
+                        st.session_state["show_error_message"] = True
+                else:
+                    st.session_state["error_message"] = "PDF processor failed to run."
+                    st.session_state["show_error_message"] = True
 
         except Exception as e:
-            st.session_state["error_message"] = e
+            st.session_state["error_message"] = str(e)
             st.session_state["show_error_message"] = True
 
 if st.session_state["show_success_message"]:
     st.success(
-        f"PDF file uploaded and processed successfully: {st.session_state["selected_filename"]}"
+        f"PDF file uploaded and processed successfully: {st.session_state['selected_filename']}"
     )
     st.session_state["show_success_message"] = False
 
 if st.session_state["show_error_message"]:
     st.error(
-        f"An error occured while processing PDF: {st.session_state["error_message"]}"
+        f"An error occured while processing PDF: {st.session_state['error_message']}"
     )
     st.session_state["show_error_message"] = False
 
@@ -173,25 +191,54 @@ if st.session_state.get("current_query") and "selected_filename" in st.session_s
     )
     logger.info("User query received and processing initiated")
 
-    try:
-        with st.spinner("Retrieving chunks..."):
-            chunks = run_retriever(
-                query=query,
-                file_name=st.session_state["selected_filename"],
-                top_k=cfg.TOP_K,
-            )
+    # Create a single placeholder at the top of your chat/response area
+    spinner_placeholder = st.empty()
 
-        if not chunks:
-            response = "No relevant information found in the document for your query."
-            chunks = []
-        else:
-            with st.spinner("Generating result..."):
-                response = llm_interface.generate_response(
-                    session_id=st.session_state["session_id"],
-                    chat_manager=chat_manager,
-                    context_chunks=chunks,
+    try:
+        # Retrieval spinner and progress
+        with spinner_placeholder.container():
+            with st.spinner("Retrieving chunks..."):
+                progress_placeholder = st.empty()
+                temp_file_path = None
+                returncode = None
+                for update in run_retriever_subprocess(
                     query=query,
+                    file_name=st.session_state["selected_filename"],
+                    top_k=cfg.TOP_K,
+                ):
+                    if "progress" in update:
+                        progress_placeholder.info(update["progress"])
+                    elif "temp_file_path" in update:
+                        temp_file_path = update["temp_file_path"]
+                        returncode = update["returncode"]
+
+        # After retrieval, update the same placeholder for generation
+        if returncode == 0 and temp_file_path:
+            result = read_retriever_result(temp_file_path)
+            if not result or not result.get("success"):
+                response = (
+                    "No relevant information found in the document for your query."
                 )
+                chunks = []
+            else:
+                chunks = result.get("chunks", [])
+                if not isinstance(chunks, list):
+                    chunks = [str(chunks)]
+                else:
+                    chunks = [str(chunk) for chunk in chunks]
+                with spinner_placeholder.container():
+                    with st.spinner("Generating result..."):
+                        response = llm_interface.generate_response(
+                            session_id=st.session_state["session_id"],
+                            chat_manager=chat_manager,
+                            context_chunks=chunks,
+                            query=query,
+                        )
+        else:
+            response = "Retriever failed to run."
+            chunks = []
+
+        spinner_placeholder.empty()  # Remove spinner/progress after done
 
         with st.chat_message("assistant"):
             st.markdown(response)
@@ -223,4 +270,5 @@ if st.session_state.get("current_query") and "selected_filename" in st.session_s
 
     finally:
         st.session_state["current_query"] = None
+        st.rerun()
         st.rerun()
