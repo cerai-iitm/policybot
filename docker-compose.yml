@@ -1,0 +1,27 @@
+services:
+  rag_app:
+    build: .
+    container_name: rag_app
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs    
+      - ./db:/app/db        
+    environment:
+      - IN_DOCKER=1
+      - OLLAMA_IP=host.docker.internal
+      - OLLAMA_PORT=11434
+      - STREAMLIT_SERVER_RUN_ON_SAVE=false
+      - BROWSER_GATHERUSAGESTATS=false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy: 
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    runtime: nvidia

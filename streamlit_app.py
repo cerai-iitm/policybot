@@ -1,133 +1,274 @@
 import os
+import uuid
+
 import streamlit as st
-import logging
-from datetime import datetime
 
-os.environ["STREAMLIT_SERVER_ENABLE_FILE_WATCHER"] = "false"
+from src.config import cfg
+from src.logger import logger
+from src.rag import ChatManager, LLM_Interface
+from src.util import (get_pdf_files_with_embeddings, read_pdf_processor_result,
+                      read_retriever_result, run_pdf_processor,
+                      run_retriever_subprocess)
 
-from src.utils.log_utils import setup_app_logger
+st.set_page_config(page_title="Policy Chatbot", layout="centered")
 
-# Setup file logging for the whole application
-logger = setup_app_logger()
 
-from src.qa_system.single_pdf_app import SinglePDFApp
+@st.cache_resource
+def get_chat_manager():
+    return ChatManager()
 
-st.set_page_config(
-    page_title="AI Policy Chatbot",
-    page_icon="📄",
-    layout="wide", 
-    initial_sidebar_state="expanded"
+
+@st.cache_resource
+def get_llm_interface():
+    return LLM_Interface()
+
+
+chat_manager = get_chat_manager()
+llm_interface = get_llm_interface()
+
+
+if "chat_history" not in st.session_state:
+    st.session_state["chat_history"] = []
+if "session_id" not in st.session_state:
+    st.session_state["session_id"] = str(uuid.uuid4())
+    logger.debug(f"Created new session with id: {st.session_state['session_id']}")
+if "messages" not in st.session_state:
+    st.session_state["messages"] = []
+if "current_query" not in st.session_state:
+    st.session_state["current_query"] = None
+if "pdf_files" not in st.session_state:
+    st.session_state["pdf_files"] = get_pdf_files_with_embeddings()
+if "selected_filename" not in st.session_state:
+    st.session_state["selected_filename"] = (
+        None
+        if len(st.session_state["pdf_files"]) == 0
+        else st.session_state["pdf_files"][0]
+    )
+if "test" not in st.session_state:
+    st.session_state["test"] = 0
+if "show_success_message" not in st.session_state:
+    st.session_state["show_success_message"] = False
+if "show_error_message" not in st.session_state:
+    st.session_state["show_error_message"] = False
+if "error_message" not in st.session_state:
+    st.session_state["error_message"] = None
+
+
+def update_session_state():
+    st.session_state["selected_filename"] = st.session_state["pdf_file_selector"]
+    st.success(f"Selected PDF file: {st.session_state['selected_filename']}")
+    logger.info(
+        f"Updated selected file using selector to: {st.session_state['selected_filename']}"
+    )
+
+
+st.sidebar.selectbox(
+    "Select a PDF file",
+    key="pdf_file_selector",
+    options=st.session_state["pdf_files"],
+    index=(
+        0
+        if st.session_state["pdf_files"] and not st.session_state["selected_filename"]
+        else (
+            st.session_state["pdf_files"].index(st.session_state["selected_filename"])
+            if st.session_state["selected_filename"] in st.session_state["pdf_files"]
+            else 0
+        )
+    ),
+    help="Select a previously uploaded PDF file to use for querying.",
+    on_change=update_session_state,
 )
 
-if 'app' not in st.session_state:
-    st.session_state.app = SinglePDFApp()
+pdf_file = st.sidebar.file_uploader("Upload a PDF file", type=cfg.ALLOWED_EXTENSIONS)
 
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
+if pdf_file is not None:
+    if st.sidebar.button("Process PDF"):
+        try:
+            os.makedirs(cfg.DATA_DIR, exist_ok=True)
+            pdf_path = os.path.join(cfg.DATA_DIR, pdf_file.name)
 
-if 'current_pdf' not in st.session_state:
-    st.session_state.current_pdf = None
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_file.getbuffer())
+            logger.info(f"Uploaded PDF file saved to: {pdf_path}")
 
-def handle_pdf_upload():
-    uploaded_file = st.session_state.pdf_uploader
+            with st.spinner("Processing PDF..."):
+                progress_text = st.empty()
+                temp_file_path = None
+                returncode = None
 
-    if uploaded_file is not None:
-        with st.spinner(f"Processing {uploaded_file.name}..."):
-            file_bytes = uploaded_file.getvalue()
+                for update in run_pdf_processor(pdf_file.name):
+                    if "progress" in update:
+                        # Update the text inside the spinner
+                        progress_text.info(update["progress"])
+                    elif "temp_file_path" in update:
+                        temp_file_path = update["temp_file_path"]
+                        returncode = update["returncode"]
 
-            success = st.session_state.app.save_and_process_uploaded_pdf(
-                file_bytes, uploaded_file.name
-            )
+                progress_text.empty()
 
-            if success:
-                st.session_state.current_pdf = uploaded_file.name
-                st.session_state.chat_history = []
-                st.success(f"Successfully processed {uploaded_file.name}")
-                st.rerun()
-            else:
-                st.error(f"Failed to process {uploaded_file.name}")
+                if returncode == 0 and temp_file_path:
+                    result = read_pdf_processor_result(temp_file_path)
+                    if result.get("success"):
+                        st.session_state["selected_filename"] = pdf_file.name
+                        st.session_state["pdf_files"] = get_pdf_files_with_embeddings()
+                        st.session_state["show_success_message"] = True
+                        st.rerun()
+                    else:
+                        error_msg = result.get("error", "Unknown error occurred")
+                        st.session_state["error_message"] = error_msg
+                        st.session_state["show_error_message"] = True
+                else:
+                    st.session_state["error_message"] = "PDF processor failed to run."
+                    st.session_state["show_error_message"] = True
 
-def handle_question():
-    question = st.session_state.question_input
+        except Exception as e:
+            st.session_state["error_message"] = str(e)
+            st.session_state["show_error_message"] = True
 
-    if not question:
-        st.warning("Please enter a question.")
-        return
+if st.session_state["show_success_message"]:
+    st.success(
+        f"PDF file uploaded and processed successfully: {st.session_state['selected_filename']}"
+    )
+    st.session_state["show_success_message"] = False
 
-    if not st.session_state.current_pdf:
-        st.warning("Please upload and process a PDF document first.")
-        return
+if st.session_state["show_error_message"]:
+    st.error(
+        f"An error occured while processing PDF: {st.session_state['error_message']}"
+    )
+    st.session_state["show_error_message"] = False
 
-    st.session_state.chat_history.append({
-        "role": "user",
-        "content": question,
-        "timestamp": datetime.now().strftime("%H:%M")
-    })
+st.title("Policy Chatbot")
 
-    with st.spinner("Generating answer..."):
-        result = st.session_state.app.answer_question(question)
-
-    st.session_state.chat_history.append({
-        "role": "assistant",
-        "content": result["answer"],
-        "sources": result["sources"],
-        "timestamp": datetime.now().strftime("%H:%M")
-    })
-
-def main():
-    st.title("📄 AI Policy Chatbot")
-
-    with st.sidebar:
-        st.header("Document Upload")
-        st.file_uploader(
-            "Upload an AI policy PDF document",
-            type=["pdf"],
-            key="pdf_uploader",
-            on_change=handle_pdf_upload,
-            label_visibility="collapsed" 
-        )
-
-        if st.session_state.current_pdf:
-            st.success(f"**Current document:** {st.session_state.current_pdf}")
-        else:
-            st.info("Upload a PDF to begin.")
-
-        st.divider() 
-
-        st.subheader("About") 
-        st.info( 
-            "This chatbot uses RAG (Retrieval-Augmented Generation) to answer "
-            "questions about AI policy documents. It retrieves relevant parts of "
-            "the document and generates accurate answers using Google's Gemini model."
-        )
-
-    if st.session_state.current_pdf:
-        st.header(f"Chat about: {st.session_state.current_pdf}")
-
-        for message in st.session_state.chat_history:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-                if message["role"] == "assistant" and "sources" in message and message["sources"]:
-                    sources_text = []
-                    for source in message["sources"]:
-                        page_num = source.get('page', 'N/A')
-                        if isinstance(page_num, int):
-                            page_num += 1 
-                        sources_text.append(
-                            f"**Page:** {page_num}"
-                            # f"**Document:** {source.get('title', 'N/A')}, " 
-                        )
-                    st.caption("Sources: " + ", ".join(sources_text))
-
-        st.chat_input(
-            "Ask a question about " + st.session_state.current_pdf + "...", 
-            key="question_input",
-            on_submit=handle_question 
-        )
-
+query = st.chat_input("Ask a question about the policy document...")
+if query and query.strip():
+    if "selected_filename" not in st.session_state:
+        st.error("Please upload a PDF file first.")
     else:
-        st.info("👈 Upload a PDF document using the sidebar to start chatting.")
+        st.session_state["current_query"] = query
 
+if "selected_filename" in st.session_state:
+    try:
+        chat_history = chat_manager.get_history(
+            session_id=st.session_state["session_id"]
+        )
 
-if __name__ == "__main__":
-    main()
+        for message in chat_history:
+            if hasattr(message, "type"):
+                if message.type == "human":
+                    role = "user"
+                elif message.type == "ai":
+                    role = "assistant"
+                elif message.type == "system":
+                    role = "system"
+                else:
+                    role = "assistant"
+            else:
+                role = "assistant"
+
+            with st.chat_message(role):
+                st.write(message.content)
+
+                if role == "assistant" and hasattr(message, "additional_kwargs"):
+                    chunks = message.additional_kwargs.get("chunks", [])
+                    if chunks:
+                        with st.expander("View Context Chunks"):
+                            for i, chunk in enumerate(chunks):
+                                st.markdown(f"**Chunk {i + 1}:**")
+                                st.markdown(chunk)
+
+    except Exception as e:
+        st.error(f"Error loading chat history: {e}")
+        logger.error(f"Error loading chat history: {e}")
+
+if st.session_state.get("current_query") and "selected_filename" in st.session_state:
+    query = st.session_state["current_query"]
+
+    with st.chat_message("user"):
+        st.write(query)
+
+    chat_manager.add_message(
+        session_id=st.session_state["session_id"], role="user", message=query
+    )
+    logger.info("User query received and processing initiated")
+
+    # Create a single placeholder at the top of your chat/response area
+    spinner_placeholder = st.empty()
+
+    try:
+        # Retrieval spinner and progress
+        with spinner_placeholder.container():
+            with st.spinner("Retrieving chunks..."):
+                progress_placeholder = st.empty()
+                temp_file_path = None
+                returncode = None
+                for update in run_retriever_subprocess(
+                    query=query,
+                    file_name=st.session_state["selected_filename"],
+                    top_k=cfg.TOP_K,
+                ):
+                    if "progress" in update:
+                        progress_placeholder.info(update["progress"])
+                    elif "temp_file_path" in update:
+                        temp_file_path = update["temp_file_path"]
+                        returncode = update["returncode"]
+
+        # After retrieval, update the same placeholder for generation
+        if returncode == 0 and temp_file_path:
+            result = read_retriever_result(temp_file_path)
+            if not result or not result.get("success"):
+                response = (
+                    "No relevant information found in the document for your query."
+                )
+                chunks = []
+            else:
+                chunks = result.get("chunks", [])
+                if not isinstance(chunks, list):
+                    chunks = [str(chunks)]
+                else:
+                    chunks = [str(chunk) for chunk in chunks]
+                with spinner_placeholder.container():
+                    with st.spinner("Generating result..."):
+                        response = llm_interface.generate_response(
+                            session_id=st.session_state["session_id"],
+                            chat_manager=chat_manager,
+                            context_chunks=chunks,
+                            query=query,
+                        )
+        else:
+            response = "Retriever failed to run."
+            chunks = []
+
+        spinner_placeholder.empty()  # Remove spinner/progress after done
+
+        with st.chat_message("assistant"):
+            st.markdown(response)
+            if chunks:
+                with st.expander("View Context Chunks"):
+                    for i, chunk in enumerate(chunks):
+                        st.markdown(f"**Chunk {i + 1}:**")
+                        st.markdown(chunk)
+
+        chat_manager.add_message(
+            session_id=st.session_state["session_id"],
+            role="assistant",
+            message=response,
+            chunks=chunks,
+        )
+
+    except Exception as e:
+        error_msg = f"Error occurred while generating answers: {e}"
+
+        with st.chat_message("assistant"):
+            st.error(error_msg)
+
+        logger.error(error_msg)
+        chat_manager.add_message(
+            session_id=st.session_state["session_id"],
+            role="assistant",
+            message=error_msg,
+        )
+
+    finally:
+        st.session_state["current_query"] = None
+        st.rerun()
+        st.rerun()
