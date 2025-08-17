@@ -121,6 +121,18 @@ Include a strong emphasis on **keywords** and **key phrases** that are highly re
 
     """
 
+    APPLICATION_INSTRUCTIONS = """
+    ## How to Use Policy Chatbot
+
+    1. **Upload your PDF:** Use the *Upload a PDF file* button in the sidebar to upload your policy document (PDF only, max 200MB).
+    2. **Process the PDF:** Click *Process PDF* to analyze your document. Wait for processing to complete.
+    3. **Select the filename:** After uploading, ensure your correct filename is selected in the dropdown menu.
+    4. **Ask questions:** Type your question in the chat input at the bottom of the screen. The chatbot will answer based on your document.
+    5. **View context chunks:** For each answer, you can expand the *View Context Chunks* dropdown to see the exact document excerpts used to generate the response. These chunks show the specific parts of your document that were used.
+
+    *Note: If your file doesn't appear, try refreshing the page or re-uploading.*
+    """
+
 
 cfg = Config()
 
