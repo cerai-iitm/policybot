@@ -6,9 +6,13 @@ import streamlit as st
 from src.config import cfg
 from src.logger import logger
 from src.rag import ChatManager, LLM_Interface
-from src.util import (get_pdf_files_with_embeddings, read_pdf_processor_result,
-                      read_retriever_result, run_pdf_processor,
-                      run_retriever_subprocess)
+from src.util import (
+    get_pdf_files_with_embeddings,
+    read_pdf_processor_result,
+    read_retriever_result,
+    run_pdf_processor,
+    run_retriever_subprocess,
+)
 
 st.set_page_config(page_title="Policy Chatbot", layout="centered")
 
@@ -62,6 +66,10 @@ def update_session_state():
     )
 
 
+with st.sidebar:
+    with st.popover("Application Instructions", use_container_width=True):
+        st.markdown(cfg.APPLICATION_INSTRUCTIONS)
+
 st.sidebar.selectbox(
     "Select a PDF file",
     key="pdf_file_selector",
@@ -98,7 +106,6 @@ if pdf_file is not None:
 
                 for update in run_pdf_processor(pdf_file.name):
                     if "progress" in update:
-                        # Update the text inside the spinner
                         progress_text.info(update["progress"])
                     elif "temp_file_path" in update:
                         temp_file_path = update["temp_file_path"]
@@ -191,11 +198,9 @@ if st.session_state.get("current_query") and "selected_filename" in st.session_s
     )
     logger.info("User query received and processing initiated")
 
-    # Create a single placeholder at the top of your chat/response area
     spinner_placeholder = st.empty()
 
     try:
-        # Retrieval spinner and progress
         with spinner_placeholder.container():
             with st.spinner("Retrieving chunks..."):
                 progress_placeholder = st.empty()
@@ -212,7 +217,6 @@ if st.session_state.get("current_query") and "selected_filename" in st.session_s
                         temp_file_path = update["temp_file_path"]
                         returncode = update["returncode"]
 
-        # After retrieval, update the same placeholder for generation
         if returncode == 0 and temp_file_path:
             result = read_retriever_result(temp_file_path)
             if not result or not result.get("success"):
@@ -238,7 +242,7 @@ if st.session_state.get("current_query") and "selected_filename" in st.session_s
             response = "Retriever failed to run."
             chunks = []
 
-        spinner_placeholder.empty()  # Remove spinner/progress after done
+        spinner_placeholder.empty()
 
         with st.chat_message("assistant"):
             st.markdown(response)
