@@ -9,7 +9,7 @@ export default function Home() {
   const [leftSidebarWidth, setLeftSidebarWidth] = useState(sidebarWidth);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
 
-  const [showRightSidebar, setShowRightSidebar] = useState(true);
+  const [showRightSidebar, setShowRightSidebar] = useState(false);
   const [checkedPdfs, setCheckedPdfs] = useState<string[]>([]);
   const [isPDFEnabled, setIsPDFEnabled] = useState(false);
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);

@@ -16,6 +16,7 @@ interface ChatSectionProps {
 const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState("");
+  const [warning, setWarning] = useState("");
 
   const [sourceSummary, setSourceSummary] = useState<string>("");
   const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
@@ -23,19 +24,24 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs }) => {
 
   const handleSend = async () => {
     console.log("handleSend called with input:", userInput.trim()); // Add here
+    if (checkedPdfs.length === 0) {
+      setWarning("Please select at least one PDF before sending a query.");
+      return;
+    }
+    setWarning("");
     if (userInput.trim()) {
       const humanMessage = { type: "user" as const, content: userInput.trim() };
       const aiMessage = { type: "ai" as const, content: "" };
+      const query = userInput.trim();
 
-      setMessages((prev) => [...prev, humanMessage, aiMessage]);
       setUserInput("");
-
+      setMessages((prev) => [...prev, humanMessage, aiMessage]);
       try {
         console.log("Sending request with PDFs:", checkedPdfs); // Add here
         const response = await fetch("http://localhost:8000/api/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: userInput.trim(), pdfs: checkedPdfs }),
+          body: JSON.stringify({ query: query, pdfs: checkedPdfs }),
         });
 
         if (!response.ok) {
@@ -127,6 +133,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs }) => {
 
   return (
     <div className="flex flex-col h-full bg-white">
+      {warning && <div className="text-red-500">{warning}</div>}
       {/* Chat history */}
       <div
         ref={chatHistoryRef}
@@ -155,14 +162,12 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs }) => {
           ))
         )}
       </div>
-
       {/* Chat input */}
       <ChatInput
         value={userInput}
         onChange={(e) => setUserInput(e.target.value)}
         onSend={handleSend}
       />
-
       <div className="text-center px-4 text-[10px]">
         <p>
           PolicyBot responses can be inaccurate. Please double-check its
