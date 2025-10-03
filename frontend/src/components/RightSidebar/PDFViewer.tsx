@@ -1,0 +1,33 @@
+"use client";
+import React from "react";
+
+interface PDFViewerProps {
+  filename: string | null;
+}
+
+const PDFViewer: React.FC<PDFViewerProps> = ({ filename }) => {
+  if (!filename) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        Select a PDF to view
+      </div>
+    );
+  }
+
+  // Adjust the URL to match your backend endpoint
+  const fileUrl = `http://localhost:8000/pdf/view/${encodeURIComponent(filename)}`;
+
+  return (
+    <div className="w-full h-full flex flex-col items-center">
+      <embed
+        src={fileUrl}
+        type="application/pdf"
+        width="100%"
+        height="800px"
+        style={{ border: "none" }}
+      />
+    </div>
+  );
+};
+
+export default PDFViewer;

@@ -10,6 +10,7 @@ export interface SidebarItem {
 interface SidebarProps {
   width: number;
   onWidthChange: (width: number) => void;
+  onFileSelect: (fileName: string) => void;
   checkedPdfs: string[];
   setCheckedPdfs: React.Dispatch<React.SetStateAction<string[]>>;
 }
@@ -17,6 +18,7 @@ interface SidebarProps {
 const LeftSidebar: React.FC<SidebarProps> = ({
   width,
   onWidthChange,
+  onFileSelect,
   checkedPdfs,
   setCheckedPdfs,
 }) => {
@@ -39,6 +41,10 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     fetchPdfs();
   }, []);
 
+  const handleFileSelect = (filename: string) => {
+    console.log("Reached handle file select ", filename);
+    onFileSelect(filename);
+  };
   // Maintain list of checked PDFs
   const toggleChecked = (filename: string) => {
     setCheckedPdfs((prev) =>
@@ -130,7 +136,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
             onToggle={toggleChecked}
             isCollapsedSidebar={width < 150}
             //TODO: Implement onClick to preview PDF
-            onClick={() => {}}
+            onClick={() => handleFileSelect(item.name)}
           />
         ))}
       </div>

@@ -3,9 +3,10 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from src.config import cfg
+from src.logger import logger
 from src.rag import PDFProcessor
 
 router = APIRouter()
@@ -90,3 +91,14 @@ async def process_uploaded_pdf(filename: str):
         yield "data: done\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@router.get("/view/{filename}")
+async def view_pdf(filename: str):
+    file_path = os.path.join(cfg.DATA_DIR, filename)
+    logger.info(f"Requested filename: {filename}")
+    logger.info(f"Full file path: {file_path}")
+    logger.info(f"File exists: {os.path.exists(file_path)}")
+    if not os.path.exists(file_path) or not filename.endswith(".pdf"):
+        raise HTTPException(status_code=404, detail="PDF not found")
+    return FileResponse(file_path, media_type="application/pdf", filename=filename)
