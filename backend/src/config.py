@@ -32,6 +32,7 @@ class Config:
     RESPONSE_START = "RESPONSE_START" + CHUNK_SEPARATOR
     RESPONSE_END = CHUNK_SEPARATOR + "RESPONSE_END"
 
+    FRONTEND_URL = "http://localhost:3000"
     OLLAMA_PORT = os.environ.get("OLLAMA_PORT", "11434")
     OLLAMA_IP = os.environ.get("OLLAMA_IP", "host.docker.internal")
 
