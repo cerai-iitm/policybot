@@ -1,4 +1,5 @@
-from typing import Dict, List
+import asyncio
+from typing import AsyncGenerator, Dict, List
 
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import BaseMessage
@@ -71,16 +72,18 @@ class LLM_Interface:
 
         return recent_history
 
-    def generate_rewritten_queries(self, query: str, summary: str) -> List[str]:
+    async def generate_rewritten_queries(self, query: str, summary: str) -> List[str]:
         try:
-            document = self.llm.invoke(
+            document = await asyncio.to_thread(
+                self.llm.invoke,
                 cfg.GENERATED_EXAMPLE_DOCUMENT_PROMPT.format(
                     query=query, summary=summary
-                )
+                ),
             )
 
-            response = self.llm.invoke(
-                cfg.QUERY_REWRITE_SYSTEM_PROMPT.format(query=query, summary=summary)
+            response = await asyncio.to_thread(
+                self.llm.invoke,
+                cfg.QUERY_REWRITE_SYSTEM_PROMPT.format(query=query, summary=summary),
             )
 
             rewritten_queries = response.split("\n")
@@ -138,3 +141,20 @@ class LLM_Interface:
 
             logger.error(f"Full traceback: {traceback.format_exc()}")
             return "[LLM Error: Could not generate response]"
+
+    async def generate_streaming_response(
+        self,
+        session_id: str,
+        chat_manager: ChatManager,
+        context_chunks: List[str],
+        query: str,
+    ) -> AsyncGenerator[str, None]:
+        try:
+            inputs = self.prepare_inputs(
+                session_id, chat_manager, context_chunks, query
+            )
+            # Use async streaming from the chain to ensure correct input type
+            async for chunk in self.chain.astream(inputs):
+                yield chunk  # Yield each token/chunk
+        except Exception as e:
+            yield f"[Error: {str(e)}]"

@@ -1,3 +1,4 @@
+import asyncio
 import warnings
 from collections import defaultdict
 from typing import List, Optional
@@ -9,7 +10,8 @@ from FlagEmbedding import FlagReranker
 from src.config import cfg
 from src.logger import logger
 from src.rag.LLM_interface import LLM_Interface
-from src.util import free_embedding_model, get_summary_from_sqlite, load_embedding_model
+from src.util import (free_embedding_model, get_summary_from_sqlite,
+                      load_embedding_model)
 
 warnings.filterwarnings(
     "ignore", message="You're using a XLMRobertaTokenizerFast tokenizer.*"
@@ -96,8 +98,8 @@ class Retriever:
             logger.error(f"Error during reranking: {e}")
             return chunks
 
-    def retrieve(
-        self, query: str, file_name: str, top_k: Optional[int] = None
+    async def retrieve(
+        self, query: str, pdfs: List[str], top_k: Optional[int] = None
     ) -> List[str]:
         if top_k is None:
             top_k = self.top_k
@@ -105,37 +107,43 @@ class Retriever:
         try:
             embedding_model, device = load_embedding_model("cpu")
             logger.info("Generating rewritten queries for better retrieval")
-            print("Retrieving summary for the file", flush=True)
-            summary = get_summary_from_sqlite(file_name)
-            if not summary:
-                logger.warning(f"No summary found for file: {file_name}")
-                summary = "No relevant context available."
-            print("Generating rewritten queries...", flush=True)
-            rewritten_queries = self.interface.generate_rewritten_queries(
+            summaries = [get_summary_from_sqlite(pdf) for pdf in pdfs]
+            if summaries is None:
+                logger.warning(f"No summary found for file the files: {summaries}")
+                summaries = []
+
+            summary = "\n\n".join(filter(None, summaries)) if summaries else ""
+            rewritten_queries = await self.interface.generate_rewritten_queries(
                 query=query, summary=summary
             )
             logger.debug(f"Debugging query rewriting: {rewritten_queries}")
 
             logger.info("Generating query embeddings")
             print("Calculating query embeddings...", flush=True)
-            query_embeddings = [
-                embedding_model.embed_query(rewritten_query)
-                for rewritten_query in rewritten_queries
-            ]
+            query_embeddings = await asyncio.gather(
+                *[
+                    embedding_model.aembed_query(rewritten_query)
+                    for rewritten_query in rewritten_queries
+                ]
+            )
             query_embeddings = np.array(query_embeddings, dtype=np.float32)
             free_embedding_model(embedding_model, device)
 
             logger.info("Retrieving relevant chunks from the database")
             print("Retrieving relevant chunks from the database...", flush=True)
-            results = self.collection.query(
+            results = await asyncio.to_thread(
+                self.collection.query,
                 query_embeddings=query_embeddings,
                 n_results=top_k,
-                where={"source": str(file_name)},
                 include=["documents", "metadatas", "distances"],
+                where={"source": {"$in": pdfs}},  # type: ignore
             )
+
             logger.info("Performing rank fusion on retrieved results")
             print("Performing rank fusion ...", flush=True)
-            ranked_chunk_ids = self.reciprocal_rank_fusion(results["ids"], k=top_k)
+            ranked_chunk_ids = await asyncio.to_thread(
+                self.reciprocal_rank_fusion, results["ids"], k=top_k
+            )
 
             id_to_doc = {}
             documents = results.get("documents") or []
@@ -149,7 +157,9 @@ class Retriever:
                 if chunk_id in id_to_doc
             ]
             print("Reranking filtered chunks...", flush=True)
-            reranked_chunks = self.rerank_chunks(query, filtered_chunks)
+            reranked_chunks = await asyncio.to_thread(
+                self.rerank_chunks, query, filtered_chunks
+            )
             return reranked_chunks
         except Exception as e:
             logger.error(f"Error retrieving data: {e}")
