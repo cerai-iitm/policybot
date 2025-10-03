@@ -1,7 +1,8 @@
+import asyncio
 import os
 import sys
 import warnings
-from typing import List
+from typing import AsyncGenerator, List
 
 import chromadb
 import numpy as np
@@ -30,30 +31,61 @@ class PDFProcessor:
         )
         self.interface = LLM_Interface()
 
-    def process_pdf(self, file_name: str) -> bool:
-        self.file_name = file_name
-        logger.info(f"Processing PDF file: {self.file_name}")
-        if not self.file_name.endswith(".pdf"):
-            logger.error(f"File {self.file_name} is not a PDF.")
-            return False
-        if self._check_existing_embeddings():
-            return True
-        docs = self._process_pdf()
+    async def process_pdf(self, file_name: str) -> AsyncGenerator[str, None]:
+        logger.info(f"Processing PDF file: {file_name}")
+        yield "Starting PDF processing..."
+        await asyncio.sleep(0)  # Force flush
+
+        if not file_name.endswith(".pdf"):
+            logger.error(f"File {file_name} is not a PDF.")
+            yield "Error: Not a PDF file."
+
+        yield "Checking for existing embeddings..."
+        await asyncio.sleep(0)
+        if await asyncio.to_thread(self._check_existing_embeddings, file_name):
+            yield "Embeddings already exist. Skipping processing."
+            yield "done"
+            return
+
+        yield "Extracting text from PDF..."
+        await asyncio.sleep(0)
+        docs = await asyncio.to_thread(self._extract_text_from_pdf, file_name)
         if not docs:
-            return False
-        split_docs = self._run_splitter(docs)
+            yield "Error: Failed to extract text."
+            return
+
+        yield "Running splitter for creating chunks..."
+        await asyncio.sleep(0)
+        split_docs = await asyncio.to_thread(self._run_splitter, docs, file_name)
         if not split_docs:
-            return False
-        embeddings = self._embed_docs(split_docs)
-        if embeddings is None or len(embeddings) == 0:
-            return False
-        self._store_embeddings(split_docs, embeddings)
-        logger.info(
-            f"Successfully processed and stored embeddings for {self.file_name}."
+            yield "Error: Failed to split documents."
+            return
+
+        yield "Embedding chunks..."
+        await asyncio.sleep(0)
+        embeddings = await asyncio.to_thread(self._embed_docs, split_docs, file_name)
+        if embeddings is None:
+            yield "Error: Failed to generate embeddings."
+            return
+        logger.info(f"Generated embeddings shape: {embeddings.shape} for {file_name}.")
+
+        yield "Saving embeddings to database..."
+        await asyncio.sleep(0)
+        await asyncio.to_thread(
+            self._store_embeddings, split_docs, embeddings, file_name
         )
-        self.create_summary(docs)
-        logger.info(f"Summary created for {self.file_name}.")
-        return True
+        logger.info(f"Successfully processed and stored embeddings for {file_name}.")
+
+        yield "Creating summary..."
+        await asyncio.sleep(0)
+        summary_result = await asyncio.to_thread(self._create_summary, docs, file_name)
+        if summary_result:
+            yield "Summary created and saved."
+        else:
+            yield "Error: Failed to create summary."
+
+        yield "PDF processing complete."
+        yield "done"
 
     def _split_text_by_tokens(self, text: str, tokens_per_chunk: int) -> List[str]:
         words = text.split()
@@ -64,19 +96,21 @@ class PDFProcessor:
             chunks.append(chunk)
         return chunks
 
-    def create_summary(self, docs: List[Document]) -> tuple[str, str] | None:
-        logger.info(f"Creating a summary for {self.file_name}.")
-        print(f"Creating a summary for {self.file_name}...", flush=True)
+    def _create_summary(
+        self, docs: List[Document], file_name: str
+    ) -> tuple[str, str] | None:
+        logger.info(f"Creating a summary for {file_name}.")
+        print(f"Creating a summary for {file_name}...", flush=True)
         try:
-            existing_summary = get_summary_from_sqlite(self.file_name)
+            existing_summary = get_summary_from_sqlite(file_name)
             if existing_summary:
                 logger.info(
-                    f"Summary already exists for {self.file_name}. Skipping sumamary creation."
+                    f"Summary already exists for {file_name}. Skipping sumamary creation."
                 )
-                return self.file_name, existing_summary
+                return file_name, existing_summary
 
             text = "\n".join([doc.page_content for doc in docs])
-            doc = Document(page_content=text, metadata={"source": self.file_name})
+            doc = Document(page_content=text, metadata={"source": file_name})
             splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=0)
             recursive_docs = splitter.split_documents([doc])
             logger.info(
@@ -85,17 +119,16 @@ class PDFProcessor:
 
             chain = load_summarize_chain(self.interface.llm, chain_type="map_reduce")
             summary = chain.invoke({"input_documents": recursive_docs})
-            save_summary_to_sqlite(self.file_name, summary["output_text"])
-            return self.file_name, summary["output_text"]
+            save_summary_to_sqlite(file_name, summary["output_text"])
+            return file_name, summary["output_text"]
 
         except Exception as e:
-            logger.error(f"Error creating summary for {self.file_name}: {e}")
+            logger.error(f"Error creating summary for {file_name}: {e}")
             return
 
-    def _process_pdf(self) -> list[Document] | None:
-        file_path = os.path.join(cfg.DATA_DIR, self.file_name)
+    def _extract_text_from_pdf(self, file_name: str) -> list[Document] | None:
+        file_path = os.path.join(cfg.DATA_DIR, file_name)
         logger.info(f"Extracting text from PDF file: {file_path}")
-        print(f"Extracting text from PDF file: {self.file_name}", flush=True)
 
         if not os.path.exists(file_path):
             logger.error(f"PDF file not found: {file_path}")
@@ -110,7 +143,7 @@ class PDFProcessor:
 
                 metadata = {
                     "page_number": page_num + 1,
-                    "source": self.file_name,
+                    "source": file_name,
                 }
 
                 doc = Document(page_content=text, metadata=metadata)
@@ -118,32 +151,30 @@ class PDFProcessor:
             pdf_doc.close()
 
             if not documents:
-                logger.info(f"No text found in PDF {self.file_name}.")
+                logger.info(f"No text found in PDF {file_name}.")
                 return None
-            logger.info(
-                f"Extracted {len(documents)} page documents from {self.file_name}."
-            )
+            logger.info(f"Extracted {len(documents)} page documents from {file_name}.")
             return documents
 
         except Exception as e:
-            logger.error(f"Error processing PDF {self.file_name}: {e}")
+            logger.error(f"Error processing PDF {file_name}: {e}")
             return None
 
-    def _check_existing_embeddings(self) -> bool:
-        print(f"Checking existing embeddings for {self.file_name}...", flush=True)
-        existing_docs = self.collection.get(where={"source": self.file_name}, limit=1)
+    def _check_existing_embeddings(self, file_name: str) -> bool:
+        print(f"Checking existing embeddings for {file_name}...", flush=True)
+        existing_docs = self.collection.get(where={"source": file_name}, limit=1)
         if existing_docs and existing_docs.get("ids"):
             logger.info(
-                f"Document embeddings already exist in the database for {self.file_name}."
+                f"Document embeddings already exist in the database for {file_name}."
             )
             return True
-        logger.info(
-            f"No existing embeddings found in the database for {self.file_name}."
-        )
+        logger.info(f"No existing embeddings found in the database for {file_name}.")
         return False
 
-    def _run_splitter(self, docs: List[Document]) -> List[Document] | None:
-        logger.info(f"Running splitter on {len(docs)} documents for {self.file_name}.")
+    def _run_splitter(
+        self, docs: List[Document], file_name: str
+    ) -> List[Document] | None:
+        logger.info(f"Running splitter on {len(docs)} documents for {file_name}.")
         print(f"Running splitter for creating chunks ...", flush=True)
         try:
             embedding_model, device = load_embedding_model()
@@ -155,17 +186,17 @@ class PDFProcessor:
             split_docs = splitter.split_documents(docs)
             free_embedding_model(embedding_model, device)
             logger.info(
-                f"Split {len(docs)} page documents into {len(split_docs)} chunks for {self.file_name}."
+                f"Split {len(docs)} page documents into {len(split_docs)} chunks for {file_name}."
             )
             return split_docs
 
         except Exception as e:
-            logger.error(f"Error processing PDF {self.file_name} with splitter: {e}")
+            logger.error(f"Error processing PDF {file_name} with splitter: {e}")
             return None
 
-    def _embed_docs(self, docs: List[Document]) -> np.ndarray | None:
+    def _embed_docs(self, docs: List[Document], file_name: str) -> np.ndarray | None:
         try:
-            logger.info(f"Embedding {len(docs)} chunks for {self.file_name}.")
+            logger.info(f"Embedding {len(docs)} chunks for {file_name}.")
             print(f"Embedding chunks ...", flush=True)
             embedding_model, device = load_embedding_model()
             all_embeddings = []
@@ -183,6 +214,7 @@ class PDFProcessor:
 
                 except Exception as e:
                     logger.error(f"Error embedding document {i}: {e}")
+                    return None
                     continue
             embeddings = np.array(all_embeddings, dtype=np.float32)
             free_embedding_model(embedding_model, device)
@@ -192,15 +224,17 @@ class PDFProcessor:
             logger.error(f"Error embedding documents: {e}")
             return None
 
-    def _store_embeddings(self, docs: List[Document], embeddings: np.ndarray) -> None:
+    def _store_embeddings(
+        self, docs: List[Document], embeddings: np.ndarray, file_name: str
+    ) -> None:
         print(f"Saving embeddings to db ...", flush=True)
         try:
-            ids = [f"{self.file_name}_{i}" for i in range(len(docs))]
+            ids = [f"{file_name}_{i}" for i in range(len(docs))]
             self.collection.add(
                 ids=ids,
                 documents=[doc.page_content for doc in docs],
                 embeddings=embeddings.tolist(),
-                metadatas=[{"source": self.file_name} for _ in range(len(docs))],
+                metadatas=[{"source": file_name} for _ in range(len(docs))],
             )
             logger.info(f"Stored embeddings for {len(docs)} chunks.")
         except Exception as e:

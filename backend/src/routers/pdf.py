@@ -3,11 +3,13 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.config import cfg
+from src.rag import PDFProcessor
 
 router = APIRouter()
+pdf_processor = PDFProcessor()
 
 
 @router.get("/list")
@@ -74,3 +76,17 @@ async def delete_pdf(filename: str):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+
+
+@router.get("/process/{filename}")
+async def process_uploaded_pdf(filename: str):
+    file_path = Path(cfg.DATA_DIR) / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found.")
+
+    async def generate():
+        async for update in pdf_processor.process_pdf(str(file_path)):
+            yield f"data: {update}\n\n"
+        yield "data: done\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
