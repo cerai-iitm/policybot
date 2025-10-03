@@ -1,6 +1,7 @@
 "use client";
 import LeftSidebar from "@/components/leftSidebar/LeftSidebar";
 import { useState } from "react";
+import ChatSection from "@/components/chat/ChatSection";
 
 export default function Home() {
   const sidebarWidth = 256;
@@ -17,6 +18,10 @@ export default function Home() {
           checkedPdfs={checkedPdfs}
           setCheckedPdfs={setCheckedPdfs}
         />
+      </div>
+      {/* Middle Chat Section - Takes remaining space */}
+      <div className="flex-1 min-w-0">
+        <ChatSection checkedPdfs={checkedPdfs} />
       </div>
     </main>
   );
