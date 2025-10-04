@@ -2,6 +2,7 @@ import hashlib
 import json
 from typing import List, Optional
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.schema.overall_summaries import OverallSummary
@@ -22,9 +23,19 @@ def add_overall_summary(
         pdf_set_hash=pdf_set_hash, pdf_file_names=pdf_file_names_json, summary=summary
     )
     db.add(new_summary)
-    db.commit()
-    db.refresh(new_summary)
-    return new_summary
+    try:
+        db.commit()
+        db.refresh(new_summary)
+        return new_summary
+    except IntegrityError:
+        db.rollback()
+        # Fetch and return the existing summary
+        existing = get_overall_summary(db, file_names)
+        if existing:
+            return existing
+        else:
+            # If for some reason it still doesn't exist, raise the error
+            raise
 
 
 def get_overall_summary(db: Session, file_names: List[str]) -> Optional[OverallSummary]:

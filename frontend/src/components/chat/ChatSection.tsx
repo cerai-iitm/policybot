@@ -24,7 +24,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
   const [loadingOverallSummary, setLoadingOverallSummary] =
     useState<boolean>(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
-  const [sessionId] = useState(() => crypto.randomUUID()); // or however you want to generate session IDs
+  const [sessionId] = useState(() => crypto.randomUUID());
   const chatHistoryRef = useRef<HTMLDivElement>(null);
 
   const handleSend = async () => {
@@ -102,6 +102,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
         if (!fullResponse.trim()) {
           throw new Error("No response received");
         }
+        await fetchSuggestedQuestions();
       } catch (error) {
         console.error("Stream error:", error);
         setMessages((prev) => {
@@ -116,12 +117,33 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
     }
   };
 
+  const handleSuggestionClick = (question: string) => {
+    setUserInput(question);
+  };
+
+  const fetchSuggestedQuestions = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/suggested-queries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      const data = await res.json();
+      setSuggestedQuestions(data.suggested_queries || []);
+    } catch (e) {
+      setSuggestedQuestions([]);
+    }
+  };
+
   // Auto-scroll to bottom when messages update
   useEffect(() => {
     if (chatHistoryRef.current) {
       chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
     }
   }, [messages]);
+  useEffect(() => {
+    fetchSuggestedQuestions();
+  }, []); // on mount
 
   const fetchOverallSummary = async () => {
     setLoadingOverallSummary(true);
@@ -176,10 +198,13 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
         )}
       </div>
       {/* Chat input */}
+
       <ChatInput
         value={userInput}
         onChange={(e) => setUserInput(e.target.value)}
         onSend={handleSend}
+        suggestedQuestions={suggestedQuestions}
+        onSuggestionClick={handleSuggestionClick}
       />
       <div className="text-center px-4 text-[10px]">
         <p>
