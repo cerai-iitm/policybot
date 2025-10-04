@@ -302,51 +302,6 @@ def has_embeddings(file_name: str) -> bool:
     return bool(existing and existing.get("ids"))
 
 
-def save_summary_to_sqlite(file_name: str, summary: str):
-    import sqlite3
-
-    os.makedirs(cfg.DB_DIR, exist_ok=True)
-    db_path = os.path.join(cfg.DB_DIR, "summaries.db")
-    conn = sqlite3.connect(db_path)
-    try:
-        c = conn.cursor()
-        c.execute(
-            """
-            CREATE TABLE IF NOT EXISTS summaries (
-                file_name TEXT PRIMARY KEY,
-                summary TEXT
-            )
-            """
-        )
-        c.execute(
-            """
-            INSERT OR REPLACE INTO summaries (file_name, summary)
-            VALUES (?, ?)
-            """,
-            (file_name, summary),
-        )
-        logger.info(f"Summary saved for {file_name} in SQLite database.")
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def get_summary_from_sqlite(file_name: str) -> str | None:
-    import sqlite3
-
-    db_path = os.path.join(cfg.DB_DIR, "summaries.db")
-    if not os.path.exists(db_path):
-        return None
-    conn = sqlite3.connect(db_path)
-    try:
-        c = conn.cursor()
-        c.execute("SELECT summary FROM summaries WHERE file_name = ?", (file_name,))
-        row = c.fetchone()
-        return row[0] if row else None
-    finally:
-        conn.close()
-
-
 def read_pdf_processor_result(temp_file_path: str):
     import os
 

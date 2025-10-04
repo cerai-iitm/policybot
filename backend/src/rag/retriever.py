@@ -10,8 +10,8 @@ from FlagEmbedding import FlagReranker
 from src.config import cfg
 from src.logger import logger
 from src.rag.LLM_interface import LLM_Interface
-from src.util import (free_embedding_model, get_summary_from_sqlite,
-                      load_embedding_model)
+from src.schema.source_summaries_crud import get_summary_by_source_name
+from src.util import free_embedding_model, load_embedding_model
 
 warnings.filterwarnings(
     "ignore", message="You're using a XLMRobertaTokenizerFast tokenizer.*"
@@ -107,7 +107,7 @@ class Retriever:
         try:
             embedding_model, device = load_embedding_model("cpu")
             logger.info("Generating rewritten queries for better retrieval")
-            summaries = [get_summary_from_sqlite(pdf) for pdf in pdfs]
+            summaries = [get_summary_by_source_name(cfg.DB_SESSION, os.path.basename(pdf)) for pdf in pdfs]
             if summaries is None:
                 logger.warning(f"No summary found for file the files: {summaries}")
                 summaries = []

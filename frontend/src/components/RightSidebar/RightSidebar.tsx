@@ -3,6 +3,7 @@ import React, { useRef, useState } from "react";
 import { FiX } from "react-icons/fi";
 import dynamic from "next/dynamic";
 const PDFViewer = dynamic(() => import("./PDFViewer"), { ssr: false });
+const Summary = dynamic(() => import("./Summary"), { ssr: false });
 
 interface RightSidebarProps {
   width: number;
@@ -69,7 +70,10 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
       {/* PDF Viewer or Placeholder, always below the close icon */}
       <div className="pt-10 h-full w-full flex flex-col items-center">
         {isPDFEnabled && selectedFilename ? (
-          <PDFViewer filename={selectedFilename} />
+          <>
+            <Summary filename={selectedFilename} />
+            <PDFViewer filename={selectedFilename} />
+          </>
         ) : (
           <div className="placeholder">Select a PDF to view</div>
         )}

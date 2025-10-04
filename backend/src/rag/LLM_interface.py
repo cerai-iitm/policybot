@@ -1,7 +1,11 @@
 import asyncio
 from typing import AsyncGenerator, Dict, List
 
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.chains import LLMChain
+from langchain.chains.summarize import load_summarize_chain
+from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
+                               PromptTemplate)
+from langchain.schema import Document
 from langchain_core.messages import BaseMessage
 from langchain_ollama.llms import OllamaLLM
 
@@ -22,6 +26,7 @@ class LLM_Interface:
             num_ctx=cfg.MAX_CONTEXT_TOKENS,
         )
         self.chain = self._create_chain()
+        self.chat_manager = ChatManager()
 
     def _create_chain(self):
         prompt = ChatPromptTemplate(
@@ -158,3 +163,36 @@ class LLM_Interface:
                 yield chunk  # Yield each token/chunk
         except Exception as e:
             yield f"[Error: {str(e)}]"
+
+    async def summarize_with_stuff_chain(
+        self, summaries: List[Document], max_words: int = 200
+    ) -> str:
+
+        prompt = PromptTemplate(
+            input_variables=["text"],
+            template=f"Summarize the following content in approximately {max_words} words. Make sure to include all of the important information and keywords:\n\n{{text}}",
+        )
+
+        chain = load_summarize_chain(
+            self.llm, chain_type="stuff", prompt=prompt, verbose=False
+        )
+
+        result = await chain.arun(summaries)
+        return result.strip()
+
+    async def generate_suggested_queries(
+        self, summary: str, session_id: str
+    ) -> List[str]:
+        history = self.chat_manager.get_history(session_id)
+        formatted_history = self._format_history(history)
+
+        prompt = PromptTemplate(
+            input_variables=["summary", "history"],
+            template=cfg.SUGGESTED_QUERIES_PROMPT,
+        )
+        chain = LLMChain(llm=self.llm, prompt=prompt)
+
+        result = await chain.arun({"summary": summary, "history": formatted_history})
+
+        queries = [q.strip() for q in result.split("\n") if q.strip()]
+        return queries

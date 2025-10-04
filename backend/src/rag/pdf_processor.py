@@ -16,8 +16,9 @@ from transformers import logging as hf_logging
 from src.config import cfg
 from src.logger import logger
 from src.rag import LLM_Interface
-from src.util import (free_embedding_model, get_summary_from_sqlite,
-                      load_embedding_model, save_summary_to_sqlite)
+from src.schema.source_summaries_crud import (add_source_summary,
+                                              get_summary_by_source_name)
+from src.util import free_embedding_model, load_embedding_model
 
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
 hf_logging.set_verbosity_error()
@@ -102,7 +103,7 @@ class PDFProcessor:
         logger.info(f"Creating a summary for {file_name}.")
         print(f"Creating a summary for {file_name}...", flush=True)
         try:
-            existing_summary = get_summary_from_sqlite(file_name)
+            existing_summary = get_summary_by_source_name(cfg.DB_SESSION, os.path.basename(file_name))
             if existing_summary:
                 logger.info(
                     f"Summary already exists for {file_name}. Skipping sumamary creation."
@@ -119,7 +120,7 @@ class PDFProcessor:
 
             chain = load_summarize_chain(self.interface.llm, chain_type="map_reduce")
             summary = chain.invoke({"input_documents": recursive_docs})
-            save_summary_to_sqlite(file_name, summary["output_text"])
+            add_source_summary(cfg.DB_SESSION, source_name = os.path.basename(file_name), summary = summary["output_text"])
             return file_name, summary["output_text"]
 
         except Exception as e:

@@ -3,6 +3,7 @@ import LeftSidebar from "@/components/leftSidebar/LeftSidebar";
 import { useState } from "react";
 import ChatSection from "@/components/chat/ChatSection";
 import RightSidebar from "@/components/RightSidebar/RightSidebar";
+import { SidebarItem } from "@/components/leftSidebar/LeftSidebar";
 
 export default function Home() {
   const sidebarWidth = 256;
@@ -13,6 +14,8 @@ export default function Home() {
   const [checkedPdfs, setCheckedPdfs] = useState<string[]>([]);
   const [isPDFEnabled, setIsPDFEnabled] = useState(false);
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
+  const [sources, setSources] = useState<SidebarItem[]>([]);
+  console.log("Sources in Home:", sources);
 
   return (
     <main className="flex h-screen">
@@ -23,6 +26,8 @@ export default function Home() {
           onWidthChange={setLeftSidebarWidth}
           checkedPdfs={checkedPdfs}
           setCheckedPdfs={setCheckedPdfs}
+          sources={sources}
+          setSources={setSources}
           onFileSelect={(filename) => {
             setSelectedFilename(filename); // Update the filename
             setIsPDFEnabled(true); // Enable the PDF viewer
@@ -36,7 +41,7 @@ export default function Home() {
 
       {/* Middle Chat Section - Takes remaining space */}
       <div className="flex-1 min-w-0">
-        <ChatSection checkedPdfs={checkedPdfs} />
+        <ChatSection checkedPdfs={checkedPdfs} sources={sources} />
       </div>
 
       {/* Right Sidebar */}

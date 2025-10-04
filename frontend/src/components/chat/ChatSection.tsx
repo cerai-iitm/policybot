@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from "react";
 import HumanMessage from "./HumanMessage";
 import AIMessage from "./AIMessage";
 import ChatInput from "./ChatInput";
+import { SidebarItem } from "../leftSidebar/LeftSidebar";
 
 interface Message {
   type: "user" | "ai";
@@ -11,15 +12,19 @@ interface Message {
 
 interface ChatSectionProps {
   checkedPdfs: string[];
+  sources: SidebarItem[];
 }
 
-const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs }) => {
+const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
+  console.log("Sources in ChatSection:", sources);
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState("");
   const [warning, setWarning] = useState("");
-
-  const [sourceSummary, setSourceSummary] = useState<string>("");
-  const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
+  const [overallSummary, setOverallSummary] = useState<string>("");
+  const [loadingOverallSummary, setLoadingOverallSummary] =
+    useState<boolean>(false);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
+  const [sessionId] = useState(() => crypto.randomUUID()); // or however you want to generate session IDs
   const chatHistoryRef = useRef<HTMLDivElement>(null);
 
   const handleSend = async () => {
@@ -118,18 +123,26 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs }) => {
     }
   }, [messages]);
 
+  const fetchOverallSummary = async () => {
+    setLoadingOverallSummary(true);
+    try {
+      const res = await fetch("http://localhost:8000/api/overall-summary");
+      const data = await res.json();
+      setOverallSummary(data.summary);
+    } catch (e) {
+      setOverallSummary("");
+    } finally {
+      setLoadingOverallSummary(false);
+    }
+  };
+
   useEffect(() => {
     if (messages.length === 0) {
-      setLoadingSummary(true);
-      fetch("/api/sources-summary")
-        .then((res) => res.json())
-        .then((data) => {
-          setSourceSummary(data.explanation);
-          setLoadingSummary(false);
-        })
-        .catch(() => setLoadingSummary(false));
+      fetchOverallSummary();
+    } else {
+      setOverallSummary("");
     }
-  }, [messages.length]);
+  }, [messages.length, checkedPdfs]);
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -141,9 +154,9 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs }) => {
       >
         {messages.length === 0 ? (
           <div className="text-gray-500 p-4">
-            {loadingSummary
-              ? "Loading summary..."
-              : sourceSummary || "No summary available."}
+            {loadingOverallSummary
+              ? "Loading overall summary..."
+              : overallSummary || "No overall summary available."}
           </div>
         ) : (
           messages.map((message, index) => (

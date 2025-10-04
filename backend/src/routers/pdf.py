@@ -2,15 +2,25 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from sqlalchemy.orm import Session
 
 from src.config import cfg
 from src.logger import logger
 from src.rag import PDFProcessor
+from src.schema.source_summaries_crud import get_summary_by_source_name
 
 router = APIRouter()
 pdf_processor = PDFProcessor()
+
+
+def get_db():
+    db = cfg.DB_SESSION
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 @router.get("/list")
@@ -102,3 +112,11 @@ async def view_pdf(filename: str):
     if not os.path.exists(file_path) or not filename.endswith(".pdf"):
         raise HTTPException(status_code=404, detail="PDF not found")
     return FileResponse(file_path, media_type="application/pdf", filename=filename)
+
+
+@router.get("/summary/{filename}")
+def get_summary(filename: str, db: Session = Depends(get_db)):
+    summary = get_summary_by_source_name(db, filename)
+    if summary is None:
+        raise HTTPException(status_code=404, detail="Summary not found")
+    return {"summary": summary}

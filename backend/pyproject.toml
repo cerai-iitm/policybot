@@ -12,5 +12,6 @@ dependencies = [
     "langchain-experimental>=0.3.4",
     "langchain-huggingface>=0.3.1",
     "langchain-ollama>=0.3.10",
+    "psycopg2-binary>=2.9.10",
     "pymupdf>=1.26.4",
 ]

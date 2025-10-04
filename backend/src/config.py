@@ -1,13 +1,16 @@
 import os
 
+from src.schema.db import SessionLocal
+
 
 class Config:
     ALLOWED_EXTENSIONS = ["pdf"]
 
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     DATA_DIR = os.path.join(BASE_DIR, "data")
-    DB_DIR = os.path.join(BASE_DIR, "db")
     CHROMA_DIR = os.path.join(BASE_DIR, "chroma")
+
+    DB_SESSION = SessionLocal()
 
     COLLECTION_NAME = "pdf_embeddings"
 
@@ -31,6 +34,7 @@ class Config:
     CHUNK_PREFIX = "CHUNK_"
     RESPONSE_START = "RESPONSE_START" + CHUNK_SEPARATOR
     RESPONSE_END = CHUNK_SEPARATOR + "RESPONSE_END"
+    OVERALL_SUMMARY_MAX_WORDS = 400
 
     FRONTEND_URL = "http://localhost:3000"
     OLLAMA_PORT = os.environ.get("OLLAMA_PORT", "11434")
@@ -133,6 +137,19 @@ Include a strong emphasis on **keywords** and **key phrases** that are highly re
 
     *Note: If your file doesn't appear, try refreshing the page or re-uploading.*
     """
+
+    SUGGESTED_QUERIES_PROMPT = """
+Given the following summary of the documents:
+
+{summary}
+
+And the following conversation history:
+
+{history}
+
+Based on this information, suggest 3 relevant follow-up questions a user might ask.
+List each question on a separate line. Do not include any explanations or extra text—only the questions.
+     """
 
 
 cfg = Config()

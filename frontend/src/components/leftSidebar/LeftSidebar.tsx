@@ -13,6 +13,8 @@ interface SidebarProps {
   onFileSelect: (fileName: string) => void;
   checkedPdfs: string[];
   setCheckedPdfs: React.Dispatch<React.SetStateAction<string[]>>;
+  sources: SidebarItem[];
+  setSources: React.Dispatch<React.SetStateAction<SidebarItem[]>>;
 }
 
 const LeftSidebar: React.FC<SidebarProps> = ({
@@ -21,9 +23,10 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   onFileSelect,
   checkedPdfs,
   setCheckedPdfs,
+  sources,
+  setSources,
 }) => {
   // Fetch PDFs on component mount to populate the list
-  const [sources, setSources] = useState<SidebarItem[]>([]);
   useEffect(() => {
     const fetchPdfs = async () => {
       try {
@@ -135,7 +138,6 @@ const LeftSidebar: React.FC<SidebarProps> = ({
             checked={checkedPdfs.includes(item.name)}
             onToggle={toggleChecked}
             isCollapsedSidebar={width < 150}
-            //TODO: Implement onClick to preview PDF
             onClick={() => handleFileSelect(item.name)}
           />
         ))}
