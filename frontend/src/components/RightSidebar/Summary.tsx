@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import MarkdownRenderer from "../common/Markdown";
 
 interface SummaryProps {
   filename: string | null;
@@ -26,7 +27,7 @@ const Summary: React.FC<SummaryProps> = ({ filename }) => {
   return (
     <div className="mb-4 p-2 bg-gray-100 rounded">
       <h3 className="font-semibold mb-2">Summary</h3>
-      {loading ? "Loading summary..." : summary}
+      <MarkdownRenderer text={loading ? "Loading summary..." : summary} />
     </div>
   );
 };

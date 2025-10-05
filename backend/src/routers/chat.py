@@ -8,15 +8,12 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.config import cfg
+from src.logger import logger
 from src.rag import ChatManager, LLM_Interface, Retriever
 from src.schema.overall_summaries_crud import add_overall_summary, get_overall_summary
 from src.schema.source_summaries_crud import get_all_source_summaries
 
 router = APIRouter()
-
-llm_interface = LLM_Interface()
-chat_manager = ChatManager()  # Initialize if needed
-retriever = Retriever(interface=llm_interface)
 
 
 def get_db():
@@ -34,6 +31,9 @@ class QueryRequest(BaseModel):
 
 @router.post("/query")
 async def query_endpoint(request: QueryRequest):
+    chat_manager = ChatManager()  # Initialize if needed
+    llm_interface = LLM_Interface()
+    retriever = Retriever(interface=llm_interface)
     session_id = "default_session"
 
     valid_pdfs = []
@@ -43,7 +43,9 @@ async def query_endpoint(request: QueryRequest):
         if os.path.exists(os.path.join(cfg.DATA_DIR, fname)):
             valid_pdfs.append(fname)
     print(f"PDFs are {request.pdfs}, valid PDFs are {valid_pdfs}")
+    logger.info(f"Valid PDFs for the query: {len(valid_pdfs)}")
     context_chunks = await retriever.retrieve(query=request.query, pdfs=valid_pdfs)
+    logger.info(f"Retrieved {len(context_chunks)} chunks for the query in chat.py")
 
     async def generate():
         async for chunk in llm_interface.generate_streaming_response(
@@ -61,6 +63,7 @@ class OverallSummaryRequest(BaseModel):
 
 @router.get("/overall-summary")
 async def overall_summary_endpoint(db: Session = Depends(get_db)):
+    llm_interface = LLM_Interface()
     all_sources = get_all_source_summaries(db)
     if not all_sources:
         raise HTTPException(status_code=404, detail="No sources found.")
@@ -91,6 +94,7 @@ class SuggestedQueriesRequest(BaseModel):
 async def suggested_queries_endpoint(
     request: SuggestedQueriesRequest, db: Session = Depends(get_db)
 ):
+    llm_interface = LLM_Interface()
     # 1. Get all source summaries and filenames
     all_sources = get_all_source_summaries(db)
     if not all_sources:

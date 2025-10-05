@@ -12,7 +12,6 @@ from src.rag import PDFProcessor
 from src.schema.source_summaries_crud import get_summary_by_source_name
 
 router = APIRouter()
-pdf_processor = PDFProcessor()
 
 
 def get_db():
@@ -52,8 +51,6 @@ async def upload_pdf(file: UploadFile = File(...)):
     upload_dir = Path(cfg.DATA_DIR)
     upload_dir.mkdir(exist_ok=True)
     file_path = os.path.join(upload_dir, file.filename)
-    if os.path.exists(file_path):
-        raise HTTPException(status_code=409, detail="File already exists.")
 
     try:
         with open(file_path, "wb") as buffer:
@@ -91,12 +88,14 @@ async def delete_pdf(filename: str):
 
 @router.get("/process/{filename}")
 async def process_uploaded_pdf(filename: str):
+    pdf_processor = PDFProcessor()
     file_path = Path(cfg.DATA_DIR) / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found.")
 
     async def generate():
-        async for update in pdf_processor.process_pdf(str(file_path)):
+        logger.info(f"Starting processing for {file_path}")
+        async for update in pdf_processor.process_pdf(filename):
             yield f"data: {update}\n\n"
         yield "data: done\n\n"
 
@@ -107,8 +106,6 @@ async def process_uploaded_pdf(filename: str):
 async def view_pdf(filename: str):
     file_path = os.path.join(cfg.DATA_DIR, filename)
     logger.info(f"Requested filename: {filename}")
-    logger.info(f"Full file path: {file_path}")
-    logger.info(f"File exists: {os.path.exists(file_path)}")
     if not os.path.exists(file_path) or not filename.endswith(".pdf"):
         raise HTTPException(status_code=404, detail="PDF not found")
     return FileResponse(file_path, media_type="application/pdf", filename=filename)
@@ -116,6 +113,7 @@ async def view_pdf(filename: str):
 
 @router.get("/summary/{filename}")
 def get_summary(filename: str, db: Session = Depends(get_db)):
+    logger.info(f"Fetching summary for filename: {filename}")
     summary = get_summary_by_source_name(db, filename)
     if summary is None:
         raise HTTPException(status_code=404, detail="Summary not found")

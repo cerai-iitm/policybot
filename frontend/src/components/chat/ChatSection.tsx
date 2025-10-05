@@ -4,6 +4,7 @@ import HumanMessage from "./HumanMessage";
 import AIMessage from "./AIMessage";
 import ChatInput from "./ChatInput";
 import { SidebarItem } from "../leftSidebar/LeftSidebar";
+import MarkdownRenderer from "../common/Markdown";
 
 interface Message {
   type: "user" | "ai";
@@ -166,9 +167,15 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
     }
   }, [messages.length, checkedPdfs]);
 
+  useEffect(() => {
+    if (warning) {
+      window.alert(warning);
+      setWarning("");
+    }
+  }, [warning]);
+
   return (
     <div className="flex flex-col h-full bg-white">
-      {warning && <div className="text-red-500">{warning}</div>}
       {/* Chat history */}
       <div
         ref={chatHistoryRef}
@@ -176,9 +183,13 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
       >
         {messages.length === 0 ? (
           <div className="text-gray-500 p-4">
-            {loadingOverallSummary
-              ? "Loading overall summary..."
-              : overallSummary || "No overall summary available."}
+            <MarkdownRenderer
+              text={
+                loadingOverallSummary
+                  ? "Loading overall summary..."
+                  : overallSummary || "No overall summary available."
+              }
+            />
           </div>
         ) : (
           messages.map((message, index) => (

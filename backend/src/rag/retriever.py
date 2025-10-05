@@ -1,4 +1,5 @@
 import asyncio
+import os
 import warnings
 from collections import defaultdict
 from typing import List, Optional
@@ -29,10 +30,6 @@ class Retriever:
         interface: LLM_Interface,
         top_k: int = 5,
     ) -> None:
-        self.chroma_client = chromadb.PersistentClient(path=cfg.CHROMA_DIR)
-        self.collection = self.chroma_client.get_or_create_collection(
-            name=cfg.COLLECTION_NAME
-        )
         self.top_k = top_k
         self.interface = interface
         self.reranker = FlagReranker(cfg.RERANKING_MODEL_NAME, use_fp16=True)
@@ -104,10 +101,23 @@ class Retriever:
         if top_k is None:
             top_k = self.top_k
 
+        self.chroma_client = await chromadb.AsyncHttpClient(host="localhost", port=8500)
+
+        self.collection = await self.chroma_client.get_collection(
+            name=cfg.COLLECTION_NAME
+        )
+
+        if self.collection is None:
+            logger.error("Failed to access or create the ChromaDB collection.")
+            return []
+
         try:
             embedding_model, device = load_embedding_model("cpu")
             logger.info("Generating rewritten queries for better retrieval")
-            summaries = [get_summary_by_source_name(cfg.DB_SESSION, os.path.basename(pdf)) for pdf in pdfs]
+            summaries = [
+                get_summary_by_source_name(cfg.DB_SESSION, os.path.basename(pdf))
+                for pdf in pdfs
+            ]
             if summaries is None:
                 logger.warning(f"No summary found for file the files: {summaries}")
                 summaries = []
@@ -116,31 +126,32 @@ class Retriever:
             rewritten_queries = await self.interface.generate_rewritten_queries(
                 query=query, summary=summary
             )
-            logger.debug(f"Debugging query rewriting: {rewritten_queries}")
+            logger.info(f"Debugging query rewriting: {rewritten_queries}")
 
             logger.info("Generating query embeddings")
-            print("Calculating query embeddings...", flush=True)
             query_embeddings = await asyncio.gather(
                 *[
-                    embedding_model.aembed_query(rewritten_query)
+                    asyncio.to_thread(embedding_model.embed_query, rewritten_query)
                     for rewritten_query in rewritten_queries
                 ]
             )
+
             query_embeddings = np.array(query_embeddings, dtype=np.float32)
             free_embedding_model(embedding_model, device)
 
+            logger.info(f"Number of query embeddings queries: {len(query_embeddings)}")
             logger.info("Retrieving relevant chunks from the database")
-            print("Retrieving relevant chunks from the database...", flush=True)
-            results = await asyncio.to_thread(
-                self.collection.query,
+            logger.info(f"Filtering by PDFs: {pdfs}")
+            metadata_filter = {"source": {"$in": pdfs}}
+            results = await self.collection.query(
                 query_embeddings=query_embeddings,
                 n_results=top_k,
                 include=["documents", "metadatas", "distances"],
-                where={"source": {"$in": pdfs}},  # type: ignore
+                where=metadata_filter,  # type: ignore
             )
+            logger.info(f"Number of queries after retrieval: {len(results['ids'])}")
 
             logger.info("Performing rank fusion on retrieved results")
-            print("Performing rank fusion ...", flush=True)
             ranked_chunk_ids = await asyncio.to_thread(
                 self.reciprocal_rank_fusion, results["ids"], k=top_k
             )
@@ -156,7 +167,8 @@ class Retriever:
                 for chunk_id in ranked_chunk_ids
                 if chunk_id in id_to_doc
             ]
-            print("Reranking filtered chunks...", flush=True)
+            logger.info(f"Number of chunks after rank fusion: {len(filtered_chunks)}")
+            logger.info(f"Performing reranking on filtered chunks")
             reranked_chunks = await asyncio.to_thread(
                 self.rerank_chunks, query, filtered_chunks
             )

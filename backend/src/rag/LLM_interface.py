@@ -51,7 +51,7 @@ class LLM_Interface:
 
     def _format_context(self, context_chunks: List[str]) -> str:
         if not context_chunks:
-            logger.info("No relevant context found for LLM prompt.")
+            logger.info("No relevant context found for given prompt.")
             return "No relevant context available."
 
         formatted_chunks = []
@@ -158,7 +158,8 @@ class LLM_Interface:
             inputs = self.prepare_inputs(
                 session_id, chat_manager, context_chunks, query
             )
-            # Use async streaming from the chain to ensure correct input type
+
+            logger.info(f"Generating response for query: {query[:30]}...")
             async for chunk in self.chain.astream(inputs):
                 yield chunk  # Yield each token/chunk
         except Exception as e:
