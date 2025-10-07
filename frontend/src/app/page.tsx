@@ -18,7 +18,7 @@ export default function Home() {
   console.log("Sources in Home:", sources);
 
   return (
-    <main className="flex h-screen">
+    <main className="flex h-screen bg-bg-light  text-text text-sm">
       {/* Left Sidebar */}
       <div style={{ width: leftSidebarWidth, minWidth: leftSidebarWidth }}>
         <LeftSidebar

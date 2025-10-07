@@ -28,6 +28,9 @@ class ChatManager:
     ) -> None:
         if session_id not in self.sessions:
             self.sessions[session_id] = InMemoryChatMessageHistory()
+            logger.info(
+                f"No chat history found for session_id '{session_id}', initializing new session before adding message."
+            )
 
         if role == "user":
             self.sessions[session_id].add_user_message(message)

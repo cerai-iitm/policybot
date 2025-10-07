@@ -9,6 +9,7 @@ import MarkdownRenderer from "../common/Markdown";
 interface Message {
   type: "user" | "ai";
   content: string;
+  sourceChunks?: string[];
 }
 
 interface ChatSectionProps {
@@ -21,15 +22,26 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState("");
   const [warning, setWarning] = useState("");
-  const [overallSummary, setOverallSummary] = useState<string>("");
-  const [loadingOverallSummary, setLoadingOverallSummary] =
-    useState<boolean>(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [sessionId] = useState(() => getOrCreateSessionId());
   const chatHistoryRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(false);
 
+  function getOrCreateSessionId() {
+    const newSessionId = crypto.randomUUID();
+    // localStorage.setItem("sessionId", newSessionId);
+    return newSessionId;
+  }
   const handleSend = async () => {
-    console.log("handleSend called with input:", userInput.trim()); // Add here
+    console.log("handleSend called with input:", userInput.trim());
+    if (loading) {
+      // Optionally show a message: "Please wait for the current response."
+      return;
+    }
+    if (checkedPdfs.length === 0) {
+      setWarning("Please select at least one PDF before sending a query.");
+      return;
+    }
     if (checkedPdfs.length === 0) {
       setWarning("Please select at least one PDF before sending a query.");
       return;
@@ -37,87 +49,74 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
     setWarning("");
     if (userInput.trim()) {
       const humanMessage = { type: "user" as const, content: userInput.trim() };
-      const aiMessage = { type: "ai" as const, content: "" };
-      const query = userInput.trim();
-
       setUserInput("");
-      setMessages((prev) => [...prev, humanMessage, aiMessage]);
+      // Add user message and placeholder AI message with loader
+      setMessages((prev) => [
+        ...prev,
+        humanMessage,
+        { type: "ai", content: "", sourceChunks: [] }, // Loader placeholder
+      ]);
       try {
-        console.log("Sending request with PDFs:", checkedPdfs); // Add here
+        console.log("Sending request with PDFs:", checkedPdfs);
+        setLoading(true);
         const response = await fetch("http://localhost:8000/api/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: query, pdfs: checkedPdfs }),
+          body: JSON.stringify({
+            query: userInput.trim(),
+            pdfs: checkedPdfs,
+            session_id: sessionId,
+          }),
         });
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const reader = response.body?.getReader();
-        if (!reader) {
-          throw new Error("No response body");
-        }
+        const data = await response.json();
 
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let fullResponse = "";
-        let isDone = false;
-
-        while (!isDone) {
-          try {
-            const { done, value } = await reader.read();
-            if (done) break; // Natural end of stream
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const data = JSON.parse(line.slice(6));
-                fullResponse += data.partial;
-                setMessages((prev) => {
-                  const newMessages = [...prev];
-                  const lastMessage = newMessages[newMessages.length - 1];
-                  if (lastMessage.type === "ai") {
-                    lastMessage.content = fullResponse;
-                  }
-                  return newMessages;
-                });
-
-                if (data.done) {
-                  isDone = true;
-                  break;
-                }
-              }
-            }
-          } catch (readError) {
-            // Handle read errors gracefully, but don't treat as fatal if done
-            console.warn("Read error:", readError);
-            break;
-          }
-        }
-
-        // Only set error if no response was received
-        if (!fullResponse.trim()) {
-          throw new Error("No response received");
-        }
-        await fetchSuggestedQuestions();
-      } catch (error) {
-        console.error("Stream error:", error);
+        // Update the last AI message with the actual response and source chunks
         setMessages((prev) => {
           const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage.type === "ai") {
-            lastMessage.content = "Error: Failed to get response.";
+          const lastIdx = newMessages.length - 1;
+          if (newMessages[lastIdx].type === "ai") {
+            if (data.error) {
+              newMessages[lastIdx] = {
+                ...newMessages[lastIdx],
+                content: "Error: Failed to get response.",
+                sourceChunks: data.context_chunks || [],
+              };
+            } else {
+              newMessages[lastIdx] = {
+                ...newMessages[lastIdx],
+                content: data.response,
+                sourceChunks: data.context_chunks || [],
+              };
+            }
+          }
+          return newMessages;
+        });
+        setLoading(false);
+        await fetchSuggestedQuestions();
+      } catch (error) {
+        setLoading(false);
+        console.error("Fetch error:", error);
+        // Update the last AI message with error
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const lastIdx = newMessages.length - 1;
+          if (newMessages[lastIdx].type === "ai") {
+            newMessages[lastIdx] = {
+              ...newMessages[lastIdx],
+              content: "Error: Failed to get response.",
+              sourceChunks: [],
+            };
           }
           return newMessages;
         });
       }
     }
   };
-
   const handleSuggestionClick = (question: string) => {
     setUserInput(question);
   };
@@ -146,27 +145,6 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
     fetchSuggestedQuestions();
   }, []); // on mount
 
-  const fetchOverallSummary = async () => {
-    setLoadingOverallSummary(true);
-    try {
-      const res = await fetch("http://localhost:8000/api/overall-summary");
-      const data = await res.json();
-      setOverallSummary(data.summary);
-    } catch (e) {
-      setOverallSummary("");
-    } finally {
-      setLoadingOverallSummary(false);
-    }
-  };
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      fetchOverallSummary();
-    } else {
-      setOverallSummary("");
-    }
-  }, [messages.length, checkedPdfs]);
-
   useEffect(() => {
     if (warning) {
       window.alert(warning);
@@ -175,21 +153,25 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
   }, [warning]);
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-bg-light">
       {/* Chat history */}
       <div
         ref={chatHistoryRef}
         className="flex-1 p-4 overflow-y-auto flex flex-col"
       >
         {messages.length === 0 ? (
-          <div className="text-gray-500 p-4">
-            <MarkdownRenderer
-              text={
-                loadingOverallSummary
-                  ? "Loading overall summary..."
-                  : overallSummary || "No overall summary available."
-              }
-            />
+          <div className="flex h-full w-full items-center justify-center p-4">
+            <div className="flex flex-col items-start gap-4">
+              <div className="text-6xl font-bold text-white">PolicyBot</div>
+
+              <div className="text-lg text-gray-400">
+                Your AI assistant for policy documents.
+              </div>
+
+              <div className="text-base text-gray-500">
+                Select PDFs from the list and enter a question to get started.
+              </div>
+            </div>
           </div>
         ) : (
           messages.map((message, index) => (
@@ -202,7 +184,10 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
               {message.type === "user" ? (
                 <HumanMessage content={message.content} />
               ) : (
-                <AIMessage content={message.content} />
+                <AIMessage
+                  content={message.content}
+                  sourceChunks={message.sourceChunks}
+                />
               )}
             </div>
           ))
@@ -216,6 +201,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
         onSend={handleSend}
         suggestedQuestions={suggestedQuestions}
         onSuggestionClick={handleSuggestionClick}
+        disabled={loading || checkedPdfs.length === 0}
       />
       <div className="text-center px-4 text-[10px]">
         <p>

@@ -1,6 +1,9 @@
 import os
 
+from dotenv import load_dotenv
 from src.schema.db import SessionLocal
+
+load_dotenv()
 
 
 class Config:
@@ -12,6 +15,9 @@ class Config:
     DB_SESSION = SessionLocal()
 
     COLLECTION_NAME = "pdf_embeddings"
+    QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
+    QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
+    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres_db")
 
     EMBEDDING_MODEL_NAME = "Alibaba-NLP/gte-multilingual-base"
     EMBEDDING_MODEL_KWARGS = {"trust_remote_code": True}
@@ -34,6 +40,12 @@ class Config:
     RESPONSE_START = "RESPONSE_START" + CHUNK_SEPARATOR
     RESPONSE_END = CHUNK_SEPARATOR + "RESPONSE_END"
     OVERALL_SUMMARY_MAX_WORDS = 400
+
+    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+    os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
 
     FRONTEND_URL = "http://localhost:3000"
     OLLAMA_PORT = os.environ.get("OLLAMA_PORT", "11434")
@@ -149,6 +161,10 @@ And the following conversation history:
 Based on this information, suggest 3 relevant follow-up questions a user might ask.
 List each question on a separate line. Do not include any explanations or extra text—only the questions.
      """
+
+
+def str2bool(value):
+    return str(value).lower() in ("true", "1", "yes", "on")
 
 
 cfg = Config()

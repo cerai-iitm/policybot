@@ -55,7 +55,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 
   return (
     <div
-      className={`h-full bg-gray-200 p-4 relative ${
+      className={`h-full bg-bg-dark p-4 relative ${
         !resizing ? "transition-all duration-300" : ""
       }`}
       style={{ width }}

@@ -18,7 +18,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     <ReactMarkdown
       // rehypePlugins={[rehypeRaw]} // add plugins if you use them
       // remarkPlugins={[]} // add plugins if you use them
-      children={text}
       components={{
         h1: ({ node, ...props }) => (
           <h1 className="text-3xl font-bold my-4" {...props} />
@@ -37,7 +36,9 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         ),
         // ...add more as needed
       }}
-    />
+    >
+      {text}
+    </ReactMarkdown>
   </div>
 );
 

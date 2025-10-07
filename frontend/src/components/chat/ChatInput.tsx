@@ -8,6 +8,7 @@ interface ChatInputProps {
   onSend: () => void;
   suggestedQuestions?: string[];
   onSuggestionClick?: (question: string) => void;
+  disabled: boolean;
 }
 
 const ChatInput: React.FC<ChatInputProps> = ({
@@ -16,11 +17,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onSend,
   suggestedQuestions = [],
   onSuggestionClick,
+  disabled,
 }) => {
   return (
-    <div className="flex flex-col p-4 border-t mx-8">
+    <div className="flex flex-col border-t mx-8">
       {/* Input Row */}
-      <div className="flex flex-row items-end w-full h-full border rounded-4xl bg-gray-100 py-2">
+      <div className="flex flex-row  justify-center items-center w-full border rounded-3xl bg-gray-100 py-0 px-0">
         <textarea
           value={value}
           onChange={onChange}
@@ -30,24 +32,25 @@ const ChatInput: React.FC<ChatInputProps> = ({
               onSend();
             }
           }}
-          className="flex-grow px-5 text-lg resize-none border-none focus:outline-none min-h-[2.5rem] max-h-32 bg-gray-100"
+          className="flex-grow px-5 m-0 text-base resize-none border-none focus:outline-none py-2 max-h-32 bg-none "
           placeholder="Type your message here..."
         />
         <button
-          className="flex items-center justify-center ml-2 w-10 h-10 bg-blue-500 text-white rounded-full hover:bg-blue-600"
+          className="flex items-center justify-center mr-2 w-8 h-8 bg-blue-500 text-white rounded-full hover:bg-blue-600"
           onClick={onSend}
           type="button"
+          disabled={disabled}
         >
           <MdSend className="w-5 h-5" />
         </button>
       </div>
       {/* Suggestions Row */}
       {suggestedQuestions.length > 0 && (
-        <div className="flex flex-row gap-2 mt-2 overflow-x-auto whitespace-nowrap scrollbar-hide">
+        <div className="flex flex-row gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide text-sm mt-2 py-2  ">
           {suggestedQuestions.map((q, idx) => (
             <button
               key={idx}
-              className="px-3 py-1 bg-gray-200 rounded-full text-sm hover:bg-blue-200 transition mr-2"
+              className="px-3 py-1 bg-gray-200 rounded-full text-sm hover:bg-blue-200 transition mr-2 mb-2"
               onClick={() => onSuggestionClick && onSuggestionClick(q)}
               type="button"
             >

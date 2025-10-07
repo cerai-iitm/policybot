@@ -8,7 +8,7 @@ interface HumanMessageProps {
 
 const HumanMessage: React.FC<HumanMessageProps> = ({ content }) => {
   return (
-    <div className="max-w-[70%] ml-auto bg-blue-500 rounded-md p-2 mb-2 overflow-x-auto shadow">
+    <div className="max-w-[70%] ml-auto bg-bg-dark text-base text-text rounded-md p-2 mb-2 overflow-x-auto shadow">
       {content}
     </div>
   );

@@ -98,7 +98,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`flex flex-col h-screen bg-gray-200 relative ${
+      className={`flex flex-col h-screen bg-bg text-text relative  ${
         !resizing ? "transition-all duration-300" : ""
       }`}
       style={{ width: width }}
@@ -106,9 +106,9 @@ const LeftSidebar: React.FC<SidebarProps> = ({
       {!(width < 150) && (
         <>
           <div className="flex items-center justify-between px-4 pt-8">
-            <span className="text-lg font-semibold">Sources</span>
+            <span className="text-lg text-black font-semibold">Sources</span>
             <button
-              className="p-2 bg-primary rounded text-white"
+              className="p-2 bg-background-dark rounded text-foreground"
               onClick={() => onWidthChange(64)}
               aria-label="Collapse sidebar"
             >
@@ -119,9 +119,9 @@ const LeftSidebar: React.FC<SidebarProps> = ({
         </>
       )}
       {width < 150 && (
-        <div className="flex items-center justify-center pt-8">
+        <div className="flex items-center justify-center pt-8 text-foreground">
           <button
-            className="p-2 bg-primary rounded text-white"
+            className="p-2 bg-background rounded"
             onClick={() => onWidthChange(256)}
             aria-label="Expand sidebar"
           >
@@ -130,7 +130,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
         </div>
       )}
       {/* Only show items and add button if not collapsed */}
-      <div className="flex-1 pt-4 px-4 overflow-y-auto w-full">
+      <div className="flex-1 pt-4 px-4 overflow-y-auto w-full text-foreground">
         {sources.map((item) => (
           <SourceItem
             key={item.name}

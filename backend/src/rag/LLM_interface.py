@@ -7,9 +7,9 @@ from langchain.prompts import (ChatPromptTemplate, MessagesPlaceholder,
                                PromptTemplate)
 from langchain.schema import Document
 from langchain_core.messages import BaseMessage
-from langchain_ollama.llms import OllamaLLM
 
 from src.config import cfg
+from src.external import external
 from src.logger import logger
 
 from .chat_manager import ChatManager
@@ -19,12 +19,11 @@ class LLM_Interface:
     def __init__(self) -> None:
         self.system_prompt = cfg.SYSTEM_PROMPT
         self.max_history_messages = cfg.MAX_HISTORY_MESSAGES
-        self.llm = OllamaLLM(
-            model=cfg.MODEL_NAME,
-            temperature=cfg.TEMPERATURE,
-            base_url=cfg.OLLAMA_URL,
-            num_ctx=cfg.MAX_CONTEXT_TOKENS,
-        )
+        self.llm = external.get_llm()
+        if self.llm is None:
+            raise ValueError(
+                "LLM initialization failed. Ensure LLM_PROVIDER is configured correctly."
+            )
         self.chain = self._create_chain()
         self.chat_manager = ChatManager()
 
@@ -85,14 +84,17 @@ class LLM_Interface:
                     query=query, summary=summary
                 ),
             )
+            document = external.extract_llm_output(document)
 
             response = await asyncio.to_thread(
                 self.llm.invoke,
                 cfg.QUERY_REWRITE_SYSTEM_PROMPT.format(query=query, summary=summary),
             )
+            response = external.extract_llm_output(response)
+            logger.info(f"Generated rewritten queries: {str(response)[:30]}...")
 
-            rewritten_queries = response.split("\n")
-            rewritten_queries.append(document.strip())
+            rewritten_queries = str(response).split("\n")
+            rewritten_queries.append(str(document).strip())
             rewritten_queries = [
                 query.strip() for query in rewritten_queries if query.strip()
             ]
@@ -114,6 +116,7 @@ class LLM_Interface:
         if not query or not query.strip():
             raise ValueError("Query cannot be empty")
 
+        logger.info(f"Preparing inputs for LLM with session_id: {session_id}")
         history = chat_manager.get_history(session_id)
 
         return {
@@ -135,7 +138,8 @@ class LLM_Interface:
             )
             logger.info(f"Generating response for query: {query[:30]}...")
             response = self.chain.invoke(inputs)
-            logger.info(f"Generated response: {response[:30]}...")
+            response = external.extract_llm_output(response)
+            logger.info(f"Generated response: {str(response)}...")
             return response
         except ValueError as ve:
             logger.error(f"Input validation error: {ve}")
@@ -160,8 +164,11 @@ class LLM_Interface:
             )
 
             logger.info(f"Generating response for query: {query[:30]}...")
+
             async for chunk in self.chain.astream(inputs):
-                yield chunk  # Yield each token/chunk
+                chunk = external.extract_llm_output(chunk)
+                logger.info(f"Streaming chunk: {str(chunk)[:30]}...")
+                yield chunk
         except Exception as e:
             yield f"[Error: {str(e)}]"
 
@@ -179,12 +186,14 @@ class LLM_Interface:
         )
 
         result = await chain.arun(summaries)
+        result = external.extract_llm_output(result)
         return result.strip()
 
     async def generate_suggested_queries(
         self, summary: str, session_id: str
     ) -> List[str]:
         history = self.chat_manager.get_history(session_id)
+        logger.info(f"Generating suggested queries based on summary and history")
         formatted_history = self._format_history(history)
 
         prompt = PromptTemplate(

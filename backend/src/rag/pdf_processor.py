@@ -1,24 +1,34 @@
 import asyncio
 import os
 import sys
+import uuid
 import warnings
 from typing import AsyncGenerator, List
 
-import chromadb
 import numpy as np
 import pymupdf
 from langchain.chains.summarize import load_summarize_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
-from transformers import logging as hf_logging
-
+from qdrant_client import AsyncQdrantClient
+from qdrant_client.http.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    MatchValue,
+    PointStruct,
+    VectorParams,
+)
 from src.config import cfg
 from src.logger import logger
 from src.rag import LLM_Interface
-from src.schema.source_summaries_crud import (add_source_summary,
-                                              get_summary_by_source_name)
+from src.schema.source_summaries_crud import (
+    add_source_summary,
+    get_summary_by_source_name,
+)
 from src.util import free_embedding_model, load_embedding_model
+from transformers import logging as hf_logging
 
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
 hf_logging.set_verbosity_error()
@@ -29,11 +39,6 @@ class PDFProcessor:
         self.interface = LLM_Interface()
 
     async def process_pdf(self, file_name: str) -> AsyncGenerator[str, None]:
-        self.chroma_client = await chromadb.AsyncHttpClient(host="localhost", port=8500)
-        self.collection = await self.chroma_client.get_or_create_collection(
-            name=cfg.COLLECTION_NAME
-        )
-
         logger.info(f"Processing PDF file: {file_name}")
         yield "Starting PDF processing..."
         await asyncio.sleep(0)  # Force flush
@@ -163,14 +168,28 @@ class PDFProcessor:
 
     async def _check_existing_embeddings(self, file_name: str) -> bool:
         logger.info(f"Checking existing embeddings for {file_name}...")
-        existing_docs = await self.collection.get(where={"source": file_name}, limit=1)
-        if existing_docs and existing_docs.get("ids"):
-            logger.info(
-                f"Document embeddings already exist in the database for {file_name}."
+        try:
+            client = AsyncQdrantClient(host=cfg.QDRANT_HOST, port=cfg.QDRANT_PORT)
+            # Use scroll to find any point with the given source
+            filter_ = Filter(
+                must=[FieldCondition(key="source", match=MatchValue(value=file_name))]
             )
-            return True
-        logger.info(f"No existing embeddings found in the database for {file_name}.")
-        return False
+            result = await client.scroll(
+                collection_name=cfg.COLLECTION_NAME,
+                limit=1,
+                scroll_filter=filter_,
+            )
+            await client.close()
+            if result and result[0]:
+                logger.info(
+                    f"Document embeddings already exist in Qdrant for {file_name}."
+                )
+                return True
+            logger.info(f"No existing embeddings found in Qdrant for {file_name}.")
+            return False
+        except Exception as e:
+            logger.error(f"Error checking embeddings in Qdrant: {e}")
+            return False
 
     def _run_splitter(
         self, docs: List[Document], file_name: str
@@ -225,16 +244,39 @@ class PDFProcessor:
     async def _store_embeddings(
         self, docs: List[Document], embeddings: np.ndarray, file_name: str
     ) -> None:
-        logger.info(f"Saving embeddings to db for {file_name}")
         try:
-            ids = [f"{file_name}_{i}" for i in range(len(docs))]
-            await self.collection.add(
-                ids=ids,
-                documents=[doc.page_content for doc in docs],
-                embeddings=embeddings.tolist(),
-                metadatas=[{"source": file_name} for _ in range(len(docs))],
-            )
+            logger.info(f"Saving embeddings to db for {file_name}")
+            client = AsyncQdrantClient(host=cfg.QDRANT_HOST, port=cfg.QDRANT_PORT)
+
+            try:
+                await client.get_collection(cfg.COLLECTION_NAME)
+                logger.info(f"Collection {cfg.COLLECTION_NAME} already exists")
+            except Exception:
+                await client.create_collection(
+                    collection_name=cfg.COLLECTION_NAME,
+                    vectors_config=VectorParams(
+                        size=embeddings.shape[1], distance=Distance.COSINE
+                    ),
+                )
+                logger.info(f"Created new collection {cfg.COLLECTION_NAME}")
+
+            points = [
+                PointStruct(
+                    id=str(uuid.uuid4()),
+                    vector=embeddings[i].tolist(),
+                    payload={
+                        "text": docs[i].page_content,
+                        "source": file_name,
+                        "page_number": docs[i].metadata.get("page_number"),
+                    },
+                )
+                for i in range(len(docs))
+            ]
             logger.info(f"Stored embeddings for {len(docs)} chunks.")
+
+            await client.upsert(collection_name=cfg.COLLECTION_NAME, points=points)
+            await client.close()
+
         except Exception as e:
             logger.error(f"Error storing embeddings: {e}")
 

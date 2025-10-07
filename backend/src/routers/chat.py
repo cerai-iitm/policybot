@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from src.config import cfg
 from src.logger import logger
 from src.rag import ChatManager, LLM_Interface, Retriever
-from src.schema.overall_summaries_crud import add_overall_summary, get_overall_summary
+from src.schema.overall_summaries_crud import (add_overall_summary,
+                                               get_overall_summary)
 from src.schema.source_summaries_crud import get_all_source_summaries
 
 router = APIRouter()
@@ -27,14 +28,15 @@ def get_db():
 class QueryRequest(BaseModel):
     query: str
     pdfs: Optional[List[str]] = None
+    session_id: str  # <-- Add this line
 
 
 @router.post("/query")
 async def query_endpoint(request: QueryRequest):
-    chat_manager = ChatManager()  # Initialize if needed
+    chat_manager = ChatManager()
     llm_interface = LLM_Interface()
     retriever = Retriever(interface=llm_interface)
-    session_id = "default_session"
+    session_id = request.session_id
 
     valid_pdfs = []
     for fname in request.pdfs or []:
@@ -42,19 +44,24 @@ async def query_endpoint(request: QueryRequest):
             fname = f"{fname}.pdf"
         if os.path.exists(os.path.join(cfg.DATA_DIR, fname)):
             valid_pdfs.append(fname)
-    print(f"PDFs are {request.pdfs}, valid PDFs are {valid_pdfs}")
     logger.info(f"Valid PDFs for the query: {len(valid_pdfs)}")
+
     context_chunks = await retriever.retrieve(query=request.query, pdfs=valid_pdfs)
     logger.info(f"Retrieved {len(context_chunks)} chunks for the query in chat.py")
+    logger.info(f"Returning {len(context_chunks)} context chunks in response.")
 
-    async def generate():
-        async for chunk in llm_interface.generate_streaming_response(
+    try:
+        response = llm_interface.generate_response(
             session_id, chat_manager, context_chunks, request.query
-        ):
-            yield f'data: {{"partial": "{chunk}", "done": false}}\n\n'
-        yield 'data: {"partial": "", "done": true}\n\n'
-
-    return StreamingResponse(generate(), media_type="text/event-stream")
+        )
+        logger.info("Generated full response for query.")
+        return {"response": response, "context_chunks": context_chunks}
+    except Exception as e:
+        logger.error(f"Error generating response: {e}")
+        return {
+            "error": "Failed to generate response.",
+            "context_chunks": context_chunks,
+        }
 
 
 class OverallSummaryRequest(BaseModel):

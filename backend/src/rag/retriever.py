@@ -4,9 +4,12 @@ import warnings
 from collections import defaultdict
 from typing import List, Optional
 
-import chromadb
 import numpy as np
 from FlagEmbedding import FlagReranker
+from qdrant_client import AsyncQdrantClient
+from qdrant_client.http.models import (FieldCondition, Filter, MatchAny,
+                                       SearchRequest)
+from qdrant_client.models import QueryRequest
 
 from src.config import cfg
 from src.logger import logger
@@ -101,16 +104,6 @@ class Retriever:
         if top_k is None:
             top_k = self.top_k
 
-        self.chroma_client = await chromadb.AsyncHttpClient(host="localhost", port=8500)
-
-        self.collection = await self.chroma_client.get_collection(
-            name=cfg.COLLECTION_NAME
-        )
-
-        if self.collection is None:
-            logger.error("Failed to access or create the ChromaDB collection.")
-            return []
-
         try:
             embedding_model, device = load_embedding_model("cpu")
             logger.info("Generating rewritten queries for better retrieval")
@@ -118,10 +111,6 @@ class Retriever:
                 get_summary_by_source_name(cfg.DB_SESSION, os.path.basename(pdf))
                 for pdf in pdfs
             ]
-            if summaries is None:
-                logger.warning(f"No summary found for file the files: {summaries}")
-                summaries = []
-
             summary = "\n\n".join(filter(None, summaries)) if summaries else ""
             rewritten_queries = await self.interface.generate_rewritten_queries(
                 query=query, summary=summary
@@ -135,93 +124,175 @@ class Retriever:
                     for rewritten_query in rewritten_queries
                 ]
             )
-
             query_embeddings = np.array(query_embeddings, dtype=np.float32)
             free_embedding_model(embedding_model, device)
 
-            logger.info(f"Number of query embeddings queries: {len(query_embeddings)}")
-            logger.info("Retrieving relevant chunks from the database")
-            logger.info(f"Filtering by PDFs: {pdfs}")
-            metadata_filter = {"source": {"$in": pdfs}}
-            results = await self.collection.query(
-                query_embeddings=query_embeddings,
-                n_results=top_k,
-                include=["documents", "metadatas", "distances"],
-                where=metadata_filter,  # type: ignore
-            )
-            logger.info(f"Number of queries after retrieval: {len(results['ids'])}")
+            logger.info("Connecting to Qdrant")
+            client = AsyncQdrantClient(host=cfg.QDRANT_HOST, port=cfg.QDRANT_PORT)
 
-            logger.info("Performing rank fusion on retrieved results")
+            # Qdrant filter for all sources in pdfs
+            filter_ = Filter(
+                must=[FieldCondition(key="source", match=MatchAny(any=pdfs))]
+            )
+            logger.info(f"Using filter for sources: {pdfs}")
+
+            logger.info("Retrieving relevant chunks from Qdrant")
+
+            results = await client.query_batch_points(
+                collection_name=cfg.COLLECTION_NAME,
+                requests=[
+                    QueryRequest(
+                        query=embedding.tolist(),
+                        limit=top_k,
+                        filter=filter_,
+                        with_payload=True,
+                    )
+                    for embedding in query_embeddings
+                ],
+            )
+            await client.close()
+
+            chunk_texts = []
+            chunk_ids = []
+            logger.info(f"Processing retrieved chunks: {len(results)} query results")
+            for query_response in results:
+                for point in query_response.points:
+                    point_id = point.id
+                    text = (
+                        point.payload.get("text", "No text found")
+                        if point.payload
+                        else "No text found"
+                    )
+                    chunk_ids.append(point_id)
+                    chunk_texts.append(text)
+
+            id_to_doc = dict(zip(chunk_ids, chunk_texts))
+            logger.info(f"Retrieved len(chunk_texts): {len(chunk_texts)} chunks")
+
+            # Continue with rank fusion and reranking as before
+            # For rank fusion, you need the ids grouped by query
+            ids_per_query = [
+                [point.id for point in result.points] for result in results
+            ]
             ranked_chunk_ids = await asyncio.to_thread(
-                self.reciprocal_rank_fusion, results["ids"], k=top_k
+                self.reciprocal_rank_fusion, ids_per_query, k=top_k
             )
-
-            id_to_doc = {}
-            documents = results.get("documents") or []
-            for id_list, doc_list in zip(results["ids"], documents):
-                for chunk_id, doc in zip(id_list, doc_list):
-                    if chunk_id not in id_to_doc:
-                        id_to_doc[chunk_id] = doc
             filtered_chunks = [
                 id_to_doc[chunk_id]
                 for chunk_id in ranked_chunk_ids
                 if chunk_id in id_to_doc
             ]
+
             logger.info(f"Number of chunks after rank fusion: {len(filtered_chunks)}")
             logger.info(f"Performing reranking on filtered chunks")
             reranked_chunks = await asyncio.to_thread(
                 self.rerank_chunks, query, filtered_chunks
             )
             return reranked_chunks
+
         except Exception as e:
-            logger.error(f"Error retrieving data: {e}")
+            logger.error(f"Error retrieving data from Qdrant: {e}")
             return []
 
 
 if __name__ == "__main__":
+    import asyncio
+    import os
 
-    def format_chunks_to_text(chunks: List[str]) -> str:
-        try:
-            formatted_chunks = []
-            for chunk in chunks:
-                formatted_chunks.append(f"{cfg.CHUNK_PREFIX}{chunk}")
+    from qdrant_client import AsyncQdrantClient
+    from qdrant_client.http.models import FieldCondition, Filter, MatchAny
+    from qdrant_client.models import QueryRequest
 
-            content = cfg.CHUNK_SEPARATOR.join(formatted_chunks)
-            return f"{cfg.RESPONSE_START}{content}{cfg.RESPONSE_END}"
+    from src.config import cfg
+    from src.logger import logger
+    from src.util import free_embedding_model, load_embedding_model
 
-        except Exception as e:
-            logger.error(f"Error formatting chunks to text: {e}")
-            return f"{cfg.RESPONSE_START}{cfg.RESPONSE_END}"
+    # 1. Define query and sources
+    query = "What are some specific examples of AI applications prohibited by the EU AI Act?"
+    pdfs = [
+        "Future-of-Life-InstituteAI-Act-overview-30-May-2024.pdf"
+    ]  # Replace with your actual source names
+    logger.info(f"Query: {query}")
+    logger.info(f"PDFs/Sources: {pdfs}")
 
-    import sys
+    # 2. Load embedding model
+    embedding_model, device = load_embedding_model("cpu")
+    logger.info(f"Loaded embedding model on device: {device}")
 
-    if len(sys.argv) != 5:
-        result = format_chunks_to_text([])
-        print(result)
-        sys.exit(1)
-
-    file_name = sys.argv[1]
-    query = sys.argv[2]
-    top_k = int(sys.argv[3])
-    output_file = sys.argv[4]
-
+    # 3. Encode query
     try:
-        llm_interface = LLM_Interface()
-        retriever = Retriever(llm_interface)
-        chunks = retriever.retrieve(query, file_name, top_k)
-
-        result_text = format_chunks_to_text(chunks)
-
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(result_text)
-
+        query_embedding = embedding_model.embed_query(query)
+        logger.info(f"Query embedding: {query_embedding}")
+        logger.info(f"Embedding shape: {len(query_embedding)}")
     except Exception as e:
-        error_result = format_chunks_to_text([])
+        logger.error(f"Error encoding query: {e}")
+
+    # 4. Connect to Qdrant
+    try:
+        client = AsyncQdrantClient(host=cfg.QDRANT_HOST, port=cfg.QDRANT_PORT)
+        logger.info(f"Connected to Qdrant at {cfg.QDRANT_HOST}:{cfg.QDRANT_PORT}")
+    except Exception as e:
+        logger.error(f"Error connecting to Qdrant: {e}")
+
+    # 5. Build Qdrant filter
+    try:
+        filter_ = Filter(must=[FieldCondition(key="source", match=MatchAny(any=pdfs))])
+        logger.info(f"Qdrant filter: {filter_}")
+    except Exception as e:
+        logger.error(f"Error building Qdrant filter: {e}")
+
+    # 6. Query Qdrant directly
+    async def direct_query():
         try:
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(error_result)
-        except:
-            print(error_result)
-        sys.exit(1)
-        sys.exit(1)
-        sys.exit(1)
+            query_requests = [
+                QueryRequest(
+                    query=query_embedding,
+                    limit=5,
+                    filter=filter_,
+                    with_payload=True,
+                )
+            ]
+            logger.info(f"QueryRequest: {query_requests}")
+
+            results = await client.query_batch_points(
+                collection_name=cfg.COLLECTION_NAME,
+                requests=query_requests,
+            )
+            logger.info(f"Raw Qdrant results: {results}")
+            logger.info(f"Type of results: {type(results)}")
+        except Exception as e:
+            logger.error(f"Error querying Qdrant: {e}")
+            return
+
+        # 7. Iterate over results
+        chunk_texts = []
+        chunk_ids = []
+        for i, query_response in enumerate(results):
+            logger.info(f"QueryResponse {i}: {query_response}")
+            logger.info(f"Type of QueryResponse: {type(query_response)}")
+            for j, point in enumerate(query_response.points):
+                logger.info(f"Point {j}: {point}")
+                logger.info(f"Point ID: {getattr(point, 'id', None)}")
+                logger.info(f"Point payload: {getattr(point, 'payload', None)}")
+                text = (
+                    point.payload.get("text", "No text found")
+                    if point.payload
+                    else "No text found"
+                )
+                chunk_texts.append(text)
+                chunk_ids.append(point.id)
+
+        logger.info(f"All chunk_texts: {chunk_texts}")
+        logger.info(f"All chunk_ids: {chunk_ids}")
+
+        id_to_doc = dict(zip(chunk_ids, chunk_texts))
+        logger.info(f"id_to_doc mapping: {id_to_doc}")
+
+        await client.close()
+        logger.info("Closed Qdrant client.")
+
+    asyncio.run(direct_query())
+
+    # 8. Free embedding model
+    free_embedding_model(embedding_model, device)
+    logger.info("Freed embedding model.")

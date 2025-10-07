@@ -25,8 +25,8 @@ const Summary: React.FC<SummaryProps> = ({ filename }) => {
   if (!filename) return null;
 
   return (
-    <div className="mb-4 p-2 bg-gray-100 rounded">
-      <h3 className="font-semibold mb-2">Summary</h3>
+    <div className="mb-4 p-2 bg-bg-light rounded flex flex-col justify-center items-center">
+      <h3 className="font-semibold mb-2 text-lg ">Summary</h3>
       <MarkdownRenderer text={loading ? "Loading summary..." : summary} />
     </div>
   );

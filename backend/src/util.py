@@ -19,6 +19,7 @@ warnings.filterwarnings("ignore")
 def load_embedding_model(device=None):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info(f"Loading embedding model on device: {device}")
     embedding_model = HuggingFaceEmbeddings(
         model_name=cfg.EMBEDDING_MODEL_NAME,
         model_kwargs={

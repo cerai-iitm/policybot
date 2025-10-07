@@ -26,11 +26,11 @@ const SourceItem: React.FC<SourceItemProps> = ({
   }
   return (
     <div
-      className="p-2 text-white hover:bg-gray-700 rounded cursor-pointer flex justify-between items-center"
+      className="p-2  hover:bg-bg-dark  text-text-muted hover:text-text rounded cursor-pointer flex justify-between items-center"
       onClick={onClick} // Add the onClick handler here
     >
       <FiFileText className="text-red-500 mr-2 flex-shrink-0" size={20} />
-      <span className="truncate flex-grow min-w-0 mr-2">{item.name}</span>
+      <span className="truncate flex-grow min-w-0 mr-2 ">{item.name}</span>
       <button
         onClick={(e) => {
           e.stopPropagation(); // Prevent the parent onClick from being triggered
@@ -39,7 +39,11 @@ const SourceItem: React.FC<SourceItemProps> = ({
         className="ml-2 flex-shrink-0"
         aria-label={checked ? "Uncheck" : "Check"}
       >
-        {checked ? <FiCheckCircle size={20} /> : <FiCircle size={20} />}
+        {checked ? (
+          <FiCheckCircle className="text-text" size={20} />
+        ) : (
+          <FiCircle className="text-text" size={20} />
+        )}
       </button>
     </div>
   );
