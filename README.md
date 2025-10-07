@@ -52,8 +52,7 @@ policybot/
 
 ## Installation & Usage
 
-<details>
-<summary><strong>Docker Installation </strong></summary>
+### Docker Installation 
 
 1. **Clone the repository**
 
@@ -117,5 +116,3 @@ policybot/
      ```bash
      docker exec -it backend tail -f logs/app.log
      ```
-
-</details>
