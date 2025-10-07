@@ -3,7 +3,7 @@ services:
     build:
       context: ./backend
       args:
-        MODE: dev
+        MODE: prod
     container_name: backend
     ports:
       - "8000:8000"
@@ -43,7 +43,7 @@ services:
     build:
       context: ./frontend
       args:
-        MODE: dev
+        MODE: prod
     container_name: frontend
     ports:
       - "3000:3000"
