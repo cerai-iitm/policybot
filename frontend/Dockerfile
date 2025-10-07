@@ -15,7 +15,6 @@ COPY public ./public
 COPY next.config.ts ./
 COPY tsconfig.json ./
 COPY tailwind.config.js ./
-COPY .env ./
 
 # If production, build the app
 RUN if [ "$MODE" = "prod" ]; then npm run build; fi
