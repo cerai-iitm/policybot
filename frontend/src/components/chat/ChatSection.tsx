@@ -208,7 +208,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
           PolicyBot responses can be inaccurate. Please double-check its
           responses.
         </p>
-        <p>Done By: N Gautam, Sudarsun Santhiappan, Omir Kumar</p>
+        <p>Developed By: N Gautam, Omir Kumar, and Dr. Sudarsun Santhiappan</p>
       </div>
     </div>
   );
