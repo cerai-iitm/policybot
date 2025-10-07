@@ -77,7 +77,9 @@ policybot/
 
    - **Note:** If Ollama is running on a different IP or port (not on your localhost), update the `OLLAMA_IP` and `OLLAMA_PORT` environment variables in `docker-compose.yml` to point to the correct location.
 
-3. **Enable GPU Access**
+3. **Update values in `backend/.env` if needed**
+
+4. **Enable GPU Access**
    - Install NVIDIA Container Toolkit (for GPU support):
      ```bash
      sudo apt-get install -y nvidia-container-toolkit
@@ -99,7 +101,7 @@ policybot/
      sudo systemctl restart docker
      ```
 
-4. **Start and Build the App**
+5. **Start and Build the App**
 
    ```bash
    docker-compose up
@@ -109,7 +111,7 @@ policybot/
    - Build the Docker image.
    - Visit the app at [http://localhost:3000](http://localhost:3000).
 
-5. **Access the logs**
+6. **Access the logs**
    - To enter the running Docker container and view logs:
 
      ```bash

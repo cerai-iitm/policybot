@@ -6,7 +6,6 @@ import warnings
 from gc import set_debug
 from typing import Any, Dict, List
 
-import chromadb
 import torch
 from langchain_huggingface import HuggingFaceEmbeddings
 
@@ -283,24 +282,6 @@ def run_pdf_processor(file_name: str):
     yield {"temp_file_path": temp_file_path, "returncode": process.returncode}
 
 
-def get_pdf_files_with_embeddings():
-    os.makedirs(cfg.DATA_DIR, exist_ok=True)
-    client = chromadb.PersistentClient(path=cfg.CHROMA_DIR)
-    collection = client.get_or_create_collection(name=cfg.COLLECTION_NAME)
-    pdf_files = [f for f in os.listdir(cfg.DATA_DIR) if f.lower().endswith(".pdf")]
-    valid_files = []
-    for file in pdf_files:
-        existing = collection.get(where={"source": file}, limit=1)
-        if existing and existing.get("ids"):
-            valid_files.append(file)
-    return valid_files
-
-
-def has_embeddings(file_name: str) -> bool:
-    client = chromadb.PersistentClient(path=cfg.CHROMA_DIR)
-    collection = client.get_or_create_collection(name=cfg.COLLECTION_NAME)
-    existing = collection.get(where={"source": file_name}, limit=1)
-    return bool(existing and existing.get("ids"))
 
 
 def read_pdf_processor_result(temp_file_path: str):
