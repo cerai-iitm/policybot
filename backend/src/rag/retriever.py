@@ -7,10 +7,8 @@ from typing import List, Optional
 import numpy as np
 from FlagEmbedding import FlagReranker
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.models import (FieldCondition, Filter, MatchAny,
-                                       SearchRequest)
+from qdrant_client.http.models import FieldCondition, Filter, MatchAny, SearchRequest
 from qdrant_client.models import QueryRequest
-
 from src.config import cfg
 from src.logger import logger
 from src.rag.LLM_interface import LLM_Interface
@@ -115,7 +113,7 @@ class Retriever:
             rewritten_queries = await self.interface.generate_rewritten_queries(
                 query=query, summary=summary
             )
-            logger.info(f"Debugging query rewriting: {rewritten_queries}")
+            # logger.info(f"Debugging query rewriting: {rewritten_queries}")
 
             logger.info("Generating query embeddings")
             query_embeddings = await asyncio.gather(
@@ -154,7 +152,7 @@ class Retriever:
 
             chunk_texts = []
             chunk_ids = []
-            logger.info(f"Processing retrieved chunks: {len(results)} query results")
+            # logger.info(f"Processing retrieved chunks: {len(results)} query results")
             for query_response in results:
                 for point in query_response.points:
                     point_id = point.id
@@ -202,7 +200,6 @@ if __name__ == "__main__":
     from qdrant_client import AsyncQdrantClient
     from qdrant_client.http.models import FieldCondition, Filter, MatchAny
     from qdrant_client.models import QueryRequest
-
     from src.config import cfg
     from src.logger import logger
     from src.util import free_embedding_model, load_embedding_model
@@ -295,4 +292,5 @@ if __name__ == "__main__":
 
     # 8. Free embedding model
     free_embedding_model(embedding_model, device)
+    logger.info("Freed embedding model.")
     logger.info("Freed embedding model.")

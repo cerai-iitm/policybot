@@ -36,7 +36,7 @@ const SourceItem: React.FC<SourceItemProps> = ({
           e.stopPropagation(); // Prevent the parent onClick from being triggered
           onToggle(item.name);
         }}
-        className="ml-2 flex-shrink-0"
+        className="ml-2 flex-shrink-0 flex items-center justify-center"
         aria-label={checked ? "Uncheck" : "Check"}
       >
         {checked ? (

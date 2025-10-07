@@ -1,5 +1,6 @@
 "use client";
-import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiCircle } from "react-icons/fi";
+import { AiOutlineCheckCircle, AiOutlineMinusCircle } from "react-icons/ai";
 import React, { useState, useRef, useEffect } from "react";
 import SourceItem from "./SourceItem";
 import FileUpload from "./FileUpload";
@@ -26,6 +27,8 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   sources,
   setSources,
 }) => {
+  const initializedRef = useRef(false);
+
   // Fetch PDFs on component mount to populate the list
   useEffect(() => {
     const fetchPdfs = async () => {
@@ -33,7 +36,14 @@ const LeftSidebar: React.FC<SidebarProps> = ({
         const response = await fetch("http://localhost:8000/pdf/list");
         if (response.ok) {
           const data = await response.json();
-          setSources(data.pdfs.map((filename: string) => ({ name: filename })));
+          const names = data.pdfs.map((filename: string) => ({
+            name: filename,
+          }));
+          setSources(names);
+          if (!initializedRef.current) {
+            setCheckedPdfs(names.map((n: SidebarItem) => n.name));
+            initializedRef.current = true;
+          }
         } else {
           console.error("Failed to fetch PDFs");
         }
@@ -53,13 +63,33 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     setCheckedPdfs((prev) =>
       prev.includes(filename)
         ? prev.filter((f) => f !== filename)
-        : [...prev, filename],
+        : [...prev, filename]
     );
   };
 
   // Updating sidebar when new source uploaded
   const handleUploadSuccess = (newSource: { name: string }) => {
     setSources((prev) => [...prev, newSource]);
+    // keep default selection behaviour: newly uploaded file should be selected
+    setCheckedPdfs((prev) => {
+      if (prev.includes(newSource.name)) return prev;
+      return [...prev, newSource.name];
+    });
+  };
+
+  // Select / Deselect All toggle
+  const selectAllToggle = () => {
+    const allNames = sources.map((s) => s.name);
+    if (allNames.length === 0) return;
+    const areAllSelected =
+      allNames.length > 0 && allNames.every((n) => checkedPdfs.includes(n));
+    if (areAllSelected) {
+      // deselect all
+      setCheckedPdfs([]);
+    } else {
+      // select all
+      setCheckedPdfs(allNames);
+    }
   };
 
   // Used for resizing
@@ -77,7 +107,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     const onMouseMove = (moveEvent: MouseEvent) => {
       const newWidth = Math.min(
         window.innerWidth / 3,
-        Math.max(64, startWidth + moveEvent.clientX - startX),
+        Math.max(64, startWidth + moveEvent.clientX - startX)
       );
       onWidthChange(newWidth);
       latestWidth = newWidth;
@@ -95,6 +125,19 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
   };
+
+  // compute select-all icon state
+  const allNames = sources.map((s) => s.name);
+  const areAllSelected =
+    allNames.length > 0 && allNames.every((n) => checkedPdfs.includes(n));
+  const areNoneSelected = allNames.every((n) => !checkedPdfs.includes(n));
+  const isPartial = !areAllSelected && !areNoneSelected;
+  // use circled icons for the three states; use the same open circle as SourceItem for "none"
+  const SelectAllIcon = areAllSelected
+    ? AiOutlineCheckCircle
+    : areNoneSelected
+    ? FiCircle
+    : AiOutlineMinusCircle;
 
   return (
     <aside
@@ -116,6 +159,28 @@ const LeftSidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
           <div className="border-b border-gray-600 my-2 mx-4" />
+
+          {/* Select / Deselect All - only visible when sidebar not collapsed */}
+          {allNames.length > 0 && (
+            <div className="p-2 text-text-muted rounded flex justify-between items-center">
+              <div className="flex items-center">
+                {/* placeholder to align with SourceItem's left file icon (20px) */}
+                <div className="w-5 mr-2 flex-shrink-0" aria-hidden="true" />
+                <span className="truncate flex-grow min-w-0 text-sm">All</span>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  selectAllToggle();
+                }}
+                aria-label="Select or deselect all sources"
+                className="ml-5 flex-shrink-0 p-1 rounded flex items-center justify-center"
+              >
+                {/* match size and vertical centering of SourceItem icons */}
+                <SelectAllIcon size={20} className="text-text" />
+              </button>
+            </div>
+          )}
         </>
       )}
       {width < 150 && (

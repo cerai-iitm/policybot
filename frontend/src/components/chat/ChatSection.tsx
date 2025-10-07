@@ -153,22 +153,24 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
   }, [warning]);
 
   return (
-    <div className="flex flex-col h-full bg-bg-light">
+    <div className="flex flex-col h-full min-h-0 bg-bg-light">
       {/* Chat history */}
       <div
         ref={chatHistoryRef}
-        className="flex-1 p-4 overflow-y-auto flex flex-col"
+        className="flex-1 min-h-0 p-4 overflow-y-auto flex flex-col"
       >
         {messages.length === 0 ? (
-          <div className="flex h-full w-full items-center justify-center p-4">
-            <div className="flex flex-col items-start gap-4">
-              <div className="text-6xl font-bold text-white">PolicyBot</div>
+          <div className="relative flex h-full w-full items-center justify-center p-4 overflow-hidden">
+            <div className="relative z-10 flex flex-col items-start gap-4">
+              <div className="text-6xl font-extrabold text-black dark:text-slate-300">
+                PolicyBot
+              </div>
 
-              <div className="text-lg text-gray-400">
+              <div className="text-lg text-slate-600 dark:text-slate-400">
                 Your AI assistant for policy documents.
               </div>
 
-              <div className="text-base text-gray-500">
+              <div className="text-base text-slate-600 dark:text-slate-400">
                 Select PDFs from the list and enter a question to get started.
               </div>
             </div>
@@ -194,7 +196,6 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
         )}
       </div>
       {/* Chat input */}
-
       <ChatInput
         value={userInput}
         onChange={(e) => setUserInput(e.target.value)}

@@ -15,8 +15,11 @@ class Config:
     DB_SESSION = SessionLocal()
 
     COLLECTION_NAME = "pdf_embeddings"
-    QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
+
+    IN_DOCKER = os.getenv("IN_DOCKER", "0") == "1"
+    QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant" if IN_DOCKER else "localhost")
     QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
+
     POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres_db")
 
     EMBEDDING_MODEL_NAME = "Alibaba-NLP/gte-multilingual-base"

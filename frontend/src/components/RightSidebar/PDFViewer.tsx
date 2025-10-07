@@ -15,15 +15,17 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filename }) => {
   }
 
   // Adjust the URL to match your backend endpoint
-  const fileUrl = `http://localhost:8000/pdf/view/${encodeURIComponent(filename)}`;
+  const fileUrl = `http://localhost:8000/pdf/view/${encodeURIComponent(
+    filename
+  )}`;
 
   return (
-    <div className="w-full h-full flex flex-col items-center">
+    <div className="w-full flex-1 min-h-0 flex flex-col items-center overflow-auto">
       <embed
         src={fileUrl}
         type="application/pdf"
         width="100%"
-        height="800px"
+        height="100%"
         style={{ border: "none" }}
       />
     </div>

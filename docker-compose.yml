@@ -15,10 +15,12 @@ services:
       - "host.docker.internal:host-gateway"
     env_file:
       - ./backend/.env
+    volumes:
+      - pdf_data:/app/data  
     develop:
       watch:
         - action: sync
-          path: .backend/src
+          path: ./backend/src
           target: /app/src
         - action: sync
           path: ./backend/.env
@@ -79,7 +81,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=policybot
     volumes:
-      - ./db:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
@@ -90,8 +92,16 @@ services:
       - "6333:6333" # HTTP API
       - "6334:6334" # gRPC API
     volumes:
-      - ./qdrant_storage:/qdrant/storage
+      - qdrant_data:/qdrant/storage
     restart: unless-stopped
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
       QDRANT__HTTP__PORT: 6333
+
+volumes:
+  postgres_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  pdf_data:  # Add this line
+    driver: local

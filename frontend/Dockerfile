@@ -9,18 +9,26 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy source code and config files
-COPY src ./src
-COPY public ./public
+# Copy all necessary configuration files
 COPY next.config.ts ./
 COPY tsconfig.json ./
-COPY tailwind.config.js ./
+COPY tailwind.config.ts ./
 COPY postcss.config.mjs ./
+COPY eslint.config.mjs ./
 
-# If production, build the app
+# Copy source code and public assets
+COPY src ./src
+COPY public ./public
+
+# Build for production if MODE is prod
 RUN if [ "$MODE" = "prod" ]; then npm run build; fi
 
 EXPOSE 3000
 
-# Run the appropriate command based on MODE
-CMD if [ "$MODE" = "prod" ]; then npm start; else npm run dev; fi
+# Run appropriate command based on MODE
+CMD if [ "$MODE" = "prod" ]; then \
+    npm start; \
+    else \
+    npm run dev; \
+    fi
+

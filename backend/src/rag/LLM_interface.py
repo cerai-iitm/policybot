@@ -139,7 +139,7 @@ class LLM_Interface:
             logger.info(f"Generating response for query: {query[:30]}...")
             response = self.chain.invoke(inputs)
             response = external.extract_llm_output(response)
-            logger.info(f"Generated response: {str(response)}...")
+            logger.info(f"Generated response: {str(response)[:30]}...")
             return response
         except ValueError as ve:
             logger.error(f"Input validation error: {ve}")

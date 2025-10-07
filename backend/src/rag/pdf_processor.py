@@ -126,6 +126,7 @@ class PDFProcessor:
                 source_name=os.path.basename(file_name),
                 summary=summary["output_text"],
             )
+            logger.info("Summary created and saved to database.")
             return file_name, summary["output_text"]
 
         except Exception as e:

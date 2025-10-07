@@ -1,6 +1,5 @@
 "use client";
 import React from "react";
-import ReactMarkdown from "react-markdown";
 
 interface HumanMessageProps {
   content: string;
@@ -8,8 +7,8 @@ interface HumanMessageProps {
 
 const HumanMessage: React.FC<HumanMessageProps> = ({ content }) => {
   return (
-    <div className="max-w-[70%] ml-auto bg-bg-dark text-base text-text rounded-md p-2 mb-2 overflow-x-auto shadow">
-      {content}
+    <div className="p-4 rounded-xl bg-bg-dark text-text text-base max-w-4xl break-words ml-auto mr-4 my-3 shadow-sm hover:shadow-md transition-all duration-200 border border-border-muted">
+      <div className="text-text text-base leading-relaxed">{content}</div>
     </div>
   );
 };

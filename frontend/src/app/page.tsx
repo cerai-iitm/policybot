@@ -20,7 +20,10 @@ export default function Home() {
   return (
     <main className="flex h-screen bg-bg-light  text-text text-sm">
       {/* Left Sidebar */}
-      <div style={{ width: leftSidebarWidth, minWidth: leftSidebarWidth }}>
+      <div
+        className="h-full"
+        style={{ width: leftSidebarWidth, minWidth: leftSidebarWidth }}
+      >
         <LeftSidebar
           width={leftSidebarWidth}
           onWidthChange={setLeftSidebarWidth}
@@ -40,13 +43,16 @@ export default function Home() {
       </div>
 
       {/* Middle Chat Section - Takes remaining space */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 h-full flex flex-col">
         <ChatSection checkedPdfs={checkedPdfs} sources={sources} />
       </div>
 
       {/* Right Sidebar */}
       {showRightSidebar && (
-        <div style={{ width: rightSidebarWidth, minWidth: rightSidebarWidth }}>
+        <div
+          className="h-full"
+          style={{ width: rightSidebarWidth, minWidth: rightSidebarWidth }}
+        >
           <RightSidebar
             width={rightSidebarWidth}
             onWidthChange={setRightSidebarWidth}
