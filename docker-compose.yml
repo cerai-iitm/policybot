@@ -103,5 +103,5 @@ volumes:
     driver: local
   qdrant_data:
     driver: local
-  pdf_data:  # Add this line
+  pdf_data:  
     driver: local
