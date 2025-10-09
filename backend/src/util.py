@@ -8,36 +8,40 @@ from typing import Any, Dict, List
 
 import torch
 from langchain_huggingface import HuggingFaceEmbeddings
-
 from src.config import cfg
 from src.logger import logger
 
 warnings.filterwarnings("ignore")
+embedding_model = None
 
 
 def load_embedding_model(device=None):
+    global embedding_model
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Loading embedding model on device: {device}")
-    embedding_model = HuggingFaceEmbeddings(
-        model_name=cfg.EMBEDDING_MODEL_NAME,
-        model_kwargs={
-            **cfg.EMBEDDING_MODEL_KWARGS,
-            "device": device,
-        },
-        encode_kwargs=cfg.ENCODE_KWARGS,
-    )
+    if embedding_model is None:
+        embedding_model = HuggingFaceEmbeddings(
+            model_name=cfg.EMBEDDING_MODEL_NAME,
+            model_kwargs={
+                **cfg.EMBEDDING_MODEL_KWARGS,
+                "device": device,
+            },
+            encode_kwargs=cfg.ENCODE_KWARGS,
+        )
     return embedding_model, device
 
 
 def free_embedding_model(embedding_model, device):
-    del embedding_model
-    import gc
+    # del embedding_model
+    # import gc
 
-    gc.collect()
-    if device == "cuda":
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+    # gc.collect()
+    # if device == "cuda":
+    #     torch.cuda.empty_cache()
+    #     torch.cuda.synchronize()
+    logger.info("Not using this function")
+    return None
 
 
 def parse_chunks_from_text(content: str) -> List[str]:
@@ -280,8 +284,6 @@ def run_pdf_processor(file_name: str):
         pass  # Do not delete the temp file here
 
     yield {"temp_file_path": temp_file_path, "returncode": process.returncode}
-
-
 
 
 def read_pdf_processor_result(temp_file_path: str):

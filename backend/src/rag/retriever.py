@@ -7,8 +7,10 @@ from typing import List, Optional
 import numpy as np
 from FlagEmbedding import FlagReranker
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.models import FieldCondition, Filter, MatchAny, SearchRequest
+from qdrant_client.http.models import (FieldCondition, Filter, MatchAny,
+                                       SearchRequest)
 from qdrant_client.models import QueryRequest
+
 from src.config import cfg
 from src.logger import logger
 from src.rag.LLM_interface import LLM_Interface
@@ -103,7 +105,7 @@ class Retriever:
             top_k = self.top_k
 
         try:
-            embedding_model, device = load_embedding_model("cpu")
+            embedding_model, device = load_embedding_model(None)
             logger.info("Generating rewritten queries for better retrieval")
             summaries = [
                 get_summary_by_source_name(cfg.DB_SESSION, os.path.basename(pdf))
@@ -200,6 +202,7 @@ if __name__ == "__main__":
     from qdrant_client import AsyncQdrantClient
     from qdrant_client.http.models import FieldCondition, Filter, MatchAny
     from qdrant_client.models import QueryRequest
+
     from src.config import cfg
     from src.logger import logger
     from src.util import free_embedding_model, load_embedding_model
