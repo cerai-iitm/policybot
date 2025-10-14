@@ -33,7 +33,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     const fetchPdfs = async () => {
       try {
-        const response = await fetch("http://localhost:8000/pdf/list");
+        const response = await fetch("/api/pdf/list");
         if (response.ok) {
           const data = await response.json();
           const names = data.pdfs.map((filename: string) => ({
@@ -63,7 +63,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     setCheckedPdfs((prev) =>
       prev.includes(filename)
         ? prev.filter((f) => f !== filename)
-        : [...prev, filename]
+        : [...prev, filename],
     );
   };
 
@@ -107,7 +107,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     const onMouseMove = (moveEvent: MouseEvent) => {
       const newWidth = Math.min(
         window.innerWidth / 3,
-        Math.max(64, startWidth + moveEvent.clientX - startX)
+        Math.max(64, startWidth + moveEvent.clientX - startX),
       );
       onWidthChange(newWidth);
       latestWidth = newWidth;
@@ -136,8 +136,8 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   const SelectAllIcon = areAllSelected
     ? AiOutlineCheckCircle
     : areNoneSelected
-    ? FiCircle
-    : AiOutlineMinusCircle;
+      ? FiCircle
+      : AiOutlineMinusCircle;
 
   return (
     <aside
@@ -208,7 +208,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
         ))}
       </div>
       <FileUpload
-        uploadEndpoint="http://localhost:8000/pdf/upload"
+        uploadEndpoint="/api/pdf/upload"
         onUploadSuccess={handleUploadSuccess}
         isCollapsedSidebar={width < 150}
       />

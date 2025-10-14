@@ -17,7 +17,9 @@ RUN uv sync --frozen
 COPY src/ ./src/
 COPY .env ./
 COPY entrypoint.sh ./
+COPY download_models.py ./
 
+RUN uv run download_models.py
 RUN mkdir -p data
 RUN chmod +x entrypoint.sh
 

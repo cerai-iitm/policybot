@@ -59,7 +59,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
       try {
         console.log("Sending request with PDFs:", checkedPdfs);
         setLoading(true);
-        const response = await fetch("http://localhost:8000/api/query", {
+        const response = await fetch("api/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -123,7 +123,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
 
   const fetchSuggestedQuestions = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/suggested-queries", {
+      const res = await fetch("/api/suggested-queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId }),

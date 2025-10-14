@@ -129,7 +129,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     return new Promise<void>((resolve) => {
       console.log("Starting EventSource for filename:", filename); // Add: Log start
       const eventSource = new EventSource(
-        `http://localhost:8000/pdf/process/${encodeURIComponent(filename)}`,
+        `/api/pdf/process/${encodeURIComponent(filename)}`,
       );
 
       eventSource.onopen = () => {

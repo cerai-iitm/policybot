@@ -21,7 +21,7 @@ const Summary: React.FC<SummaryProps> = ({ filename }) => {
     setCollapsed(true);
 
     setLoading(true);
-    fetch(`http://localhost:8000/pdf/summary/${encodeURIComponent(filename)}`)
+    fetch(`/api/pdf/summary/${encodeURIComponent(filename)}`)
       .then((res) => res.json())
       .then((data) => setSummary(data.summary))
       .catch(() => setSummary("No summary available."))

@@ -17,7 +17,7 @@ app.add_middleware(
 )
 
 
-app.include_router(pdf_router, prefix="/pdf", tags=["pdfs"])
+app.include_router(pdf_router, prefix="/api/pdf", tags=["pdfs"])
 app.include_router(chat_router, prefix="/api", tags=["chat"])
 
 
