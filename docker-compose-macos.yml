@@ -1,0 +1,33 @@
+services:
+  rag_app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: policybot_macos
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs    
+      - ./db:/app/db        
+    environment:
+      - IN_DOCKER=1
+      - OLLAMA_IP=host.docker.internal
+      - OLLAMA_PORT=11434
+      - STREAMLIT_SERVER_RUN_ON_SAVE=false
+      - BROWSER_GATHERUSAGESTATS=false
+      # Apple Silicon optimizations
+      - PYTORCH_ENABLE_MPS_FALLBACK=1
+      - OMP_NUM_THREADS=4
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # No GPU configuration needed for macOS
+    # Apple Silicon will use CPU/MPS acceleration automatically
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

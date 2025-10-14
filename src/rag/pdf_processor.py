@@ -176,10 +176,14 @@ class PDFProcessor:
                     embedding = embedding_model.embed_documents(text)
                     all_embeddings.extend(embedding)
 
+                    # Clear cache based on device type
                     if device == "cuda":
                         import torch
-
                         torch.cuda.empty_cache()
+                    elif device == "mps":
+                        import torch
+                        if hasattr(torch.backends.mps, 'empty_cache'):
+                            torch.backends.mps.empty_cache()
 
                 except Exception as e:
                     logger.error(f"Error embedding document {i}: {e}")

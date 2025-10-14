@@ -38,7 +38,8 @@ class Config:
     if os.environ.get("IN_DOCKER") == "1":
         OLLAMA_URL = f"http://{OLLAMA_IP}:{OLLAMA_PORT}"
     else:
-        OLLAMA_URL = f"http://localhost:11434"
+        # For local development on macOS/Linux
+        OLLAMA_URL = f"http://localhost:{OLLAMA_PORT}"
 
     TEMP_FILE_PATH = "/tmp/policybot_temp.txt"
 

@@ -18,12 +18,23 @@ warnings.filterwarnings("ignore")
 
 def load_embedding_model(device=None):
     if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # Priority: MPS (Apple Silicon) > CUDA (NVIDIA) > CPU
+        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            device = "mps"
+        elif torch.cuda.is_available():
+            device = "cuda"
+        else:
+            device = "cpu"
+    
+    # For embedding models, use CPU for stability on macOS
+    # MPS support for transformers can be inconsistent
+    embedding_device = "cpu" if device == "mps" else device
+    
     embedding_model = HuggingFaceEmbeddings(
         model_name=cfg.EMBEDDING_MODEL_NAME,
         model_kwargs={
             **cfg.EMBEDDING_MODEL_KWARGS,
-            "device": device,
+            "device": embedding_device,
         },
         encode_kwargs=cfg.ENCODE_KWARGS,
     )
@@ -38,6 +49,10 @@ def free_embedding_model(embedding_model, device):
     if device == "cuda":
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
+    elif device == "mps":
+        # Clear MPS cache on Apple Silicon
+        if hasattr(torch.backends.mps, 'empty_cache'):
+            torch.backends.mps.empty_cache()
 
 
 def parse_chunks_from_text(content: str) -> List[str]:

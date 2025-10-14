@@ -2,4 +2,12 @@
 data
 db
 logs
+chroma
 *.pyc
+__pycache__
+.DS_Store
+*.log
+README-macOS.md
+setup-macos.sh
+docker-compose-macos.yml
+requirements.txt
