@@ -36,16 +36,18 @@ services:
       - huggingface_cache:/root/.cache/huggingface
     develop:
       watch:
-        - action: sync
-          path: ./backend/src
+        - path: ./backend/src
+          action: sync
           target: /app/src
-        - action: sync
-          path: ./backend/.env
+        - path: ./backend/.env
+          action: sync
           target: /app/.env
-        - action: rebuild
-          path: ./backend/Dockerfile
-        - action: rebuild
-          path: ./backend/requirements.txt
+        - path: ./backend/Dockerfile
+          action: rebuild
+        - path: ./backend/uv.lock
+          action: rebuild
+        - path: ./backend/pyproject.toml
+          action: rebuild
     deploy:
       resources:
         reservations:

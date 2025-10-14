@@ -1,6 +1,7 @@
 import os
 
 from dotenv import load_dotenv
+
 from src.schema.db import SessionLocal
 
 load_dotenv()
