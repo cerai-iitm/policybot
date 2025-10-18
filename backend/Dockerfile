@@ -5,10 +5,15 @@ ENV MODE=${MODE}
 
 WORKDIR /app
 
+# networking: curl, iputils-ping, for google debug: ca-certificates
 RUN apt-get update && apt-get install -y \
   build-essential \
   libpq-dev \
   netcat-openbsd \
+  ca-certificates \
+  curl \
+  iputils-ping \
+  dnsutils \
   && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./

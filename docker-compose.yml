@@ -23,6 +23,7 @@ services:
       - IN_DOCKER=1
       - OLLAMA_IP=host.docker.internal
       - OLLAMA_PORT=11434
+      - HOST_OLLAMA_HOST=${OLLAMA_HOST:-not_set}  # Pass host's OLLAMA_HOST to container
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -76,9 +77,6 @@ services:
         - action: sync
           path: ./frontend/public
           target: /app/public
-        - action: sync
-          path: ./frontend/.env
-          target: /app/.env
         - action: rebuild
           path: ./frontend/package.json
         - action: rebuild
@@ -116,6 +114,15 @@ services:
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
       QDRANT__HTTP__PORT: 6333
+
+# Add IPv6 network configuration
+networks:
+  default:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: "172.20.0.0/16"         # IPv4 subnet
+        - subnet: "2001:db8::/32"         # IPv6 subnet
 
 volumes:
   postgres_data:

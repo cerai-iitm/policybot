@@ -7,6 +7,126 @@ from pathlib import Path
 from langchain.globals import set_debug
 
 
+def test_ollama_ipv6_connection(logger):
+    import subprocess
+
+    import requests
+
+    addr = "host.docker.internal"
+
+    try:
+        logger.info(f"Testing IPv6 ping to {addr}")
+        # Try ping6 first, fallback to ping -6 if ping6 not available
+        try:
+            result = subprocess.run(
+                ["ping6", "-c", "1", addr], capture_output=True, text=True, timeout=5
+            )
+        except FileNotFoundError:
+            logger.warning("ping6 not found, trying ping -6")
+            try:
+                result = subprocess.run(
+                    ["ping", "-6", "-c", "1", addr],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+            except FileNotFoundError:
+                logger.error("Neither ping6 nor ping -6 available")
+                return
+
+        if result.returncode == 0:
+            logger.info(f"IPv6 ping to {addr}: SUCCESS")
+        else:
+            logger.info(f"IPv6 ping to {addr}: FAILED - {result.stderr}")
+    except Exception as e:
+        logger.info(f"IPv6 ping to {addr}: FAILED - {e}")
+
+    # Test HTTP connection with IPv6 to host.docker.internal
+    url = "http://host.docker.internal:11434/api/version"
+
+    try:
+        logger.info(f"Testing HTTP connection to {url}")
+        response = requests.get(url, timeout=5)
+        logger.info(f"HTTP test to {url}: SUCCESS (status {response.status_code})")
+        logger.info(f"Response: {response.text[:200]}...")
+    except Exception as e:
+        logger.error(f"HTTP test to {url}: FAILED - {e}")
+
+
+def test_ollama_ipv4_connection(logger):
+    """Test IPv4 connection to Ollama on host"""
+    import subprocess
+
+    import requests
+
+    # Only test host.docker.internal (the actual target)
+    addr = "host.docker.internal"
+
+    try:
+        logger.info(f"Testing IPv4 ping to {addr}")
+        result = subprocess.run(
+            ["ping", "-c", "1", addr], capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            logger.info(f"IPv4 ping to {addr}: SUCCESS")
+        else:
+            logger.info(f"IPv4 ping to {addr}: FAILED - {result.stderr}")
+    except Exception as e:
+        logger.info(f"IPv4 ping to {addr}: FAILED - {e}")
+
+    # Test HTTP connection to host.docker.internal only
+    url = "http://host.docker.internal:11434/api/version"
+
+    try:
+        logger.info(f"Testing HTTP connection to {url}")
+        response = requests.get(url, timeout=5)
+        logger.info(f"HTTP test to {url}: SUCCESS (status {response.status_code})")
+        logger.info(f"Response: {response.text[:200]}...")
+
+        # Test additional Ollama endpoints
+        base_url = "http://host.docker.internal:11434"
+
+        # Test /api/tags endpoint
+        try:
+            tags_response = requests.get(f"{base_url}/api/tags", timeout=5)
+            logger.info(
+                f"Ollama /api/tags test: SUCCESS (status {tags_response.status_code})"
+            )
+            logger.info(f"Available models: {tags_response.text[:300]}...")
+        except Exception as e:
+            logger.error(f"Ollama /api/tags test: FAILED - {e}")
+
+        # Test /api/ps endpoint (running models)
+        try:
+            ps_response = requests.get(f"{base_url}/api/ps", timeout=5)
+            logger.info(
+                f"Ollama /api/ps test: SUCCESS (status {ps_response.status_code})"
+            )
+            logger.info(f"Running models: {ps_response.text[:300]}...")
+        except Exception as e:
+            logger.error(f"Ollama /api/ps test: FAILED - {e}")
+
+    except Exception as e:
+        logger.error(f"HTTP test to {url}: FAILED - {e}")
+
+    # Test raw socket connection to host.docker.internal
+    try:
+        logger.info("Testing raw IPv4 socket connection to host.docker.internal:11434")
+        import socket
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        host_ip = socket.gethostbyname("host.docker.internal")
+        logger.info(f"host.docker.internal resolves to: {host_ip}")
+        sock.connect((host_ip, 11434))
+        logger.info("Raw IPv4 socket connection to host.docker.internal: SUCCESS")
+        sock.close()
+    except Exception as e:
+        logger.error(
+            f"Raw IPv4 socket connection to host.docker.internal: FAILED - {e}"
+        )
+
+
 def get_ollama_llm(logger):
 
     from langchain_ollama.llms import OllamaLLM
@@ -22,14 +142,48 @@ def get_ollama_llm(logger):
         logger.info("Ollama LLM instance created")
 
         logger.info("Invoking Ollama LLM with test prompt")
-        resposne = llm.invoke(
+        response = llm.invoke(
             "Testing if the Ollama LLM is working. Return 'Ollama respose okay' if you get this prompt."
         )
 
-        logger.info(f"Ollama LLM response recieved: {resposne}")
+        logger.info(f"Ollama LLM response recieved: {response}")
 
     except Exception as e:
         logger.error(f"Error creating or invoking Ollama LLM: {e}")
+
+
+def get_ollama_llm_ipv6(logger):
+    """Test Ollama LLM connection forcing IPv6"""
+    import socket
+
+    from langchain_ollama.llms import OllamaLLM
+
+    try:
+        addr_info = socket.getaddrinfo("host.docker.internal", 11434, socket.AF_INET6)
+        if addr_info:
+            ipv6_addr = addr_info[0][4][0]
+            base_url = f"http://[{ipv6_addr}]:11434"
+            logger.info(f"Forcing IPv6 connection to: {base_url}")
+        else:
+            raise Exception("No IPv6 address available")
+
+        llm = OllamaLLM(
+            model="gemma3n:e4b",
+            temperature=0.1,
+            base_url=base_url,
+            num_ctx=32000,
+        )
+        logger.info("Ollama LLM instance created")
+
+        logger.info("Invoking Ollama LLM with test prompt")
+        response = llm.invoke(
+            "Testing Ollama LLM connectivity. Return 'Ollama connection okay' if you get this prompt."
+        )
+
+        logger.info(f"Ollama LLM response received: {response}")
+
+    except Exception as e:
+        logger.error(f"Error with Ollama LLM: {e}")
 
 
 def get_gemini_llm(logger):
@@ -38,6 +192,13 @@ def get_gemini_llm(logger):
 
     try:
         api_key = os.getenv("GEMINI_API_KEY", "")
+
+        # Log first 5 characters of API key for debugging
+        if api_key:
+            logger.info(f"Gemini API key (first 5 chars): {api_key[:5]}...")
+        else:
+            logger.warning("GEMINI_API_KEY is empty or not set")
+
         logger.info("Creating Gemini LLM instance")
         gemini_llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
@@ -162,10 +323,14 @@ if __name__ == "__main__":
     root_logger.addHandler(stream_handler)
 
     set_debug(True)
-    get_ollama_llm(root_logger)
+    test_ollama_ipv4_connection(root_logger)  # Test IPv4 first
+    test_ollama_ipv6_connection(root_logger)  # Then IPv6
+    get_ollama_llm(root_logger)  # Original IPv4 LLM test
+    get_ollama_llm_ipv6(root_logger)  # New IPv6 LLM test
     get_gemini_llm(root_logger)
     check_postgres_health(root_logger)
     log_dns_config(root_logger)
     log_dns_resolution(root_logger)
     log_internet_access(root_logger)
+    check_qdrant_http_health(root_logger)
     check_qdrant_http_health(root_logger)
