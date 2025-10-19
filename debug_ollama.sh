@@ -137,19 +137,19 @@ echo "=================================================" | tee -a debug_executio
 
 # 4. Rebuild Docker containers - Continue on failure
 log "🔨 Rebuilding Docker containers..."
-if docker-compose down 2>&1 | tee -a debug_execution.log; then
+if docker compose down 2>&1 | tee -a debug_execution.log; then
     log "✅ Docker compose down: SUCCESS"
 else
     error "❌ Docker compose down: FAILED (continuing anyway)"
 fi
 
-if docker-compose build 2>&1 | tee -a debug_execution.log; then
+if docker compose build 2>&1 | tee -a debug_execution.log; then
     log "✅ Docker compose build: SUCCESS"
 else
     error "❌ Docker compose build: FAILED (continuing anyway)"
 fi
 
-if docker-compose up -d 2>&1 | tee -a debug_execution.log; then
+if docker compose up -d 2>&1 | tee -a debug_execution.log; then
     log "✅ Docker compose up: SUCCESS"
 else
     error "❌ Docker compose up: FAILED (continuing anyway)"
