@@ -170,7 +170,7 @@ echo "DOCKER CONSOLE OUTPUT:" | tee -a debug_execution.log
 echo "=================================================" | tee -a debug_execution.log
 
 # Capture both stdout and stderr from docker exec - Continue on failure
-if docker compose exec -T backend uv run src/debug/debug_llm.py 2>&1 | tee -a debug_execution.log; then
+if docker compose exec -T backend python src/debug/debug_llm.py 2>&1 | tee -a debug_execution.log; then
     log "✅ Python debug script: SUCCESS"
 else
     error "❌ Python debug script: FAILED (continuing anyway)"

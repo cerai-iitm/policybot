@@ -1,34 +1,40 @@
-FROM node:20-alpine
-
-ARG MODE=dev
-ENV MODE=${MODE}
+FROM node:20-alpine AS dependencies
 
 WORKDIR /app
 
-# Copy package files and install dependencies
 COPY package.json package-lock.json ./
+
 RUN npm ci
 
-# Copy all necessary configuration files
-COPY next.config.ts ./
-COPY tsconfig.json ./
-COPY tailwind.config.ts ./
-COPY postcss.config.mjs ./
-COPY eslint.config.mjs ./
+FROM node:20-alpine AS builder
 
-# Copy source code and public assets
-COPY src ./src
-COPY public ./public
+WORKDIR /app
 
-# Build for production if MODE is prod
-RUN if [ "$MODE" = "prod" ]; then npm run build; fi
+COPY --from=dependencies /app/node_modules ./node_modules
+
+COPY . .
+
+RUN npm run build
+
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
 
 EXPOSE 3000
 
-# Run appropriate command based on MODE
-CMD if [ "$MODE" = "prod" ]; then \
-    npm start; \
-    else \
-    npm run dev; \
-    fi
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
 

@@ -10,13 +10,13 @@ echo "Database is ready!"
 
 # Create tables
 echo "Creating database tables..."
-uv run python -m src.schema.create_tables
+python -m src.schema.create_tables
 
 # Start the application
 if [ "$MODE" = "prod" ]; then
     echo "Starting production server..."
-    exec uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
+    exec uvicorn src.main:app --host 0.0.0.0 --port 8000
 else
     echo "Starting development server..."
-    exec uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 fi
