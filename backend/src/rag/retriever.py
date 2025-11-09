@@ -118,12 +118,10 @@ class Retriever:
             # logger.info(f"Debugging query rewriting: {rewritten_queries}")
 
             logger.info("Generating query embeddings")
-            query_embeddings = await asyncio.gather(
-                *[
-                    asyncio.to_thread(embedding_model.embed_query, rewritten_query)
-                    for rewritten_query in rewritten_queries
-                ]
-            )
+            query_embeddings = []
+            for rewritten_query in rewritten_queries:
+                embedding = embedding_model.embed_query(rewritten_query)
+                query_embeddings.append(embedding)
             query_embeddings = np.array(query_embeddings, dtype=np.float32)
             free_embedding_model(embedding_model, device)
 
@@ -169,8 +167,6 @@ class Retriever:
             id_to_doc = dict(zip(chunk_ids, chunk_texts))
             logger.info(f"Retrieved len(chunk_texts): {len(chunk_texts)} chunks")
 
-            # Continue with rank fusion and reranking as before
-            # For rank fusion, you need the ids grouped by query
             ids_per_query = [
                 [point.id for point in result.points] for result in results
             ]
@@ -191,7 +187,7 @@ class Retriever:
             return reranked_chunks
 
         except Exception as e:
-            logger.error(f"Error retrieving data from Qdrant: {e}")
+            logger.error(f"Error retrieving data: {e}")
             return []
 
 

@@ -23,7 +23,6 @@ services:
       - IN_DOCKER=1
       - OLLAMA_IP=host.docker.internal
       - OLLAMA_PORT=11434
-      - HOST_OLLAMA_HOST=${OLLAMA_HOST:-not_set} # Pass host's OLLAMA_HOST to container
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file:
@@ -31,19 +30,19 @@ services:
     volumes:
       - pdf_data:/app/data
       - huggingface_cache:/root/.cache/huggingface
+      - ./backend/logs:/app/logs
     develop:
       watch:
         - path: ./backend/src
           action: sync
           target: /app/src
-        - path: ./backend/.env
-          action: sync
-          target: /app/.env
         - path: ./backend/Dockerfile
           action: rebuild
-        - path: ./backend/uv.lock
+        - path: ./backend/requirements.txt
           action: rebuild
-        - path: ./backend/pyproject.toml
+        - path: ./backend/download_models.py
+          action: rebuild
+        - path: ./backend/entrypoint.sh
           action: rebuild
     deploy:
       resources:
@@ -82,7 +81,11 @@ services:
         - action: rebuild
           path: ./frontend/next.config.ts
         - action: rebuild
-          path: ./frontend/tailwind.config.js
+          path: ./frontend/tailwind.config.ts
+        - action: rebuild
+          path: ./frontend/postcss.config.mjs
+        - action: rebuild
+          path: ./frontend/eslint.config.mjs
     depends_on:
       - backend
 

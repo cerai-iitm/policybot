@@ -1,6 +1,5 @@
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.12.12-slim AS builder
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
   PYTHONUNBUFFERED=1 \
   PIP_NO_CACHE_DIR=off \
@@ -16,13 +15,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt ./
+
 RUN pip install --no-cache-dir --upgrade pip && \
   pip install --no-cache-dir -r requirements.txt
 
 COPY download_models.py .env ./
+
+RUN mkdir -p /root/.cache/huggingface data
+
 RUN python download_models.py
 
-FROM python:3.12-slim-bookworm AS final
+FROM python:3.12.12-slim AS final
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
   PYTHONUNBUFFERED=1 \
@@ -37,19 +40,18 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 RUN apt-get update && apt-get install -y --no-install-recommends \
   netcat-openbsd \
   ca-certificates \
-  curl \ 
-  iputils-ping \
-  dnsutils \
+  # curl \ 
+  # iputils-ping \
+  # dnsutils \
   && rm -rf /var/lib/apt/lists/*
 
 COPY src/ ./src/
-COPY .env ./
+# COPY .env ./
 COPY entrypoint.sh ./
-COPY download_models.py ./
-
-RUN mkdir -p /root/.cache/huggingface data
+# COPY download_models.py ./
 
 RUN chmod +x entrypoint.sh
 
 EXPOSE 8000
+
 ENTRYPOINT ["./entrypoint.sh"]
