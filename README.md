@@ -21,32 +21,7 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
 
 ## Project Structure
 
-```
-policybot/
-├── src/
-│   ├── config.py
-│   ├── logger.py
-│   ├── rag/
-│   │   ├── __init__.py
-│   │   ├── chat_manager.py
-│   │   ├── LLM_interface.py
-│   │   ├── pdf_processor.py
-│   │   └── retriever.py
-│   └── util/
-│       ├── __init__.py
-│       └── util.py
-├── data/ (created at runtime)
-├── db/ (created at runtime)
-├── chroma/ (created at runtime)
-├── logs/ (created at runtime)
-├── streamlit_app.py
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── .gitignore
-├── .dockerignore
-└── README.md
-```
+
 
 ---
 
