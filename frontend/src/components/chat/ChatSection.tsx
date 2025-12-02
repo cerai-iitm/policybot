@@ -129,7 +129,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
         body: JSON.stringify({ session_id: sessionId }),
       });
       const data = await res.json();
-      setSuggestedQuestions(data.suggested_queries || []);
+      // setSuggestedQuestions(data.suggested_queries || []);
+      setSuggestedQuestions([]);
     } catch (e) {
       setSuggestedQuestions([]);
     }
