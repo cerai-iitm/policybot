@@ -5,6 +5,7 @@ import AIMessage from "./AIMessage";
 import ChatInput from "./ChatInput";
 import { SidebarItem } from "../leftSidebar/LeftSidebar";
 import MarkdownRenderer from "../common/Markdown";
+import { v4 as uuidv4 } from "uuid";
 
 interface Message {
   type: "user" | "ai";
@@ -28,7 +29,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
   const [loading, setLoading] = useState(false);
 
   function getOrCreateSessionId() {
-    const newSessionId = crypto.randomUUID();
+    const newSessionId = uuidv4();
     // localStorage.setItem("sessionId", newSessionId);
     return newSessionId;
   }
