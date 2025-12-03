@@ -20,9 +20,7 @@ const AIMessage: React.FC<AIMessageProps> = ({ content, sourceChunks }) => {
       ) : (
         <div className="flex items-center space-x-3 py-2">
           <div className="animate-spin rounded-full h-4 w-4 border-2 border-text-muted border-t-transparent"></div>
-          <span className="text-text-muted text-base">
-            Generating response...
-          </span>
+          <span className="text-text-muted text-base">Thinking ...</span>
         </div>
       )}
 
