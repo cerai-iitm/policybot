@@ -1,5 +1,6 @@
 "use_client";
 import React, { useState, useRef, useEffect } from "react";
+import { FaGithubSquare } from "react-icons/fa";
 import HumanMessage from "./HumanMessage";
 import AIMessage from "./AIMessage";
 import ChatInput from "./ChatInput";
