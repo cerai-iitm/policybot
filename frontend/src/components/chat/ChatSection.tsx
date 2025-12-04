@@ -155,7 +155,28 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
   }, [warning]);
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-bg-light">
+    <div
+      id="chat-section"
+      className="relative flex flex-col h-full min-h-0 bg-bg-light"
+    >
+      {/* ChatSection Topbar - icons/navbar (placed above messages so messages render below) */}
+      <div
+        id="chat-topbar"
+        className="flex items-center justify-end px-4 py-2 bg-bg-light z-10"
+      >
+
+        {/* GitHub link - opens repo in new tab */}
+        <a
+          href="https://github.com/cerai-iitm/policybot"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open PolicyBot on GitHub"
+          className="flex items-center rounded-md p-1 hover:bg-bg-dark"
+        >
+          <FaGithubSquare className="w-6 h-6 text-[var(--color-text)]" />
+        </a>
+      </div>
+
       {/* Chat history */}
       <div
         ref={chatHistoryRef}
@@ -212,6 +233,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
           responses.
         </p>
         <p>Developed By: N Gautam, Omir Kumar, and Dr. Sudarsun Santhiappan</p>
+        <p className="text-text-muted text-xs mt-1">PolicyBot v2</p>
       </div>
     </div>
   );
