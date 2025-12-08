@@ -19,15 +19,9 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
 
 ---
 
-## Project Structure
-
-
-
----
-
 ## Installation & Usage
 
-### Docker Installation 
+### Docker Installation
 
 1. **Clone the repository**
 
@@ -54,7 +48,7 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
 3. **Update values in `backend/.env` if needed**
 
 4. **Enable GPU Access**
-   - Install NVIDIA Container Toolkit (for GPU support):
+   - Install NVIDIA Container Toolkit (for GPU support) if needed:
      ```bash
      sudo apt-get install -y nvidia-container-toolkit
      sudo systemctl restart docker
@@ -78,12 +72,13 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
 5. **Start and Build the App**
 
    ```bash
-   docker-compose up
+   docker compose up
    ```
 
    This will:
    - Build the Docker image.
-   - Visit the app at [http://localhost:3000](http://localhost:3000).
+   - Uses default port 80 to host. Change port in nginx.conf if hosting on some other port is necessary.
+   - Visit the app at [http://localhost:80](http://localhost:80).
 
 6. **Access the logs**
    - To enter the running Docker container and view logs:
@@ -91,3 +86,19 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
      ```bash
      docker exec -it backend tail -f logs/app.log
      ```
+
+## v2.0.0 — Release Highlights
+
+**Summary:** Major refactor and migration to a production-ready stack — backend moved to `FastAPI`, frontend rewritten in `Next.js`, retrieval moved to `Qdrant` with async RAG
+flows, and improved concurrent query handling for multiple users.
+
+**Notable changes you can find in the code:**
+
+- `backend/main.py`: FastAPI entrypoint (replaces prior Streamlit app).
+- `backend/src/routers/`: API routes such as `chat.py` and `pdf.py`.
+- `backend/src/rag/`: RAG pipeline modules (`retriever.py`, `LLM_interface.py`, `chat_manager.py`, `pdf_processor.py`).
+- `frontend/src/app/`: Complete Next.js frontend redesign.
+- `docker-compose.yml` and `nginx.conf`: Updated to run backend and frontend services.
+- `download_models.py` and `entrypoint.sh`: Model and startup updates.
+
+**Notes:** If you used the old Streamlit UI, it's now replaced by the Next.js frontend. Start services with `docker compose up` and visit `http://localhost:80`.
