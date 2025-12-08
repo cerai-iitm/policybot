@@ -19,41 +19,9 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
 
 ---
 
-## Project Structure
-
-```
-policybot/
-├── src/
-│   ├── config.py
-│   ├── logger.py
-│   ├── rag/
-│   │   ├── __init__.py
-│   │   ├── chat_manager.py
-│   │   ├── LLM_interface.py
-│   │   ├── pdf_processor.py
-│   │   └── retriever.py
-│   └── util/
-│       ├── __init__.py
-│       └── util.py
-├── data/ (created at runtime)
-├── db/ (created at runtime)
-├── chroma/ (created at runtime)
-├── logs/ (created at runtime)
-├── streamlit_app.py
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── .gitignore
-├── .dockerignore
-└── README.md
-```
-
----
-
 ## Installation & Usage
 
-<details>
-<summary><strong>Docker Installation </strong></summary>
+### Docker Installation
 
 1. **Clone the repository**
 
@@ -63,7 +31,6 @@ policybot/
    ```
 
 2. **Host Ollama on Your Machine**
-
    - Ensure Ollama is running on your host at port `11434`.
    - If you don't have Ollama installed, follow instructions at [https://ollama.com/download](https://ollama.com/download).
    - Start Ollama with:
@@ -78,9 +45,10 @@ policybot/
 
    - **Note:** If Ollama is running on a different IP or port (not on your localhost), update the `OLLAMA_IP` and `OLLAMA_PORT` environment variables in `docker-compose.yml` to point to the correct location.
 
-3. **Enable GPU Access**
+3. **Update values in `backend/.env` if needed**
 
-   - Install NVIDIA Container Toolkit (for GPU support):
+4. **Enable GPU Access**
+   - Install NVIDIA Container Toolkit (for GPU support) if needed:
      ```bash
      sudo apt-get install -y nvidia-container-toolkit
      sudo systemctl restart docker
@@ -101,23 +69,36 @@ policybot/
      sudo systemctl restart docker
      ```
 
-4. **Start and Build the App**
+5. **Start and Build the App**
 
    ```bash
-   docker-compose up
+   docker compose up
    ```
 
    This will:
-
    - Build the Docker image.
-   - Start the app at [http://localhost:8501](http://localhost:8501).
+   - Uses default port 80 to host. Change port in nginx.conf if hosting on some other port is necessary.
+   - Visit the app at [http://localhost:80](http://localhost:80).
 
-5. **Access the logs**
-
+6. **Access the logs**
    - To enter the running Docker container and view logs:
 
      ```bash
-     docker exec -it rag_app tail -f logs/app.log
+     docker exec -it backend tail -f logs/app.log
      ```
 
-</details>
+## v2.0.0 — Release Highlights
+
+**Summary:** Major refactor and migration to a production-ready stack — backend moved to `FastAPI`, frontend rewritten in `Next.js`, retrieval moved to `Qdrant` with async RAG
+flows, and improved concurrent query handling for multiple users.
+
+**Notable changes you can find in the code:**
+
+- `backend/main.py`: FastAPI entrypoint (replaces prior Streamlit app).
+- `backend/src/routers/`: API routes such as `chat.py` and `pdf.py`.
+- `backend/src/rag/`: RAG pipeline modules (`retriever.py`, `LLM_interface.py`, `chat_manager.py`, `pdf_processor.py`).
+- `frontend/src/app/`: Complete Next.js frontend redesign.
+- `docker-compose.yml` and `nginx.conf`: Updated to run backend and frontend services.
+- `download_models.py` and `entrypoint.sh`: Model and startup updates.
+
+**Notes:** If you used the old Streamlit UI, it's now replaced by the Next.js frontend. Start services with `docker compose up` and visit `http://localhost:80`.

@@ -1,23 +1,50 @@
 services:
-  rag_app:
-    build: .
-    container_name: rag_app
+  nginx:
+    image: nginx:alpine
     ports:
-      - "8501:8501"
+      # Change if the port is already in use. "port_to_use:80"
+      - "80:80"
     volumes:
-      - .:/app
-      - ./data:/app/data
-      - ./logs:/app/logs    
-      - ./db:/app/db        
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - pdf_data:/var/www/pdf
+    depends_on:
+      - frontend
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        MODE: prod
+    container_name: backend
+    ports:
+      - "8000:8000"
     environment:
       - IN_DOCKER=1
       - OLLAMA_IP=host.docker.internal
       - OLLAMA_PORT=11434
-      - STREAMLIT_SERVER_RUN_ON_SAVE=false
-      - BROWSER_GATHERUSAGESTATS=false
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    deploy: 
+    env_file:
+      - ./backend/.env
+    volumes:
+      - pdf_data:/app/data
+      - huggingface_cache:/root/.cache/huggingface
+      - ./backend/logs:/app/logs
+    develop:
+      watch:
+        - path: ./backend/src
+          action: sync
+          target: /app/src
+        - path: ./backend/Dockerfile
+          action: rebuild
+        - path: ./backend/requirements.txt
+          action: rebuild
+        - path: ./backend/download_models.py
+          action: rebuild
+        - path: ./backend/entrypoint.sh
+          action: rebuild
+    deploy:
       resources:
         reservations:
           devices:
@@ -25,3 +52,74 @@ services:
               count: all
               capabilities: [gpu]
     runtime: nvidia
+    depends_on:
+      - postgres
+      - qdrant
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        MODE: prod
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    develop:
+      watch:
+        - action: rebuild
+          path: ./frontend/src
+          target: /app/src
+        - action: sync
+          path: ./frontend/public
+          target: /app/public
+        - action: rebuild
+          path: ./frontend/package.json
+        - action: rebuild
+          path: ./frontend/package-lock.json
+        - action: rebuild
+          path: ./frontend/Dockerfile
+        - action: rebuild
+          path: ./frontend/next.config.ts
+        - action: rebuild
+          path: ./frontend/tailwind.config.ts
+        - action: rebuild
+          path: ./frontend/postcss.config.mjs
+        - action: rebuild
+          path: ./frontend/eslint.config.mjs
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=policybot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  qdrant:
+    image: qdrant/qdrant
+    container_name: qdrant
+    ports:
+      - "6333:6333" # HTTP API
+      - "6334:6334" # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__HTTP__PORT: 6333
+
+volumes:
+  postgres_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  pdf_data:
+    driver: local
+  huggingface_cache:
+    driver: local

@@ -1,0 +1,7 @@
+.venv
+data
+logs
+.python-version
+pyproject.toml
+uv.lock
+*.pyc
