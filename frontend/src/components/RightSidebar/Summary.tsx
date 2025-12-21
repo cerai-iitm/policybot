@@ -42,24 +42,27 @@ const Summary: React.FC<SummaryProps> = ({ filename }) => {
           className="w-full relative flex items-center justify-between py-3 px-0 rounded hover:bg-bg-muted focus:outline-none"
           title={collapsed ? "Show summary" : "Hide summary"}
         >
-          {/* Title: always left-aligned; add border only when expanded */}
-          <span
-            className={`text-text font-bold text-lg flex-1 ${
-              !collapsed ? "border-b border-border-muted pb-2" : ""
-            }`}
-          >
-            Summary
-          </span>
+          {/* Title: always left-aligned */}
+          <span className="text-text font-bold text-lg flex-1">Summary</span>
 
           {/* Chevron fixed on the right */}
           <span className="ml-2 flex-shrink-0">
             {collapsed ? <FiChevronDown /> : <FiChevronUp />}
           </span>
         </button>
+        {filename && (
+          <div
+            className="mt-1 text-xs text-slate-600 dark:text-slate-400 truncate"
+            title={filename}
+          >
+            {filename}
+          </div>
+        )}
+        {/* Persistent separator line shown below filename */}
+        <div className="mt-2 h-px w-full bg-bg-muted" />
       </div>
 
-      {/* colored bar shown only when expanded; uses theme token so it respects dark mode */}
-      {!collapsed && <div className="mt-2 h-0.5 w-14 rounded bg-bg-muted" />}
+      {/* Separator moved above; keep content below */}
 
       {!collapsed && (
         <div id="summary-content" className="text-text mt-3">
