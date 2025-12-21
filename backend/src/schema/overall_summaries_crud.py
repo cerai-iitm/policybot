@@ -5,7 +5,6 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.schema.overall_summaries import OverallSummary
 
 
@@ -55,3 +54,34 @@ async def delete_overall_summary(db: AsyncSession, file_names: List[str]) -> boo
         await db.commit()
         return True
     return False
+
+
+async def delete_overall_summaries_containing_file(
+    db: AsyncSession, file_name: str
+) -> int:
+    """
+    Delete all overall summaries where the deleted file was part of the summary set.
+
+    Returns the number of summaries deleted.
+    """
+    stmt = select(OverallSummary)
+    res = await db.execute(stmt)
+    summaries = res.scalars().all()
+
+    to_delete = []
+    for summary in summaries:
+        try:
+            file_list = json.loads(summary.pdf_file_names)
+        except Exception:
+            file_list = []
+        if file_name in file_list:
+            to_delete.append(summary)
+
+    deleted = 0
+    if to_delete:
+        for summary in to_delete:
+            db.delete(summary)
+            deleted += 1
+        await db.commit()
+
+    return deleted

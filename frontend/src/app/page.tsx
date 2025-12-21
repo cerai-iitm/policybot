@@ -31,6 +31,10 @@ export default function Home() {
           setCheckedPdfs={setCheckedPdfs}
           sources={sources}
           setSources={setSources}
+          selectedFilename={selectedFilename}
+          setSelectedFilename={setSelectedFilename}
+          setIsPDFEnabled={setIsPDFEnabled}
+          setShowRightSidebar={setShowRightSidebar}
           onFileSelect={(filename) => {
             setSelectedFilename(filename); // Update the filename
             setIsPDFEnabled(true); // Enable the PDF viewer

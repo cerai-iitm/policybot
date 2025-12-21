@@ -11,24 +11,17 @@ from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_text_splitters.character import RecursiveCharacterTextSplitter
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.models import (
-    Distance,
-    FieldCondition,
-    Filter,
-    MatchValue,
-    PointStruct,
-    VectorParams,
-)
+from qdrant_client.http.models import (Distance, FieldCondition, Filter,
+                                       FilterSelector, MatchValue, PointStruct,
+                                       VectorParams)
 from sqlalchemy.ext.asyncio import AsyncSession
 from transformers import logging as hf_logging
 
 from src.config import cfg
 from src.logger import logger
 from src.rag import LLM_Interface
-from src.schema.source_summaries_crud import (
-    add_source_summary,
-    get_summary_by_source_name,
-)
+from src.schema.source_summaries_crud import (add_source_summary,
+                                              get_summary_by_source_name)
 from src.util import free_embedding_model, load_embedding_model
 
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
@@ -332,6 +325,49 @@ class PDFProcessor:
 
         except Exception as e:
             logger.error(f"Error storing embeddings: {e}")
+
+    async def delete_embeddings(self, source_name: str) -> bool:
+        client = None
+        try:
+            logger.info(
+                f"Starting Qdrant embeddings deletion for source: {source_name}"
+            )
+            logger.debug(f"Connecting to Qdrant at {cfg.QDRANT_HOST}:{cfg.QDRANT_PORT}")
+            client = AsyncQdrantClient(host=cfg.QDRANT_HOST, port=cfg.QDRANT_PORT)
+
+            # Create filter for the source
+            filter_ = Filter(
+                must=[FieldCondition(key="source", match=MatchValue(value=source_name))]
+            )
+            logger.debug(f"Created filter for source: {source_name}")
+
+            # Delete all points matching the filter
+            logger.info(
+                f"Deleting points from collection '{cfg.COLLECTION_NAME}' for source: {source_name}"
+            )
+            result = await client.delete(
+                collection_name=cfg.COLLECTION_NAME,
+                points_selector=FilterSelector(filter=filter_),
+            )
+            logger.debug(f"Qdrant delete operation result: {result}")
+
+            logger.info(
+                f"Successfully deleted embeddings for {source_name} from Qdrant"
+            )
+            return True
+        except Exception as e:
+            logger.error(
+                f"Error deleting embeddings for {source_name}: {type(e).__name__} - {e}",
+                exc_info=True,
+            )
+            return False
+        finally:
+            if client:
+                try:
+                    await client.close()
+                    logger.debug(f"Closed Qdrant client connection for {source_name}")
+                except Exception as close_error:
+                    logger.warning(f"Error closing Qdrant client: {close_error}")
 
 
 if __name__ == "__main__":

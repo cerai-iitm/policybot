@@ -17,6 +17,10 @@ interface SidebarProps {
   setCheckedPdfs: React.Dispatch<React.SetStateAction<string[]>>;
   sources: SidebarItem[];
   setSources: React.Dispatch<React.SetStateAction<SidebarItem[]>>;
+  selectedFilename: string | null;
+  setSelectedFilename: React.Dispatch<React.SetStateAction<string | null>>;
+  setIsPDFEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowRightSidebar: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const LeftSidebar: React.FC<SidebarProps> = ({
@@ -27,6 +31,10 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   setCheckedPdfs,
   sources,
   setSources,
+  selectedFilename,
+  setSelectedFilename,
+  setIsPDFEnabled,
+  setShowRightSidebar,
 }) => {
   const initializedRef = useRef(false);
 
@@ -64,7 +72,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     setCheckedPdfs((prev) =>
       prev.includes(filename)
         ? prev.filter((f) => f !== filename)
-        : [...prev, filename],
+        : [...prev, filename]
     );
   };
 
@@ -76,6 +84,21 @@ const LeftSidebar: React.FC<SidebarProps> = ({
       if (prev.includes(newSource.name)) return prev;
       return [...prev, newSource.name];
     });
+  };
+
+  // Handle PDF deletion
+  const handleDeletePdf = (filename: string) => {
+    // Remove from sources list
+    setSources((prev) => prev.filter((s) => s.name !== filename));
+    // Remove from checked PDFs
+    setCheckedPdfs((prev) => prev.filter((f) => f !== filename));
+
+    // If the deleted file is currently open, clear selection and close the right sidebar
+    if (filename === selectedFilename) {
+      setSelectedFilename(null);
+      setIsPDFEnabled(false);
+      setShowRightSidebar(false);
+    }
   };
 
   // Select / Deselect All toggle
@@ -108,7 +131,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     const onMouseMove = (moveEvent: MouseEvent) => {
       const newWidth = Math.min(
         window.innerWidth / 3,
-        Math.max(64, startWidth + moveEvent.clientX - startX),
+        Math.max(64, startWidth + moveEvent.clientX - startX)
       );
       onWidthChange(newWidth);
       latestWidth = newWidth;
@@ -137,8 +160,8 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   const SelectAllIcon = areAllSelected
     ? AiOutlineCheckCircle
     : areNoneSelected
-      ? FiCircle
-      : AiOutlineMinusCircle;
+    ? FiCircle
+    : AiOutlineMinusCircle;
 
   return (
     <aside
@@ -205,6 +228,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
             onToggle={toggleChecked}
             isCollapsedSidebar={width < 150}
             onClick={() => handleFileSelect(item.name)}
+            onDelete={handleDeletePdf}
           />
         ))}
       </div>

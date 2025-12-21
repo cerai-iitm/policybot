@@ -7,12 +7,15 @@ import aiofiles
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.config import cfg
 from src.logger import logger
 from src.rag import PDFProcessor
 from src.schema.db import get_db
-from src.schema.source_summaries_crud import get_summary_by_source_name
+from src.schema.overall_summaries_crud import delete_overall_summaries_containing_file
+from src.schema.source_summaries_crud import (
+    delete_source_summary,
+    get_summary_by_source_name,
+)
 
 router = APIRouter()
 
@@ -66,9 +69,36 @@ async def upload_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
 
 
+async def _delete_pdf_file(filename: str) -> bool:
+    try:
+        file_path = Path(cfg.DATA_DIR) / filename
+        logger.info(f"Attempting to delete PDF file: {filename} from {file_path}")
+        await asyncio.to_thread(os.remove, str(file_path))
+        logger.info(f"Successfully deleted PDF file: {filename}")
+        return True
+    except FileNotFoundError:
+        logger.warning(f"PDF file not found during deletion: {filename}")
+        return False
+    except PermissionError:
+        logger.error(f"Permission denied when deleting file: {filename}")
+        return False
+    except Exception as e:
+        logger.error(
+            f"Unexpected error deleting file {filename}: {type(e).__name__} - {e}"
+        )
+        return False
+
+
 @router.delete("/delete/{filename}")
-async def delete_pdf(filename: str):
+async def delete_pdf(filename: str, db: AsyncSession = Depends(get_db)):
+    """
+    Delete a PDF and all associated data (file, embeddings, summaries).
+    Runs all deletion operations in parallel for efficiency.
+    """
+    logger.info(f"Received delete request for PDF: {filename}")
+
     if not filename.lower().endswith(".pdf"):
+        logger.warning(f"Invalid file format in delete request: {filename}")
         raise HTTPException(
             status_code=400,
             detail="Invalid file format. Please specify a PDF file to delete.",
@@ -77,15 +107,111 @@ async def delete_pdf(filename: str):
     file_path = Path(cfg.DATA_DIR) / filename
     exists = await asyncio.to_thread(file_path.exists)
     if not exists:
+        logger.warning(f"Delete request for non-existent file: {filename}")
         raise HTTPException(status_code=404, detail="File not found.")
 
     try:
-        # Remove file in a thread to avoid blocking the event loop
-        await asyncio.to_thread(os.remove, str(file_path))
+        logger.info(f"Starting parallel deletion operations for: {filename}")
+        pdf_processor = PDFProcessor()
+
+        # Run non-DB operations in parallel
+        file_deleted, embeddings_deleted = await asyncio.gather(
+            _delete_pdf_file(filename),
+            pdf_processor.delete_embeddings(filename),
+            return_exceptions=True,
+        )
+
+        # Run DB operations sequentially on the same session to avoid concurrent use
+        summary_result = await delete_source_summary(db, filename)
+
+        try:
+            overall_deleted = await delete_overall_summaries_containing_file(
+                db, filename
+            )
+        except Exception as overall_exc:
+            # Ensure the session is clean for subsequent operations
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            overall_deleted = overall_exc
+
+        logger.info(f"Deletion operations completed for {filename}")
+        logger.debug(
+            "Results - File: %s, Embeddings: %s, Summary: %s, Overall summaries deleted: %s",
+            file_deleted,
+            embeddings_deleted,
+            summary_result,
+            overall_deleted,
+        )
+
+        # Log any failures but still return success if file was deleted
+        failures = []
+        if isinstance(file_deleted, Exception):
+            logger.error(f"File deletion failed with exception: {file_deleted}")
+            failures.append("file")
+        elif not file_deleted:
+            logger.error(f"File deletion returned False for: {filename}")
+            failures.append("file")
+
+        if isinstance(embeddings_deleted, Exception):
+            logger.error(
+                f"Embeddings deletion failed with exception: {embeddings_deleted}"
+            )
+            failures.append("embeddings")
+        elif not embeddings_deleted:
+            logger.warning(f"Embeddings deletion returned False for: {filename}")
+            failures.append("embeddings")
+
+        if isinstance(summary_result, Exception):
+            logger.error(f"Summary deletion failed with exception: {summary_result}")
+            failures.append("database summary")
+        elif summary_result is None:
+            logger.info(f"No summary found to delete for: {filename}")
+
+        if isinstance(overall_deleted, Exception):
+            logger.error(
+                f"Overall summary deletion failed with exception: {overall_deleted}"
+            )
+            failures.append("overall summaries")
+        elif isinstance(overall_deleted, int) and overall_deleted > 0:
+            logger.info(
+                f"Deleted {overall_deleted} overall summaries containing {filename}"
+            )
+        else:
+            logger.info(
+                f"No overall summaries contained {filename} or none were deleted"
+            )
+
+        if failures:
+            logger.warning(
+                f"Partial deletion for {filename}. Failed components: {', '.join(failures)}"
+            )
+        else:
+            logger.info(f"Complete deletion successful for: {filename}")
+
         return JSONResponse(
-            status_code=200, content={"message": f"File '{filename}' deleted."}
+            status_code=200,
+            content={
+                "message": f"File '{filename}' deleted.",
+                "file_deleted": bool(file_deleted)
+                and not isinstance(file_deleted, Exception),
+                "embeddings_deleted": bool(embeddings_deleted)
+                and not isinstance(embeddings_deleted, Exception),
+                "summary_deleted": not isinstance(summary_result, Exception)
+                and summary_result is not None,
+                "overall_summaries_deleted": (
+                    0
+                    if isinstance(overall_deleted, Exception)
+                    else int(overall_deleted) if isinstance(overall_deleted, int) else 0
+                ),
+            },
         )
     except Exception as e:
+        logger.error(
+            f"Unexpected error during deletion of {filename}: {type(e).__name__} - {str(e)}",
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
 
 

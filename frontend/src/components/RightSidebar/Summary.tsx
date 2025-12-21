@@ -62,8 +62,6 @@ const Summary: React.FC<SummaryProps> = ({ filename }) => {
         <div className="mt-2 h-px w-full bg-bg-muted" />
       </div>
 
-      {/* Separator moved above; keep content below */}
-
       {!collapsed && (
         <div id="summary-content" className="text-text mt-3">
           <MarkdownRenderer text={loading ? "Loading summary..." : summary} />
