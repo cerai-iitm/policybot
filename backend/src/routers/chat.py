@@ -2,27 +2,18 @@ import os
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
-from langchain.schema import Document
+from langchain_core.documents import Document
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import cfg
 from src.logger import logger
 from src.rag import ChatManager, LLM_Interface, Retriever
-from src.schema.overall_summaries_crud import (add_overall_summary,
-                                               get_overall_summary)
+from src.schema.db import get_db
+from src.schema.overall_summaries_crud import add_overall_summary, get_overall_summary
 from src.schema.source_summaries_crud import get_all_source_summaries
 
 router = APIRouter()
-
-
-def get_db():
-    db = cfg.DB_SESSION
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 class QueryRequest(BaseModel):
@@ -32,7 +23,7 @@ class QueryRequest(BaseModel):
 
 
 @router.post("/query")
-async def query_endpoint(request: QueryRequest):
+async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_db)):
     chat_manager = ChatManager()
     llm_interface = LLM_Interface()
     retriever = Retriever(interface=llm_interface)
@@ -46,12 +37,16 @@ async def query_endpoint(request: QueryRequest):
             valid_pdfs.append(fname)
     logger.info(f"Valid PDFs for the query: {len(valid_pdfs)}")
 
-    context_chunks = await retriever.retrieve(query=request.query, pdfs=valid_pdfs)
+    # Pass DB session into retriever so it can load source summaries when available.
+    context_chunks = await retriever.retrieve(
+        query=request.query, pdfs=valid_pdfs, db=db
+    )
     logger.info(f"Retrieved {len(context_chunks)} chunks for the query in chat.py")
     logger.info(f"Returning {len(context_chunks)} context chunks in response.")
 
     try:
-        response = llm_interface.generate_response(
+        # Use the async LLM API to avoid blocking the event loop.
+        response = await llm_interface.agenerate_response(
             session_id, chat_manager, context_chunks, request.query
         )
         logger.info("Generated full response for query.")
@@ -69,9 +64,9 @@ class OverallSummaryRequest(BaseModel):
 
 
 @router.get("/overall-summary")
-async def overall_summary_endpoint(db: Session = Depends(get_db)):
+async def overall_summary_endpoint(db: AsyncSession = Depends(get_db)):
     llm_interface = LLM_Interface()
-    all_sources = get_all_source_summaries(db)
+    all_sources = await get_all_source_summaries(db)
     if not all_sources:
         raise HTTPException(status_code=404, detail="No sources found.")
 
@@ -80,7 +75,7 @@ async def overall_summary_endpoint(db: Session = Depends(get_db)):
     summary_str = [str(summary) for summary in summaries]
 
     docs = [Document(page_content=s, metadata={}) for s in summary_str]
-    overall = get_overall_summary(db, filenames)
+    overall = await get_overall_summary(db, filenames)
     if overall:
         return {"summary": overall.summary, "files": sorted(filenames)}
 
@@ -88,7 +83,7 @@ async def overall_summary_endpoint(db: Session = Depends(get_db)):
         docs, max_words=cfg.OVERALL_SUMMARY_MAX_WORDS
     )
 
-    add_overall_summary(db, filenames, overall_summary)
+    await add_overall_summary(db, filenames, overall_summary)
 
     return {"summary": overall_summary, "files": sorted(filenames)}
 
@@ -99,16 +94,16 @@ class SuggestedQueriesRequest(BaseModel):
 
 @router.post("/suggested-queries")
 async def suggested_queries_endpoint(
-    request: SuggestedQueriesRequest, db: Session = Depends(get_db)
+    request: SuggestedQueriesRequest, db: AsyncSession = Depends(get_db)
 ):
     llm_interface = LLM_Interface()
     # 1. Get all source summaries and filenames
-    all_sources = get_all_source_summaries(db)
+    all_sources = await get_all_source_summaries(db)
     if not all_sources:
         raise HTTPException(status_code=404, detail="No sources found.")
     filenames = [str(s.source_name) for s in all_sources]
 
-    overall = get_overall_summary(db, filenames)
+    overall = await get_overall_summary(db, filenames)
     summary = overall.summary if overall else None
     if not overall:
         summaries = [s.summary for s in all_sources]
@@ -118,7 +113,7 @@ async def suggested_queries_endpoint(
         summary = await llm_interface.summarize_with_stuff_chain(
             docs, max_words=cfg.OVERALL_SUMMARY_MAX_WORDS
         )
-        add_overall_summary(db, filenames, summary)
+        await add_overall_summary(db, filenames, summary)
 
     queries = await llm_interface.generate_suggested_queries(
         str(summary), session_id=request.session_id

@@ -1,3 +1,4 @@
+import { withBase } from "@/lib/url";
 import React, { useState, useRef } from "react";
 
 import {
@@ -128,9 +129,10 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const handleProcessing = (filename: string) => {
     return new Promise<void>((resolve) => {
       console.log("Starting EventSource for filename:", filename); // Add: Log start
-      const eventSource = new EventSource(
+      const processingURL = withBase(
         `/api/pdf/process/${encodeURIComponent(filename)}`,
       );
+      const eventSource = new EventSource(processingURL);
 
       eventSource.onopen = () => {
         console.log("EventSource opened successfully"); // Add: Confirm connection

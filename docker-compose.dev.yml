@@ -1,0 +1,83 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      target: development
+    image: frontend:dev
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_BASE_PATH=/policybot
+    ports:
+      - "3000:3000"
+    command: ["npm", "run", "dev"]
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: sync
+          path: ./frontend/public
+          target: /app/public
+        - action: rebuild
+          path: ./frontend/package.json
+        - action: rebuild
+          path: ./frontend/package-lock.json
+        - action: rebuild
+          path: ./frontend/Dockerfile
+        - action: rebuild
+          path: ./frontend/next.config.ts
+        - action: rebuild
+          path: ./frontend/tailwind.config.ts
+        - action: rebuild
+          path: ./frontend/postcss.config.mjs
+        - action: rebuild
+          path: ./frontend/eslint.config.mjs
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      target: development
+    image: backend:dev
+    environment:
+      - IN_DOCKER=1
+      - OLLAMA_IP=host.docker.internal
+      - OLLAMA_PORT=11434
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=policybot
+      - POSTGRES_PORT=5432
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - RUN_MIGRATIONS=true
+      - HF_HOME=/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    command:
+      [
+        "uvicorn",
+        "src.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/src
+          target: /app/src
+        - action: rebuild
+          path: ./backend/Dockerfile
+        - action: rebuild
+          path: ./backend/requirements.txt
+        - action: rebuild
+          path: ./backend/download_models.py
+        - action: rebuild
+          path: ./backend/entrypoint.sh
+    depends_on:
+      - postgres
+      - qdrant

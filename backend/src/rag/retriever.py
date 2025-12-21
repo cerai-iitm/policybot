@@ -1,5 +1,6 @@
 import asyncio
 import os
+import threading
 import warnings
 from collections import defaultdict
 from typing import List, Optional
@@ -7,9 +8,10 @@ from typing import List, Optional
 import numpy as np
 from FlagEmbedding import FlagReranker
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.models import (FieldCondition, Filter, MatchAny,
-                                       SearchRequest)
+from qdrant_client.http.models import FieldCondition, Filter, MatchAny
 from qdrant_client.models import QueryRequest
+from sqlalchemy.ext.asyncio import AsyncSession
+from transformers import logging as hf_logging
 
 from src.config import cfg
 from src.logger import logger
@@ -17,14 +19,13 @@ from src.rag.LLM_interface import LLM_Interface
 from src.schema.source_summaries_crud import get_summary_by_source_name
 from src.util import free_embedding_model, load_embedding_model
 
+# set HF logging verbosity once at module import
+hf_logging.set_verbosity_error()
+
 warnings.filterwarnings(
     "ignore", message="You're using a XLMRobertaTokenizerFast tokenizer.*"
 )
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
-
-from transformers import logging as hf_logging
-
-hf_logging.set_verbosity_error()
 
 
 class Retriever:
@@ -35,7 +36,26 @@ class Retriever:
     ) -> None:
         self.top_k = top_k
         self.interface = interface
-        self.reranker = FlagReranker(cfg.RERANKING_MODEL_NAME, use_fp16=True)
+        # Lazily initialize FlagReranker to avoid blocking import/startup.
+        # The actual heavy initialization will run in a background thread when needed.
+        self.reranker: Optional[FlagReranker] = None
+        self._reranker_init_lock = threading.Lock()
+        self._reranker_ready = False
+
+    def _init_reranker_sync(self):
+        """Synchronous initializer for FlagReranker. Designed to be run inside
+        a thread via asyncio.to_thread so it does not block the event loop.
+        Multiple concurrent callers are guarded by a threading.Lock so init
+        only happens once.
+        """
+        # Use a lock to ensure only one thread initializes the reranker
+        with self._reranker_init_lock:
+            if getattr(self, "_reranker_ready", False):
+                return
+            # Instantiate the heavy reranker synchronously
+            self.reranker = FlagReranker(cfg.RERANKING_MODEL_NAME, use_fp16=True)
+            self._reranker_ready = True
+            logger.info("FlagReranker initialized (sync in background thread).")
 
     def _softmax_top_p_filter(self, scores, items, top_p, temperature):
         scores = np.array(scores)
@@ -78,7 +98,21 @@ class Retriever:
             if not chunks:
                 logger.warning("No chunks provided for reranking.")
                 return []
-            scores = self.reranker.compute_score([(query, chunk) for chunk in chunks])
+            # Ensure reranker is available; try to initialize synchronously if it's not.
+            # This method may be executed inside a thread (via asyncio.to_thread), so
+            # calling the synchronous initializer here will not block the event loop.
+            if self.reranker is None:
+                try:
+                    self._init_reranker_sync()
+                except Exception as e:
+                    logger.error(f"Reranker not available: {e}")
+                    return chunks
+            # Use a local variable to help type-checkers and avoid race windows.
+            reranker = self.reranker
+            if reranker is None:
+                logger.error("Reranker unexpectedly None after init")
+                return chunks
+            scores = reranker.compute_score([(query, chunk) for chunk in chunks])
             scores = np.array(scores)
             if len(scores) != len(chunks):
                 logger.error(
@@ -98,32 +132,57 @@ class Retriever:
             logger.error(f"Error during reranking: {e}")
             return chunks
 
+    def _generate_query_embeddings_sync(self, embedding_model, rewritten_queries):
+        """
+        Synchronous helper to generate embeddings for a list of rewritten queries.
+        This runs in a thread via asyncio.to_thread to avoid blocking the event loop.
+        """
+        embeddings = []
+        for rq in rewritten_queries:
+            embeddings.append(embedding_model.embed_query(rq))
+        return np.array(embeddings, dtype=np.float32)
+
     async def retrieve(
-        self, query: str, pdfs: List[str], top_k: Optional[int] = None
+        self,
+        query: str,
+        pdfs: List[str],
+        db: Optional[AsyncSession] = None,
+        top_k: Optional[int] = None,
     ) -> List[str]:
         if top_k is None:
             top_k = self.top_k
 
         try:
-            embedding_model, device = load_embedding_model(None)
+            logger.info("Loading embedding model (threaded)...")
+            embedding_model, device = await asyncio.to_thread(
+                load_embedding_model, None
+            )
+
             logger.info("Generating rewritten queries for better retrieval")
-            summaries = [
-                get_summary_by_source_name(cfg.DB_SESSION, os.path.basename(pdf))
-                for pdf in pdfs
-            ]
+            # Fetch source summaries asynchronously if a DB session is provided.
+            if db is not None and pdfs:
+                coros = [
+                    get_summary_by_source_name(db, os.path.basename(pdf))
+                    for pdf in pdfs
+                ]
+                summaries = await asyncio.gather(*coros)
+            else:
+                if pdfs:
+                    logger.warning("No DB session provided; skipping source summaries.")
+                summaries = []
+
             summary = "\n\n".join(filter(None, summaries)) if summaries else ""
             rewritten_queries = await self.interface.generate_rewritten_queries(
                 query=query, summary=summary
             )
-            # logger.info(f"Debugging query rewriting: {rewritten_queries}")
 
-            logger.info("Generating query embeddings")
-            query_embeddings = []
-            for rewritten_query in rewritten_queries:
-                embedding = embedding_model.embed_query(rewritten_query)
-                query_embeddings.append(embedding)
-            query_embeddings = np.array(query_embeddings, dtype=np.float32)
-            free_embedding_model(embedding_model, device)
+            logger.info("Generating query embeddings (threaded)")
+            # Generate embeddings in a thread (embedding_model.embed_query is sync/CPU-bound).
+            query_embeddings = await asyncio.to_thread(
+                self._generate_query_embeddings_sync, embedding_model, rewritten_queries
+            )
+            # Free embedding model resources in a thread as well.
+            await asyncio.to_thread(free_embedding_model, embedding_model, device)
 
             logger.info("Connecting to Qdrant")
             client = AsyncQdrantClient(host=cfg.QDRANT_HOST, port=cfg.QDRANT_PORT)
@@ -136,23 +195,24 @@ class Retriever:
 
             logger.info("Retrieving relevant chunks from Qdrant")
 
+            requests = [
+                QueryRequest(
+                    query=embedding.tolist(),
+                    limit=top_k,
+                    filter=filter_,
+                    with_payload=True,
+                )
+                for embedding in query_embeddings
+            ]
+
             results = await client.query_batch_points(
                 collection_name=cfg.COLLECTION_NAME,
-                requests=[
-                    QueryRequest(
-                        query=embedding.tolist(),
-                        limit=top_k,
-                        filter=filter_,
-                        with_payload=True,
-                    )
-                    for embedding in query_embeddings
-                ],
+                requests=requests,
             )
             await client.close()
 
             chunk_texts = []
             chunk_ids = []
-            # logger.info(f"Processing retrieved chunks: {len(results)} query results")
             for query_response in results:
                 for point in query_response.points:
                     point_id = point.id
@@ -170,6 +230,12 @@ class Retriever:
             ids_per_query = [
                 [point.id for point in result.points] for result in results
             ]
+
+            # Ensure FlagReranker is initialized before performing fusion/reranking.
+            # Initialization runs synchronously but inside a background thread
+            # so it does not block the event loop.
+            await asyncio.to_thread(self._init_reranker_sync)
+
             ranked_chunk_ids = await asyncio.to_thread(
                 self.reciprocal_rank_fusion, ids_per_query, k=top_k
             )
@@ -180,7 +246,7 @@ class Retriever:
             ]
 
             logger.info(f"Number of chunks after rank fusion: {len(filtered_chunks)}")
-            logger.info(f"Performing reranking on filtered chunks")
+            logger.info("Performing reranking on filtered chunks")
             reranked_chunks = await asyncio.to_thread(
                 self.rerank_chunks, query, filtered_chunks
             )

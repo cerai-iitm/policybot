@@ -4,6 +4,7 @@ import { AiOutlineCheckCircle, AiOutlineMinusCircle } from "react-icons/ai";
 import React, { useState, useRef, useEffect } from "react";
 import SourceItem from "./SourceItem";
 import FileUpload from "./FileUpload";
+import { withBase } from "@/lib/url";
 
 export interface SidebarItem {
   name: string;
@@ -33,7 +34,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     const fetchPdfs = async () => {
       try {
-        const response = await fetch("/api/pdf/list");
+        const response = await fetch(withBase("/api/pdf/list"));
         if (response.ok) {
           const data = await response.json();
           const names = data.pdfs.map((filename: string) => ({
@@ -208,7 +209,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
         ))}
       </div>
       <FileUpload
-        uploadEndpoint="/api/pdf/upload"
+        uploadEndpoint={withBase("/api/pdf/upload")}
         onUploadSuccess={handleUploadSuccess}
         isCollapsedSidebar={width < 150}
       />

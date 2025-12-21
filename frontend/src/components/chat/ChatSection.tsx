@@ -7,6 +7,7 @@ import ChatInput from "./ChatInput";
 import { SidebarItem } from "../leftSidebar/LeftSidebar";
 import MarkdownRenderer from "../common/Markdown";
 import { v4 as uuidv4 } from "uuid";
+import { withBase } from "@/lib/url";
 
 interface Message {
   type: "user" | "ai";
@@ -61,7 +62,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
       try {
         console.log("Sending request with PDFs:", checkedPdfs);
         setLoading(true);
-        const response = await fetch("api/query", {
+        const response = await fetch(withBase("/api/query"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -125,7 +126,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
 
   const fetchSuggestedQuestions = async () => {
     try {
-      const res = await fetch("/api/suggested-queries", {
+      const res = await fetch(withBase("/api/suggested-queries"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId }),
@@ -165,7 +166,6 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
         id="chat-topbar"
         className="flex items-center justify-end px-4 py-2 bg-bg-light z-10"
       >
-
         {/* GitHub link - opens repo in new tab */}
         <a
           href="https://github.com/cerai-iitm/policybot"
@@ -234,7 +234,6 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
           responses.
         </p>
         <p>Developed By: N Gautam, Omir Kumar, and Dr. Sudarsun Santhiappan</p>
-        <p className="text-text-muted text-xs mt-1">PolicyBot v2</p>
       </div>
     </div>
   );

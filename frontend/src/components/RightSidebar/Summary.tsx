@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import MarkdownRenderer from "../common/Markdown";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { withBase } from "@/lib/url";
 
 interface SummaryProps {
   filename: string | null;
@@ -21,7 +22,7 @@ const Summary: React.FC<SummaryProps> = ({ filename }) => {
     setCollapsed(true);
 
     setLoading(true);
-    fetch(`/api/pdf/summary/${encodeURIComponent(filename)}`)
+    fetch(withBase(`/api/pdf/summary/${encodeURIComponent(filename)}`))
       .then((res) => res.json())
       .then((data) => setSummary(data.summary))
       .catch(() => setSummary("No summary available."))
