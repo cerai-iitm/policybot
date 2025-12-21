@@ -11,15 +11,15 @@ interface SummaryProps {
 const Summary: React.FC<SummaryProps> = ({ filename }) => {
   const [summary, setSummary] = useState<string>("No summary available.");
   const [loading, setLoading] = useState<boolean>(false);
-  const [collapsed, setCollapsed] = useState<boolean>(true);
+  const [collapsed, setCollapsed] = useState<boolean>(false);
 
   useEffect(() => {
     if (!filename) {
       setSummary("");
       return;
     }
-    // collapse when switching files
-    setCollapsed(true);
+    // open when switching files
+    setCollapsed(false);
 
     setLoading(true);
     fetch(withBase(`/api/pdf/summary/${encodeURIComponent(filename)}`))
