@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.logger import logger
 from src.schema.source_summaries import SourceSummary
 
 
@@ -32,7 +33,8 @@ async def delete_source_summary(
     res = await db.execute(stmt)
     summary = res.scalars().first()
     if summary:
-        db.delete(summary)
+        logger.info(f"Deleting source summary for source_name: {source_name}")
+        await db.delete(summary)
         await db.commit()
         return summary
     return None
