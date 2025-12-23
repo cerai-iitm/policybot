@@ -1,11 +1,12 @@
 "use_client";
 import React, { useState, useRef, useEffect } from "react";
 import { FaGithubSquare } from "react-icons/fa";
+import { MdDarkMode, MdLightMode } from "react-icons/md";
 import HumanMessage from "./HumanMessage";
 import AIMessage from "./AIMessage";
 import ChatInput from "./ChatInput";
 import { SidebarItem } from "../leftSidebar/LeftSidebar";
-import MarkdownRenderer from "../common/Markdown";
+import { useTheme } from "next-themes";
 import { v4 as uuidv4 } from "uuid";
 import { withBase } from "@/lib/url";
 
@@ -29,7 +30,9 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
   const [sessionId] = useState(() => getOrCreateSessionId());
   const chatHistoryRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
+  const { theme, setTheme, systemTheme } = useTheme();
 
+  const resolvedTheme = theme === "system" ? systemTheme : theme;
   function getOrCreateSessionId() {
     const newSessionId = uuidv4();
     // localStorage.setItem("sessionId", newSessionId);
@@ -176,6 +179,23 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
         >
           <FaGithubSquare className="w-6 h-6 text-[var(--color-text)]" />
         </a>
+        {/* Theme toggle */}
+        <button
+          aria-label="Toggle theme"
+          title="Toggle dark / light"
+          onClick={() =>
+            setTheme(
+              (resolvedTheme === "dark" ? "light" : "dark") as "light" | "dark",
+            )
+          }
+          className="ml-2 p-1 rounded-md hover:bg-bg-dark flex items-center justify-center"
+        >
+          {resolvedTheme === "dark" ? (
+            <MdLightMode className="w-5 h-5 text-[var(--color-text)]" />
+          ) : (
+            <MdDarkMode className="w-5 h-5 text-[var(--color-text)]" />
+          )}
+        </button>
       </div>
 
       {/* Chat history */}
@@ -234,6 +254,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
           responses.
         </p>
         <p>Developed By: N Gautam, Omir Kumar, and Dr. Sudarsun Santhiappan</p>
+        <p> Policybot v2.0.0 </p>
       </div>
     </div>
   );

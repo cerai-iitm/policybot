@@ -72,7 +72,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     setCheckedPdfs((prev) =>
       prev.includes(filename)
         ? prev.filter((f) => f !== filename)
-        : [...prev, filename]
+        : [...prev, filename],
     );
   };
 
@@ -131,7 +131,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     const onMouseMove = (moveEvent: MouseEvent) => {
       const newWidth = Math.min(
         window.innerWidth / 3,
-        Math.max(64, startWidth + moveEvent.clientX - startX)
+        Math.max(64, startWidth + moveEvent.clientX - startX),
       );
       onWidthChange(newWidth);
       latestWidth = newWidth;
@@ -160,8 +160,8 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   const SelectAllIcon = areAllSelected
     ? AiOutlineCheckCircle
     : areNoneSelected
-    ? FiCircle
-    : AiOutlineMinusCircle;
+      ? FiCircle
+      : AiOutlineMinusCircle;
 
   return (
     <aside
@@ -173,7 +173,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
       {!(width < 150) && (
         <>
           <div className="flex items-center justify-between px-4 pt-8">
-            <span className="text-lg text-black font-semibold">Sources</span>
+            <span className="text-lg text-text font-semibold">Sources</span>
             <button
               className="p-2 bg-background-dark rounded text-foreground"
               onClick={() => onWidthChange(64)}

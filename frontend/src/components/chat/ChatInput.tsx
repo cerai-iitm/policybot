@@ -20,9 +20,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
   disabled,
 }) => {
   return (
-    <div className="flex flex-col border-t mx-8">
+    <div className="flex flex-col border-t mx-8 border-border-muted">
       {/* Input Row */}
-      <div className="flex flex-row  justify-center items-center w-full border rounded-3xl bg-gray-100 py-0 px-0">
+      <div className="flex flex-row  justify-center items-center w-full border rounded-3xl bg-bg-light py-0 px-0 border-border">
         <textarea
           value={value}
           onChange={onChange}
@@ -32,16 +32,16 @@ const ChatInput: React.FC<ChatInputProps> = ({
               onSend();
             }
           }}
-          className="flex-grow px-5 m-0 text-base resize-none border-none focus:outline-none py-2 max-h-32 bg-none "
+          className="flex-grow px-5 m-0 text-base resize-none border-none focus:outline-none py-2 max-h-32 bg-none text-text placeholder:text-text-muted transition-colors duration-300 "
           placeholder="Type your message here..."
         />
         <button
-          className="flex items-center justify-center mr-2 w-8 h-8 bg-blue-500 text-white rounded-full hover:bg-blue-600"
+          className="flex items-center justify-center mr-2 w-8 h-8 bg-blue-600 text-bg-light  rounded-full hover:opacity-75 transition-colors duration-300"
           onClick={onSend}
           type="button"
           disabled={disabled}
         >
-          <MdSend className="w-5 h-5" />
+          <MdSend className="w-5 h-5 text-text hover:text-text" />
         </button>
       </div>
       {/* Suggestions Row */}
@@ -50,7 +50,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           {suggestedQuestions.map((q, idx) => (
             <button
               key={idx}
-              className="px-3 py-1 bg-gray-200 rounded-full text-sm hover:bg-blue-200 transition mr-2 mb-2"
+              className="px-3 py-1 rounded-full text-sm transition mr-2 mb-2 bg-bg hover:bg-primary hover:text-bg-light"
               onClick={() => onSuggestionClick && onSuggestionClick(q)}
               type="button"
             >

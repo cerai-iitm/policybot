@@ -176,9 +176,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
   return (
     <>
       {isCollapsedSidebar ? (
-        <div className="p-4 border-t border-gray-300 bg-gray-50 flex justify-center">
+        <div className="p-4 border-t border-border-muted bg-bg-light flex justify-center">
           <button
-            className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="p-2 bg-blue-600 text-white rounded hover:bg-blue-600/75"
             onClick={() => setIsModalOpen(true)}
             aria-label="Add Source"
           >
@@ -186,9 +186,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
           </button>
         </div>
       ) : (
-        <div className="p-4 border-t border-gray-300 bg-gray-50">
+        <div className="p-4 border-t border-border-muted bg-bg-light">
           <button
-            className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-600/75 text-sm"
             onClick={() => setIsModalOpen(true)}
           >
             <FiPlus className="mr-2" />
@@ -198,13 +198,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-bg-dark/50 flex items-center justify-center z-50">
+          <div className="bg-bg rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Upload PDF</h3>
+              <h3 className="text-lg font-semibold text-text">Upload PDF</h3>
               <button
                 onClick={closeModal}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-text-muted hover:text-text"
               >
                 <FiX size={24} />
               </button>
@@ -212,10 +212,10 @@ const FileUpload: React.FC<FileUploadProps> = ({
             <div
               className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
                 isDragOver
-                  ? "border-blue-500 bg-blue-50"
+                  ? "border-primary bg-primary/10"
                   : selectedFile
-                    ? "border-green-500 bg-green-50"
-                    : "border-gray-300 bg-gray-50"
+                    ? "border-success bg-success/10"
+                    : "border-border-muted bg-bg-light"
               }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -229,14 +229,14 @@ const FileUpload: React.FC<FileUploadProps> = ({
                 onChange={handleFileChange}
                 className="hidden"
               />
-              <FiUpload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <p className="text-sm text-gray-600 mb-2">
+              <FiUpload className="mx-auto h-12 w-12 text-border-muted mb-4" />
+              <p className="text-sm text-text-muted mb-2">
                 {selectedFile
                   ? `Selected: ${selectedFile.name}`
                   : "Drag & drop a PDF here, or click to browse"}
               </p>
               <button
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-600/75 disabled:opacity-50"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleUpload();
@@ -252,10 +252,10 @@ const FileUpload: React.FC<FileUploadProps> = ({
               <div
                 className={`mt-4 p-3 rounded flex items-center ${
                   uploadStatus.type === "success"
-                    ? "bg-green-100 text-green-800"
+                    ? "bg-success/10 text-success"
                     : uploadStatus.type === "error"
-                      ? "bg-red-100 text-red-800"
-                      : "bg-blue-100 text-blue-800"
+                      ? "bg-danger/10 text-danger"
+                      : "bg-info/10 text-info"
                 }`}
               >
                 {uploadStatus.type === "success" && (
@@ -268,7 +268,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
               </div>
             )}
             {isProcessing && (
-              <div className="mt-4 p-3 bg-blue-100 text-blue-800 rounded flex items-center">
+              <div className="mt-4 p-3 bg-info/10 text-info rounded flex items-center">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
                 <span className="text-sm">
                   {processingMessage || "Processing..."}
