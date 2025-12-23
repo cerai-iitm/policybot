@@ -10,11 +10,15 @@ from src.config import cfg
 from src.logger import logger
 from src.rag import ChatManager, LLM_Interface, Retriever
 from src.schema.db import get_db
-from src.schema.overall_summaries_crud import add_overall_summary, get_overall_summary
+from src.schema.overall_summaries_crud import (add_overall_summary,
+                                               get_overall_summary)
 from src.schema.source_summaries_crud import get_all_source_summaries
 
 router = APIRouter()
 
+
+class SetModelRequest(BaseModel):
+    model_name: str
 
 class QueryRequest(BaseModel):
     query: str
@@ -96,28 +100,59 @@ class SuggestedQueriesRequest(BaseModel):
 async def suggested_queries_endpoint(
     request: SuggestedQueriesRequest, db: AsyncSession = Depends(get_db)
 ):
-    llm_interface = LLM_Interface()
-    # 1. Get all source summaries and filenames
-    all_sources = await get_all_source_summaries(db)
-    if not all_sources:
-        raise HTTPException(status_code=404, detail="No sources found.")
-    filenames = [str(s.source_name) for s in all_sources]
+    # llm_interface = LLM_Interface()
+    # # 1. Get all source summaries and filenames
+    # all_sources = await get_all_source_summaries(db)
+    # if not all_sources:
+    #     raise HTTPException(status_code=404, detail="No sources found.")
+    # filenames = [str(s.source_name) for s in all_sources]
+    #
+    # overall = await get_overall_summary(db, filenames)
+    # summary = overall.summary if overall else None
+    # if not overall:
+    #     summaries = [s.summary for s in all_sources]
+    #     summary_str = [str(summary) for summary in summaries]
+    #
+    #     docs = [Document(page_content=s, metadata={}) for s in summary_str]
+    #     summary = await llm_interface.summarize_with_stuff_chain(
+    #         docs, max_words=cfg.OVERALL_SUMMARY_MAX_WORDS
+    #     )
+    #     await add_overall_summary(db, filenames, summary)
+    #
+    # queries = await llm_interface.generate_suggested_queries(
+    #     str(summary), session_id=request.session_id
+    # )
+    #
+    # # 5. Return as JSON
+    # return {"suggested_queries": queries}
+    return {"suggested_queries": []}
 
-    overall = await get_overall_summary(db, filenames)
-    summary = overall.summary if overall else None
-    if not overall:
-        summaries = [s.summary for s in all_sources]
-        summary_str = [str(summary) for summary in summaries]
+@router.get("/get-models")
+def get_supported_models():
+    models = [x.get("name") for x in cfg.SUPPORTED_MODELS]
+    return {"supported_models": models}
 
-        docs = [Document(page_content=s, metadata={}) for s in summary_str]
-        summary = await llm_interface.summarize_with_stuff_chain(
-            docs, max_words=cfg.OVERALL_SUMMARY_MAX_WORDS
-        )
-        await add_overall_summary(db, filenames, summary)
+@router.post("/set-model")
+def set_model(request: SetModelRequest):
+    model_name = request.model_name
+    logger.info(f"Received request to set model with payload: {model_name}")
+    names = [x.get("name") for x in cfg.SUPPORTED_MODELS]
 
-    queries = await llm_interface.generate_suggested_queries(
-        str(summary), session_id=request.session_id
-    )
+    if model_name not in names: 
+        logger.error(f"Attempt to set unsupported model: {model_name}")
+        raise HTTPException(status_code=400, detail="Model not supported.")
 
-    # 5. Return as JSON
-    return {"suggested_queries": queries}
+    model_id = None
+    for model in cfg.SUPPORTED_MODELS:
+        if model.get("name") == model_name:
+            model_id = model.get("id")
+            break
+
+    if model_id is None:
+        logger.error(f"Model ID not found for model name: {model_name}")
+        raise HTTPException(status_code=400, detail="Invalid model name provided.")
+
+    cfg.MODEL_NAME = model_id
+
+    logger.info(f"Model set to: {model_id}")
+    return {"message": f"Model set to {model_name}"}

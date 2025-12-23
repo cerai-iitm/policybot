@@ -9,6 +9,8 @@ import { SidebarItem } from "../leftSidebar/LeftSidebar";
 import { useTheme } from "next-themes";
 import { v4 as uuidv4 } from "uuid";
 import { withBase } from "@/lib/url";
+import ModelSelector from "./ModelSelector";
+import { useAdmin } from "@/app/components/AdminContext";
 
 interface Message {
   type: "user" | "ai";
@@ -169,6 +171,12 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
         id="chat-topbar"
         className="flex items-center justify-end px-4 py-2 bg-bg-light z-10"
       >
+        {/* Model selector dropdown */}
+        {(() => {
+          const { isAdmin } = useAdmin();
+          return isAdmin && <ModelSelector />;
+        })()}
+
         {/* GitHub link - opens repo in new tab */}
         <a
           href="https://github.com/cerai-iitm/policybot"
@@ -185,7 +193,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
           title="Toggle dark / light"
           onClick={() =>
             setTheme(
-              (resolvedTheme === "dark" ? "light" : "dark") as "light" | "dark",
+              (resolvedTheme === "dark" ? "light" : "dark") as "light" | "dark"
             )
           }
           className="ml-2 p-1 rounded-md hover:bg-bg-dark flex items-center justify-center"

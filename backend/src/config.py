@@ -40,7 +40,7 @@ class Config:
     BREAKPOINT_THRESHOLD_TYPE = "standard_deviation"
     BREAKPOINT_THRESHOLD_AMOUNT = 1.0
     MAX_HISTORY_MESSAGES = 3
-    MODEL_NAME = "gemma3n:e4b"
+    MODEL_NAME: str = "gemma3n:e4b"
     TEMPERATURE = 0.1
     MAX_CONTEXT_TOKENS = 32000
 
@@ -69,7 +69,7 @@ class Config:
     if os.environ.get("IN_DOCKER") == "1":
         OLLAMA_URL = f"http://{OLLAMA_IP}:{OLLAMA_PORT}"
     else:
-        OLLAMA_URL = f"http://localhost:11434"
+        OLLAMA_URL = "http://localhost:11434"
 
     TEMP_FILE_PATH = "/tmp/policybot_temp.txt"
 
@@ -80,6 +80,14 @@ class Config:
     APPLICATION_INSTRUCTIONS = prompts.APPLICATION_INSTRUCTIONS
     SUGGESTED_QUERIES_PROMPT = prompts.SUGGESTED_QUERIES_PROMPT
 
+    # Admin config for testing models
+    SUPPORTED_MODELS = [
+    {"id": "gemma3n:e4b", "name": "Gemma 3n (e4b)"},
+    {"id": "hf.co/mradermacher/MiniMax-M2-THRIFT-55-i1-GGUF:Q3_K_S", "name": "MiniMax M2 Thrift 55"},
+    {"id": "hf.co/mradermacher/MiniMax-M2-THRIFT-i1-GGUF:IQ2_XXS", "name": "MiniMax M2 Thrift XXS"},
+    {"id": "llama4:latest", "name": "Llama 4 Latest"},
+    {"id": "gemma3:27b-it-qat", "name": "Gemma 3 27B IT"}
+]
 
 cfg = Config()
 

@@ -1,13 +1,13 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
 from langchain_ollama.llms import OllamaLLM
 
 from src.config import cfg
-from src.logger import logger
 
 
 class External:
-    def __init__(self) -> None:
+    def __init__(self)-> None:
         self.llm_instance = None
+        self.supported_model_names = [x.get('name') for x in cfg.SUPPORTED_MODELS]
 
     def get_llm(self):
         if self.llm_instance is None:
@@ -55,7 +55,6 @@ class External:
             raise ValueError(
                 "Unknown response format from LLM: {}".format(type(response))
             )
-
 
 external = External()
 
