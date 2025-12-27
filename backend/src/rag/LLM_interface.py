@@ -1,7 +1,7 @@
 import asyncio
 from typing import AsyncGenerator, Dict, List
 
-from langchain_classic.chains import LLMChain
+from langchain_classic.chains.llm import LLMChain
 from langchain_classic.chains.summarize import load_summarize_chain
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
@@ -12,17 +12,26 @@ from langchain_core.prompts import (
 )
 
 from src.config import cfg
-from src.external import external
+from src.external import External
 from src.logger import logger
 
 from .chat_manager import ChatManager
 
 
 class LLM_Interface:
-    def __init__(self) -> None:
+    def __init__(self, model_name: str = cfg.MODEL_NAME) -> None:
+        """
+        Initialize LLM interface with optional model override.
+
+        Args:
+            model_name: Model ID to use. If None, uses backend default (cfg.MODEL_NAME).
+        """
+        effective_model = model_name or cfg.MODEL_NAME
+        logger.info(f"Initializing LLM_Interface with model: {effective_model}")
+
         self.system_prompt = cfg.SYSTEM_PROMPT
         self.max_history_messages = cfg.MAX_HISTORY_MESSAGES
-        self.llm = external.get_llm()
+        self.llm = External.create_llm(effective_model)
         if self.llm is None:
             raise ValueError(
                 "LLM initialization failed. Ensure LLM_PROVIDER is configured correctly."
@@ -87,13 +96,13 @@ class LLM_Interface:
                     query=query, summary=summary
                 ),
             )
-            document = external.extract_llm_output(document)
+            document = External.extract_llm_output(document)
 
             response = await asyncio.to_thread(
                 self.llm.invoke,
                 cfg.QUERY_REWRITE_SYSTEM_PROMPT.format(query=query, summary=summary),
             )
-            response = external.extract_llm_output(response)
+            response = External.extract_llm_output(response)
             logger.info(f"Generated rewritten queries: {str(response)[:30]}...")
 
             rewritten_queries = str(response).split("\n")
@@ -139,11 +148,8 @@ class LLM_Interface:
                 session_id, chat_manager, context_chunks, query
             )
             logger.info(f"Generating response for query: {query[:30]}...")
-            # Keep the original synchronous API for callers that expect sync behavior.
-            # If the chain exposes only async methods, callers should use `agenerate_response`
-            # (async). We preserve behavior for backwards compatibility.
             response = self.chain.invoke(inputs)
-            response = external.extract_llm_output(response)
+            response = External.extract_llm_output(response)
             logger.info(f"Generated response: {str(response)[:30]}...")
             return response
         except ValueError as ve:
@@ -179,14 +185,14 @@ class LLM_Interface:
             # 1) chain.arun (common pattern for async chain-run)
             if hasattr(self.chain, "arun"):
                 result = await self.chain.arun(inputs)
-                result = external.extract_llm_output(result)
+                result = External.extract_llm_output(result)
                 logger.info(f"Generated async response (arun): {str(result)[:30]}...")
                 return result
 
             # 2) chain.ainvoke (alternative async invoke)
             if hasattr(self.chain, "ainvoke"):
                 result = await self.chain.ainvoke(inputs)
-                result = external.extract_llm_output(result)
+                result = External.extract_llm_output(result)
                 logger.info(
                     f"Generated async response (ainvoke): {str(result)[:30]}..."
                 )
@@ -196,7 +202,7 @@ class LLM_Interface:
             if hasattr(self.chain, "astream"):
                 pieces = []
                 async for chunk in self.chain.astream(inputs):
-                    chunk = external.extract_llm_output(chunk)
+                    chunk = External.extract_llm_output(chunk)
                     pieces.append(str(chunk))
                 result = "".join(pieces)
                 logger.info(
@@ -206,7 +212,7 @@ class LLM_Interface:
 
             # Fallback: chain.invoke is synchronous — run it in a thread
             result = await asyncio.to_thread(self.chain.invoke, inputs)
-            result = external.extract_llm_output(result)
+            result = External.extract_llm_output(result)
             logger.info(
                 f"Generated async response (fallback invoke): {str(result)[:30]}..."
             )
@@ -237,7 +243,7 @@ class LLM_Interface:
             logger.info(f"Generating response for query: {query[:30]}...")
 
             async for chunk in self.chain.astream(inputs):
-                chunk = external.extract_llm_output(chunk)
+                chunk = External.extract_llm_output(chunk)
                 logger.info(f"Streaming chunk: {str(chunk)[:30]}...")
                 yield chunk
         except Exception as e:
@@ -256,14 +262,14 @@ class LLM_Interface:
         )
 
         result = await chain.arun(summaries)
-        result = external.extract_llm_output(result)
+        result = External.extract_llm_output(result)
         return result.strip()
 
     async def generate_suggested_queries(
         self, summary: str, session_id: str
     ) -> List[str]:
         history = self.chat_manager.get_history(session_id)
-        logger.info(f"Generating suggested queries based on summary and history")
+        logger.info("Generating suggested queries based on summary and history")
         formatted_history = self._format_history(history)
 
         prompt = PromptTemplate(

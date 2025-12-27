@@ -1,5 +1,5 @@
 "use_client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { FaGithubSquare } from "react-icons/fa";
 import { MdDarkMode, MdLightMode } from "react-icons/md";
 import HumanMessage from "./HumanMessage";
@@ -18,6 +18,13 @@ interface Message {
   sourceChunks?: string[];
 }
 
+interface QueryRequestBody {
+  query: string;
+  pdfs: string[];
+  session_id: string;
+  model_name?: string;
+}
+
 interface ChatSectionProps {
   checkedPdfs: string[];
   sources: SidebarItem[];
@@ -33,8 +40,14 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
   const chatHistoryRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const { theme, setTheme, systemTheme } = useTheme();
+  
+  // Model selection state (admin only)
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [availableModels, setAvailableModels] = useState<Array<{id: string, name: string}>>([]);
 
   const resolvedTheme = theme === "system" ? systemTheme : theme;
+  const { isAdmin } = useAdmin();
+  
   function getOrCreateSessionId() {
     const newSessionId = uuidv4();
     // localStorage.setItem("sessionId", newSessionId);
@@ -44,10 +57,6 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
     console.log("handleSend called with input:", userInput.trim());
     if (loading) {
       // Optionally show a message: "Please wait for the current response."
-      return;
-    }
-    if (checkedPdfs.length === 0) {
-      setWarning("Please select at least one PDF before sending a query.");
       return;
     }
     if (checkedPdfs.length === 0) {
@@ -67,14 +76,29 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
       try {
         console.log("Sending request with PDFs:", checkedPdfs);
         setLoading(true);
+        
+        // Build request body
+        const requestBody: QueryRequestBody = {
+          query: userInput.trim(),
+          pdfs: checkedPdfs,
+          session_id: sessionId,
+        };
+        
+        // Only include model_name if admin AND model is selected
+        if (isAdmin && selectedModel) {
+          requestBody.model_name = selectedModel;
+        }
+        
+        console.log("Query request:", {
+          isAdmin,
+          model: isAdmin ? selectedModel : "default",
+          pdfsCount: checkedPdfs.length
+        });
+        
         const response = await fetch(withBase("/api/query"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: userInput.trim(),
-            pdfs: checkedPdfs,
-            session_id: sessionId,
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
@@ -129,20 +153,59 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
     setUserInput(question);
   };
 
-  const fetchSuggestedQuestions = async () => {
+  const fetchSuggestedQuestions = useCallback(async () => {
     try {
       const res = await fetch(withBase("/api/suggested-queries"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId }),
       });
-      const data = await res.json();
-      // setSuggestedQuestions(data.suggested_queries || []);
+      await res.json(); // Consume response (feature currently disabled)
+      // setSuggestedQuestions(data.suggested_queries || []); // TODO: Re-enable when ready
       setSuggestedQuestions([]);
-    } catch (e) {
+    } catch {
       setSuggestedQuestions([]);
     }
+  }, [sessionId]);
+
+  // Handle model selection change (admin only)
+  const handleModelChange = (modelId: string) => {
+    console.log("Model changed to:", modelId);
+    setSelectedModel(modelId);
   };
+
+  // Fetch default model on mount (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    let mounted = true;
+    (async () => {
+      try {
+        const response = await fetch(withBase("/api/default-model"));
+        if (!response.ok) {
+          console.error("Failed to fetch default model:", response.statusText);
+          return;
+        }
+        
+        const data = await response.json();
+        // data: { model_name: "gemma3n:e4b", provider: "ollama", supported_models: [...] }
+        
+        if (!mounted) return;
+        
+        setSelectedModel(data.model_name);
+        setAvailableModels(data.supported_models || []);
+        
+        console.log("Initialized model selection:", {
+          default: data.model_name,
+          available: data.supported_models?.length || 0
+        });
+      } catch (error) {
+        console.error("Error fetching default model:", error);
+      }
+    })();
+    
+    return () => { mounted = false; };
+  }, [isAdmin]);
 
   // Auto-scroll to bottom when messages update
   useEffect(() => {
@@ -152,7 +215,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
   }, [messages]);
   useEffect(() => {
     fetchSuggestedQuestions();
-  }, []); // on mount
+  }, [fetchSuggestedQuestions]); // on mount
 
   useEffect(() => {
     if (warning) {
@@ -172,10 +235,13 @@ const ChatSection: React.FC<ChatSectionProps> = ({ checkedPdfs, sources }) => {
         className="flex items-center justify-end px-4 py-2 bg-bg-light z-10"
       >
         {/* Model selector dropdown */}
-        {(() => {
-          const { isAdmin } = useAdmin();
-          return isAdmin && <ModelSelector />;
-        })()}
+        {isAdmin && availableModels.length > 0 && (
+          <ModelSelector
+            models={availableModels}
+            selected={selectedModel}
+            onChange={handleModelChange}
+          />
+        )}
 
         {/* GitHub link - opens repo in new tab */}
         <a

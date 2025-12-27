@@ -61,6 +61,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
       }
     };
     fetchPdfs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFileSelect = (filename: string) => {
@@ -155,7 +156,6 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   const areAllSelected =
     allNames.length > 0 && allNames.every((n) => checkedPdfs.includes(n));
   const areNoneSelected = allNames.every((n) => !checkedPdfs.includes(n));
-  const isPartial = !areAllSelected && !areNoneSelected;
   // use circled icons for the three states; use the same open circle as SourceItem for "none"
   const SelectAllIcon = areAllSelected
     ? AiOutlineCheckCircle

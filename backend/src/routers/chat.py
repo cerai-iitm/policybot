@@ -10,26 +10,38 @@ from src.config import cfg
 from src.logger import logger
 from src.rag import ChatManager, LLM_Interface, Retriever
 from src.schema.db import get_db
-from src.schema.overall_summaries_crud import (add_overall_summary,
-                                               get_overall_summary)
+from src.schema.overall_summaries_crud import add_overall_summary, get_overall_summary
 from src.schema.source_summaries_crud import get_all_source_summaries
 
 router = APIRouter()
 
 
-class SetModelRequest(BaseModel):
-    model_name: str
-
 class QueryRequest(BaseModel):
     query: str
     pdfs: Optional[List[str]] = None
-    session_id: str  # <-- Add this line
+    session_id: str
+    model_name: Optional[str] = None
 
 
 @router.post("/query")
 async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Query endpoint with per-request model selection.
+
+    - request.model_name omitted/None: Uses backend default cfg.MODEL_NAME (regular users)
+    - request.model_name provided: Uses specified model (admin users)
+    """
+    # Resolve model: use provided model_name or default
+    resolved_model = request.model_name or cfg.MODEL_NAME
+    logger.info(
+        f"Query endpoint - session: {request.session_id[:8]}..., "
+        f"model: {resolved_model}, "
+        f"pdfs: {len(request.pdfs or [])}"
+    )
+
     chat_manager = ChatManager()
-    llm_interface = LLM_Interface()
+    # Pass resolved model to LLM_Interface (per-request model selection)
+    llm_interface = LLM_Interface(model_name=resolved_model)
     retriever = Retriever(interface=llm_interface)
     session_id = request.session_id
 
@@ -127,32 +139,22 @@ async def suggested_queries_endpoint(
     # return {"suggested_queries": queries}
     return {"suggested_queries": []}
 
-@router.get("/get-models")
-def get_supported_models():
-    models = [x.get("name") for x in cfg.SUPPORTED_MODELS]
-    return {"supported_models": models}
 
-@router.post("/set-model")
-def set_model(request: SetModelRequest):
-    model_name = request.model_name
-    logger.info(f"Received request to set model with payload: {model_name}")
-    names = [x.get("name") for x in cfg.SUPPORTED_MODELS]
+@router.get("/default-model")
+def get_default_model():
+    """
+    Returns the backend default model and list of supported models.
 
-    if model_name not in names: 
-        logger.error(f"Attempt to set unsupported model: {model_name}")
-        raise HTTPException(status_code=400, detail="Model not supported.")
+    Frontend uses this to:
+    - Initialize ModelSelector with current default
+    - Display available models for admin users
 
-    model_id = None
-    for model in cfg.SUPPORTED_MODELS:
-        if model.get("name") == model_name:
-            model_id = model.get("id")
-            break
-
-    if model_id is None:
-        logger.error(f"Model ID not found for model name: {model_name}")
-        raise HTTPException(status_code=400, detail="Invalid model name provided.")
-
-    cfg.MODEL_NAME = model_id
-
-    logger.info(f"Model set to: {model_id}")
-    return {"message": f"Model set to {model_name}"}
+    Regular users at /policybot always use the default.
+    Admin users at /config can override per-request.
+    """
+    logger.info(f"Default model requested: {cfg.MODEL_NAME}")
+    return {
+        "model_name": cfg.MODEL_NAME,
+        "provider": cfg.LLM_PROVIDER,
+        "supported_models": cfg.SUPPORTED_MODELS,  # Returns full list with id and name
+    }

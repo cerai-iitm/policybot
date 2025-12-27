@@ -14,11 +14,9 @@ PROJECT_NAME:=policybot
 BUILD:=1
 MODEL_DOWNLOADER:=model_downloader
 
-
-.PHONY: help dev prod build down download-models 
-
 help:
 	@echo "Makefile targets:"
+	@echo "  make deploy       - Deploy the application"
 	@echo "  make dev          - Up stack in dev mode (with docker-compose.dev.yml)"
 	@echo "  make prod         - Up stack in production mode"
 	@echo "  make build        - Build production images"
@@ -26,6 +24,7 @@ help:
 	@echo "  make download-models - Download required models"
 
 # Development (explicit dev override)
+.PHONY: dev
 dev:
 ifeq ($(BUILD),1)
 	$(MAKE) download-models
@@ -34,6 +33,7 @@ endif
 	$(COMPOSE) $(DEV_FILES) -p $(PROJECT_NAME)-dev up --watch --force-recreate
 
 # Production (default compose only)
+.PHONY: prod 
 prod:
 ifeq ($(BUILD),1)
 	$(MAKE) download-models
@@ -43,17 +43,27 @@ endif
 
 
 # Build production images only
+.PHONY: build
 build:
 	$(MAKE) download-models
 	$(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) build
 	$(COMPOSE) $(DEV_FILES) $(ENV_FILE) -p $(PROJECT_NAME)-dev build
 
+.PHONY: down
 down:
 	$(COMPOSE) $(BASE_FILES) -p $(PROJECT_NAME) down 
 
+.PHONY: models 
 models: 
 	$(COMPOSE) $(BASE_FILES) -p $(PROJECT_NAME)
 
+.PHONY: download-models
 download-models:
 	$(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) build $(MODEL_DOWNLOADER)
 	$(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) run --rm $(MODEL_DOWNLOADER)
+
+.PHONY: deploy
+deploy: 
+	$(MAKE) prod BUILD=1
+	$(MAKE) down
+	$(MAKE) prod BUILD=0
