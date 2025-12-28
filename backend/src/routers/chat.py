@@ -54,7 +54,7 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
     logger.info(f"Valid PDFs for the query: {len(valid_pdfs)}")
 
     # Pass DB session into retriever so it can load source summaries when available.
-    context_chunks = await retriever.retrieve(
+    context_chunks, chunk_metadata = await retriever.retrieve(
         query=request.query, pdfs=valid_pdfs, db=db
     )
     logger.info(f"Retrieved {len(context_chunks)} chunks for the query in chat.py")
@@ -66,12 +66,34 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
             session_id, chat_manager, context_chunks, request.query
         )
         logger.info("Generated full response for query.")
-        return {"response": response, "context_chunks": context_chunks}
+
+        # Merge chunks with their metadata for the response
+        chunks_with_metadata = [
+            {
+                "text": context_chunks[i],
+                "source": chunk_metadata[i]["source"],
+                "page_number": chunk_metadata[i]["page_number"],
+            }
+            for i in range(len(context_chunks))
+        ]
+
+        return {"response": response, "context_chunks": chunks_with_metadata}
     except Exception as e:
         logger.error(f"Error generating response: {e}")
+
+        # Merge chunks with their metadata for error response too
+        chunks_with_metadata = [
+            {
+                "text": context_chunks[i],
+                "source": chunk_metadata[i]["source"],
+                "page_number": chunk_metadata[i]["page_number"],
+            }
+            for i in range(len(context_chunks))
+        ]
+
         return {
             "error": "Failed to generate response.",
-            "context_chunks": context_chunks,
+            "context_chunks": chunks_with_metadata,
         }
 
 

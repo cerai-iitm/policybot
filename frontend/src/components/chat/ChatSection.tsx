@@ -12,10 +12,16 @@ import { withBase } from "@/lib/url";
 import ModelSelector from "./ModelSelector";
 import { useAdmin } from "@/app/components/AdminContext";
 
+interface SourceChunk {
+  text: string;
+  source: string;
+  page_number: number | null;
+}
+
 interface Message {
   type: "user" | "ai";
   content: string;
-  sourceChunks?: string[];
+  sourceChunks?: SourceChunk[];
 }
 
 interface QueryRequestBody {

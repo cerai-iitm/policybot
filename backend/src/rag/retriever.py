@@ -3,7 +3,7 @@ import os
 import threading
 import warnings
 from collections import defaultdict
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from FlagEmbedding import FlagReranker
@@ -148,7 +148,7 @@ class Retriever:
         pdfs: List[str],
         db: Optional[AsyncSession] = None,
         top_k: Optional[int] = None,
-    ) -> List[str]:
+    ) -> Tuple[List[str], List[Dict[str, any]]]:
         if top_k is None:
             top_k = self.top_k
 
@@ -213,6 +213,7 @@ class Retriever:
 
             chunk_texts = []
             chunk_ids = []
+            chunk_metadata = []
             for query_response in results:
                 for point in query_response.points:
                     point_id = point.id
@@ -221,10 +222,20 @@ class Retriever:
                         if point.payload
                         else "No text found"
                     )
+                    metadata = {
+                        "source": point.payload.get("source", "Unknown")
+                        if point.payload
+                        else "Unknown",
+                        "page_number": point.payload.get("page_number", None)
+                        if point.payload
+                        else None,
+                    }
                     chunk_ids.append(point_id)
                     chunk_texts.append(text)
+                    chunk_metadata.append(metadata)
 
             id_to_doc = dict(zip(chunk_ids, chunk_texts))
+            id_to_metadata = dict(zip(chunk_ids, chunk_metadata))
             logger.info(f"Retrieved len(chunk_texts): {len(chunk_texts)} chunks")
 
             ids_per_query = [
@@ -250,11 +261,19 @@ class Retriever:
             reranked_chunks = await asyncio.to_thread(
                 self.rerank_chunks, query, filtered_chunks
             )
-            return reranked_chunks
+
+            # Build corresponding metadata list for reranked chunks
+            reranked_metadata = [
+                id_to_metadata[chunk_id]
+                for chunk_id in ranked_chunk_ids
+                if chunk_id in id_to_metadata
+            ][: len(reranked_chunks)]  # Match length after reranking filtering
+
+            return reranked_chunks, reranked_metadata
 
         except Exception as e:
             logger.error(f"Error retrieving data: {e}")
-            return []
+            return [], []
 
 
 if __name__ == "__main__":

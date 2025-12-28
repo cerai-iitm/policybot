@@ -40,10 +40,12 @@ services:
       context: ./backend
       target: development
     image: backend:dev
+    env_file:
+      - ./backend/.env
     environment:
       - IN_DOCKER=1
-      - OLLAMA_IP=host.docker.internal
-      - OLLAMA_PORT=11434
+      - OLLAMA_IP=${OLLAMA_IP:-host.docker.internal}
+      - OLLAMA_PORT=${OLLAMA_PORT:-11434}
       - POSTGRES_HOST=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
