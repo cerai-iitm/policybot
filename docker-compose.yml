@@ -17,10 +17,13 @@ services:
       target: production
     ports:
       - "8000:8000"
+    env_file:
+      - ./backend/.env
     environment:
       - IN_DOCKER=1
-      - OLLAMA_IP=host.docker.internal
-      - OLLAMA_PORT=11434
+      - OLLAMA_IP=${OLLAMA_IP:-host.docker.internal}
+      - OLLAMA_PORT=${OLLAMA_PORT:-11434}
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
       # Huggingface cache dir config
       - HF_HOME=/root/.cache/huggingface
       # Use POSTGRES_* vars as the single source of truth for DB connection.
@@ -32,8 +35,6 @@ services:
       - RUN_MIGRATIONS=true
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    env_file:
-      - ./backend/.env
     volumes:
       - pdf_data:/app/data
       - huggingface_cache:/root/.cache/huggingface

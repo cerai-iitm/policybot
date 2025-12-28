@@ -30,25 +30,30 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
    cd policybot
    ```
 
-2. **Host Ollama on Your Machine**
-   - Ensure Ollama is running on your host at port `11434`.
+2. **Configure Environment Variables**
+
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
+
+   Edit `backend/.env` and update the required variables:
+   - `OLLAMA_IP`: Keep default `host.docker.internal` for local Ollama
+   - `OLLAMA_PORT`: Keep default `11434`
+   - Other variables as needed (see `backend/.env.example` for details)
+
+3. **Install and Run Ollama**
    - If you don't have Ollama installed, follow instructions at [https://ollama.com/download](https://ollama.com/download).
-   - Start Ollama with:
+   - Start Ollama:
      ```bash
      OLLAMA_HOST=0.0.0.0 ollama serve
      ```
-   - (Optional) Pull the model, e.g.:
+   - Pull a model:
      ```bash
      ollama pull gemma3n:e4b
      ```
-   - The app inside Docker will connect to Ollama using the special host name `host.docker.internal:11434` (default in `docker-compose.yml`).
 
-   - **Note:** If Ollama is running on a different IP or port (not on your localhost), update the `OLLAMA_IP` and `OLLAMA_PORT` environment variables in `docker-compose.yml` to point to the correct location.
-
-3. **Update values in `backend/.env` if needed**
-
-4. **Enable GPU Access**
-   - Install NVIDIA Container Toolkit (for GPU support) if needed:
+4. **(Optional) Enable GPU Access**
+   - Install NVIDIA Container Toolkit (for GPU support):
      ```bash
      sudo apt-get install -y nvidia-container-toolkit
      sudo systemctl restart docker
@@ -69,16 +74,23 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
      sudo systemctl restart docker
      ```
 
-5. **Start and Build the App**
+5. **Deploy the Application**
+
+   **For Production:**
 
    ```bash
-   docker compose up
+   make deploy
    ```
 
-   This will:
-   - Build the Docker image.
-   - Uses default port 80 to host. Change port in nginx.conf if hosting on some other port is necessary.
-   - Visit the app at [http://localhost:80](http://localhost:80).
+   This will build images, download models, and start all services. Visit the app at [http://localhost:80/policybot](http://localhost:80/policybot).
+
+   **For Development:**
+
+   ```bash
+   make dev
+   ```
+
+   This will start services with hot-reload enabled. Access at [http://localhost:80/policybot](http://localhost:80/policybot).
 
 6. **Access the logs**
    - To enter the running Docker container and view logs:
