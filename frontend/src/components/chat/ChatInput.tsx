@@ -41,7 +41,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           type="button"
           disabled={disabled}
         >
-          <MdSend className="w-5 h-5 text-text hover:text-text" />
+          <MdSend className="w-5 h-5 text-white hover:text-white hover: opacity-75" />
         </button>
       </div>
       {/* Suggestions Row */}
