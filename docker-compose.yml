@@ -20,24 +20,24 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - IN_DOCKER=1
+      - IN_DOCKER=${IN_DOCKER:-1}
       - OLLAMA_IP=${OLLAMA_IP:-host.docker.internal}
       - OLLAMA_PORT=${OLLAMA_PORT:-11434}
       - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
       # Huggingface cache dir config
-      - HF_HOME=/root/.cache/huggingface
+      - HF_HOME=${HF_HOME:-/app/cache/huggingface}
       # Use POSTGRES_* vars as the single source of truth for DB connection.
-      - POSTGRES_HOST=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=policybot
-      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-policybot}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - RUN_MIGRATIONS=true
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - pdf_data:/app/data
-      - huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/app/cache/huggingface
       - ./backend/logs:/app/logs
     deploy:
       resources:
@@ -56,9 +56,9 @@ services:
       context: ./backend
       target: model_downloader
     environment:
-      HF_HOME: /root/.cache/huggingface
+      HF_HOME: ${HF_HOME:-/app/cache/huggingface}
     volumes:
-      - huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/app/cache/huggingface
     restart: "no"
 
   frontend:
@@ -69,6 +69,14 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
 
   postgres:
     image: postgres:17-alpine
@@ -79,11 +87,29 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-policybot}
       # - PGDATA=/var/lib/postgresql/18/docker
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=512MB"
+      - "-c"
+      - "work_mem=8MB"
+      - "-c"
+      - "max_parallel_workers=2"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init-db:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 512M
 
   qdrant:
     image: qdrant/qdrant

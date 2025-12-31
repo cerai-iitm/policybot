@@ -1,21 +1,20 @@
 import asyncio
 import os
-import uuid
 from pathlib import Path
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.config import cfg
 from src.logger import logger
 from src.rag import PDFProcessor
 from src.schema.db import get_db
-from src.schema.overall_summaries_crud import delete_overall_summaries_containing_file
-from src.schema.source_summaries_crud import (
-    delete_source_summary,
-    get_summary_by_source_name,
-)
+from src.schema.overall_summaries_crud import \
+    delete_overall_summaries_containing_file
+from src.schema.source_summaries_crud import (delete_source_summary,
+                                              get_summary_by_source_name)
 
 router = APIRouter()
 
@@ -40,32 +39,117 @@ async def list_pdfs():
         raise HTTPException(status_code=500, detail=f"Failed to list PDFs: {str(e)}")
 
 
+async def _check_file_processing_state(
+    filename: str, file_path: Path, db: AsyncSession
+) -> str:
+    """Check the processing state of a file through three layers of validation."""
+    logger.info(f"Checking processing state for file: {filename}")
+
+    # Layer 1: Check if file exists on disk
+    file_exists = await asyncio.to_thread(file_path.exists)
+    logger.debug(f"File exists on disk: {file_exists} for {filename}")
+    if not file_exists:
+        logger.info(f"File {filename} is new - not found on disk")
+        return "new"
+
+    # Layer 2: Check if embeddings exist
+    pdf_processor = PDFProcessor()
+    has_embeddings = await pdf_processor._check_existing_embeddings(filename)
+    logger.debug(f"Embeddings exist: {has_embeddings} for {filename}")
+    if not has_embeddings:
+        logger.info(f"File {filename} exists but missing embeddings - partial state")
+        return "partial_embeddings_missing"
+
+    # Layer 3: Check if summary exists in database
+    existing_summary = await get_summary_by_source_name(db, filename)
+    logger.debug(f"Summary exists: {existing_summary is not None} for {filename}")
+    if not existing_summary:
+        logger.info(
+            f"File {filename} exists with embeddings but missing summary - partial state"
+        )
+        return "partial_summary_missing"
+
+    logger.info(f"File {filename} is fully processed - complete state")
+    return "complete"
+
 @router.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+    logger.info(f"Upload request received for file: {file.filename}")
+
+    # Basic validation
     if not file.filename:
+        logger.warning("Upload rejected - no filename provided")
         raise HTTPException(status_code=400, detail="No file uploaded.")
 
     if not file.filename.lower().endswith(".pdf"):
+        logger.warning(f"Upload rejected - invalid file format: {file.filename}")
         raise HTTPException(
             status_code=400, detail="Invalid file format. Please upload a PDF."
         )
 
     upload_dir = Path(cfg.DATA_DIR)
-    # Ensure directory exists (blocking) in a thread:
     await asyncio.to_thread(upload_dir.mkdir, exist_ok=True)
     file_path = upload_dir / file.filename
+    logger.debug(f"Upload directory prepared: {upload_dir}")
 
+    # Check processing state
+    processing_state = await _check_file_processing_state(file.filename, file_path, db)
+    logger.info(f"Processing state for {file.filename}: {processing_state}")
+
+    # Handle different processing states
+    if processing_state == "complete":
+        logger.info(
+            f"Returning conflict response for fully processed file: {file.filename}"
+        )
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": "File already exists and is fully processed.",
+                "filename": file.filename,
+                "processing_state": "complete",
+            },
+        )
+
+    if processing_state == "partial_summary_missing":
+        logger.info(
+            f"Returning partial response for file missing summary: {file.filename}"
+        )
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message": "File exists, missing summary. Processing will continue from summary generation.",
+                "filename": file.filename,
+                "processing_state": "partial",
+            },
+        )
+
+    if processing_state == "partial_embeddings_missing":
+        logger.info(
+            f"Returning partial response for file missing embeddings: {file.filename}"
+        )
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message": "File exists, missing embeddings. Processing will continue from embedding generation.",
+                "filename": file.filename,
+                "processing_state": "partial",
+            },
+        )
+
+    # New file - proceed with upload
+    logger.info(f"Proceeding with new file upload: {file.filename}")
     try:
-        # Use aiofiles for async file write
         async with aiofiles.open(file_path, "wb") as buffer:
             content = await file.read()
             await buffer.write(content)
 
-        file_id = str(uuid.uuid4())
+        logger.info(f"Successfully uploaded new file: {file.filename}")
         return JSONResponse(
-            status_code=201, content={"id": file_id, "filename": file.filename}
+            status_code=201,
+            content={"filename": file.filename, "processing_state": "new"},
         )
     except Exception as e:
+        logger.error(f"Failed to upload file {file.filename}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
 
 
@@ -203,7 +287,9 @@ async def delete_pdf(filename: str, db: AsyncSession = Depends(get_db)):
                 "overall_summaries_deleted": (
                     0
                     if isinstance(overall_deleted, Exception)
-                    else int(overall_deleted) if isinstance(overall_deleted, int) else 0
+                    else int(overall_deleted)
+                    if isinstance(overall_deleted, int)
+                    else 0
                 ),
             },
         )

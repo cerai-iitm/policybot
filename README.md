@@ -79,7 +79,7 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
    **For Production:**
 
    ```bash
-   make deploy
+   make prod
    ```
 
    This will build images, download models, and start all services. Visit the app at [http://localhost:80/policybot](http://localhost:80/policybot).
@@ -87,10 +87,19 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
    **For Development:**
 
    ```bash
-   make dev
+   make dev BUILD=1
    ```
 
    This will start services with hot-reload enabled. Access at [http://localhost:80/policybot](http://localhost:80/policybot).
+
+   **Additional Commands:**
+   ```bash
+   make help           # Show all available commands
+   make prod-down      # Stop production services
+   make dev-down       # Stop development services  
+   make clean          # Stop all containers (keep data)
+   make clean-volumes  # Stop all and remove data (WARNING: destructive)
+   ```
 
 6. **Access the logs**
    - To enter the running Docker container and view logs:

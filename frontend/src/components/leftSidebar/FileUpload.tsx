@@ -89,30 +89,66 @@ const FileUpload: React.FC<FileUploadProps> = ({
         method: "POST",
         body: formData,
       });
+      const result = await response.json();
 
-      if (response.ok && response.status === 201) {
-        const result = await response.json();
+      if (response.status === 201) {
+        // New file uploaded successfully
         setUploadStatus({
           type: "success",
           message: "File uploaded! Processing...",
         });
         setIsProcessing(true);
-        await handleProcessing(result.filename); // Pass filename instead of ID
-        onUploadSuccess({ name: result.filename });
-        setUploadStatus({ type: "success", message: "Processing complete!" });
-        setTimeout(() => setIsModalOpen(false), 2000);
+        
+        try {
+          await handleProcessing(result.filename);
+          // MOVED: Only call onUploadSuccess after successful processing
+          onUploadSuccess({ name: result.filename });
+          setUploadStatus({ type: "success", message: "Processing complete!" });
+          setTimeout(() => setIsModalOpen(false), 2000);
+        } catch (processingError) {
+          setUploadStatus({
+            type: "error", 
+            message: "Upload successful but processing failed."
+          });
+          console.error("Processing failed:", processingError);
+        }
+        
         setSelectedFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
+        
+      } else if (response.status === 200) {
+        // Partial file - continue processing, don't add to sources
+        setUploadStatus({
+          type: "success",
+          message: `${result.message} Processing...`,
+        });
+        setIsProcessing(true);
+        
+        try {
+          await handleProcessing(result.filename);
+          setUploadStatus({ type: "success", message: "Processing complete!" });
+          setTimeout(() => setIsModalOpen(false), 2000);
+        } catch (processingError) {
+          setUploadStatus({
+            type: "error",
+            message: "Processing continuation failed."
+          });
+          console.error("Processing continuation failed:", processingError);
+        }
+        
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        
+      } else if (response.status === 409) {
+        // File already fully processed
+        setUploadStatus({
+          type: "error",
+          message: result.detail || "File already fully processed.",
+        });
       } else if (response.status === 400) {
         setUploadStatus({
           type: "error",
           message: "Invalid file format. Please upload a PDF.",
-        });
-      } else if (response.status === 409) {
-        const result = await response.json();
-        setUploadStatus({
-          type: "error",
-          message: result.detail || "File already exists.",
         });
       } else {
         setUploadStatus({ type: "error", message: "Failed to upload file." });
@@ -127,37 +163,44 @@ const FileUpload: React.FC<FileUploadProps> = ({
   };
 
   const handleProcessing = (filename: string) => {
-    return new Promise<void>((resolve) => {
-      console.log("Starting EventSource for filename:", filename); // Add: Log start
+    return new Promise<void>((resolve, reject) => {
+      console.log("Starting EventSource for filename:", filename);
       const processingURL = withBase(
         `/api/pdf/process/${encodeURIComponent(filename)}`,
       );
       const eventSource = new EventSource(processingURL);
 
       eventSource.onopen = () => {
-        console.log("EventSource opened successfully"); // Add: Confirm connection
+        console.log("EventSource opened successfully");
       };
 
       eventSource.onmessage = (event) => {
-        console.log("Received event data:", event.data); // Add: Log raw data
+        console.log("Received event data:", event.data);
+        
         if (event.data === "done") {
-          console.log("Processing done, closing EventSource"); // Add: Log done
+          console.log("Processing done, closing EventSource");
           setIsProcessing(false);
           setProcessingMessage("");
           eventSource.close();
           resolve();
+        } else if (event.data.startsWith("Error:")) {
+          console.error("Processing error received:", event.data);
+          setProcessingMessage("Processing failed.");
+          setIsProcessing(false);
+          eventSource.close();
+          reject(new Error(event.data));
         } else {
-          console.log("Updating processingMessage to:", event.data); // Add: Log update
+          console.log("Updating processingMessage to:", event.data);
           setProcessingMessage(event.data);
         }
       };
 
       eventSource.onerror = (error) => {
-        console.error("EventSource error:", error); // Already there, ensure it's logged
+        console.error("EventSource error:", error);
         setProcessingMessage("Processing failed.");
         setIsProcessing(false);
         eventSource.close();
-        resolve();
+        reject(new Error("EventSource connection failed"));
       };
     });
   };

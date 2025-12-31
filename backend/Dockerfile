@@ -1,5 +1,9 @@
 # Multi-stage Dockerfile for backend
 FROM python:3.12.12-slim AS base
+
+# Create non-root user and group
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home appuser
 # Build stage for dependencies
 FROM base AS builder
 
@@ -31,6 +35,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Downloading models single stage 
 FROM base AS model_downloader
+
+# Create cache directory with proper ownership
+RUN mkdir -p /app/cache/huggingface && \
+    chown -R appuser:appuser /app
+
 WORKDIR /app
 
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -38,22 +47,28 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 COPY download_models.py .env ./
 
-VOLUME [ "/root/.cache/huggingface" ]
+VOLUME [ "/app/cache/huggingface" ]
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    HF_HOME=/root/.cache/huggingface \
-    TRANSFORMERS_CACHE=/root/.cache/huggingface
+    HF_HOME=/app/cache/huggingface \
+    TRANSFORMERS_CACHE=/app/cache/huggingface
 
+USER appuser
 CMD [ "python", "download_models.py" ]
 
 # Development stage
 FROM base AS development
 
+# Create directories with proper ownership
+RUN mkdir -p /app/data /app/logs /app/cache/huggingface && \
+    chown -R appuser:appuser /app && \
+    chmod 755 /app/data /app/logs /app/cache/huggingface
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    HF_HOME=/root/.cache/huggingface \
-    TRANSFORMERS_CACHE=/root/.cache/huggingface
+    HF_HOME=/app/cache/huggingface \
+    TRANSFORMERS_CACHE=/app/cache/huggingface
 
 WORKDIR /app
 
@@ -63,15 +78,21 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY src/ ./src/
 
 EXPOSE 8000
+USER appuser
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production runner
 FROM base AS production
 
+# Create directories with proper ownership
+RUN mkdir -p /app/data /app/logs /app/cache/huggingface && \
+    chown -R appuser:appuser /app && \
+    chmod 755 /app/data /app/logs /app/cache/huggingface
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    HF_HOME=/root/.cache/huggingface \
-    TRANSFORMERS_CACHE=/root/.cache/huggingface
+    HF_HOME=/app/cache/huggingface \
+    TRANSFORMERS_CACHE=/app/cache/huggingface
 
 WORKDIR /app
 
@@ -87,5 +108,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY src/ ./src/
 
 EXPOSE 8000
-
+USER appuser
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

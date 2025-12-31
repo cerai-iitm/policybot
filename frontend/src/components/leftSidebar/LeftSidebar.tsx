@@ -79,8 +79,16 @@ const LeftSidebar: React.FC<SidebarProps> = ({
 
   // Updating sidebar when new source uploaded
   const handleUploadSuccess = (newSource: { name: string }) => {
-    setSources((prev) => [...prev, newSource]);
-    // keep default selection behaviour: newly uploaded file should be selected
+    setSources((prev) => {
+      // Prevent duplicates - safety check
+      if (prev.some(s => s.name === newSource.name)) {
+        console.log(`File ${newSource.name} already exists in sources, skipping duplicate addition`);
+        return prev; // Already exists, don't add
+      }
+      return [...prev, newSource];
+    });
+    
+    // Keep default selection behaviour: newly uploaded file should be selected
     setCheckedPdfs((prev) => {
       if (prev.includes(newSource.name)) return prev;
       return [...prev, newSource.name];

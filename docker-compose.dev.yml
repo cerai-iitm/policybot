@@ -43,18 +43,16 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - IN_DOCKER=1
+      - IN_DOCKER=${IN_DOCKER:-1}
       - OLLAMA_IP=${OLLAMA_IP:-host.docker.internal}
       - OLLAMA_PORT=${OLLAMA_PORT:-11434}
-      - POSTGRES_HOST=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=policybot
-      - POSTGRES_PORT=5432
-      - DB_HOST=postgres
-      - DB_PORT=5432
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-policybot}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - RUN_MIGRATIONS=true
-      - HF_HOME=/root/.cache/huggingface
+      - HF_HOME=${HF_HOME:-/app/cache/huggingface}
     ports:
       - "8000:8000"
     command:
