@@ -16,7 +16,7 @@ EMBEDDING_MODEL_NAME = "Alibaba-NLP/gte-multilingual-base"
 RERANKING_MODEL_NAME = "BAAI/bge-reranker-base"
 
 # Defaults
-DEFAULT_HF_HOME = "/root/.cache/huggingface"
+DEFAULT_HF_HOME = "/app/cache/huggingface"
 RETRIES = 3
 BACKOFF_SECONDS = 2
 
