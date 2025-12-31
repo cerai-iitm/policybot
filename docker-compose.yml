@@ -72,10 +72,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 512M
         reservations:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 256M
 
   postgres:
@@ -87,16 +87,6 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-policybot}
       # - PGDATA=/var/lib/postgresql/18/docker
-    command:
-      - "postgres"
-      - "-c"
-      - "shared_buffers=256MB"
-      - "-c"
-      - "effective_cache_size=512MB"
-      - "-c"
-      - "work_mem=8MB"
-      - "-c"
-      - "max_parallel_workers=2"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init-db:/docker-entrypoint-initdb.d
@@ -105,10 +95,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 2G
+          cpus: "4"
+          memory: 4G
         reservations:
-          cpus: '1'
+          cpus: "1"
           memory: 512M
 
   qdrant:

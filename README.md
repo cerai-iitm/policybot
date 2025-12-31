@@ -123,3 +123,24 @@ flows, and improved concurrent query handling for multiple users.
 - `download_models.py` and `entrypoint.sh`: Model and startup updates.
 
 **Notes:** If you used the old Streamlit UI, it's now replaced by the Next.js frontend. Start services with `docker compose up` and visit `http://localhost:80`.
+
+## Troubleshooting
+
+### Permission Denied Error on Log Files
+
+If you encounter a `PermissionError: [Errno 13] Permission denied: './backend/logs/app_logs.jsonl'` error when running the backend:
+
+This occurs when the logs directory is owned by root and the container runs as a non-root user. Fix it by running:
+
+```bash
+sudo chown -R 1000:1000 ./backend/logs
+sudo chmod 755 ./backend/logs
+```
+
+Then restart the services:
+
+```bash
+make prod
+```
+
+After this, logs will be accessible at `./backend/logs/` on your host machine.
