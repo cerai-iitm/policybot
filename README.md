@@ -37,11 +37,13 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
    ```
 
    Edit `backend/.env` and update the required variables:
+
    - `OLLAMA_IP`: Keep default `host.docker.internal` for local Ollama
    - `OLLAMA_PORT`: Keep default `11434`
    - Other variables as needed (see `backend/.env.example` for details)
 
 3. **Install and Run Ollama**
+
    - If you don't have Ollama installed, follow instructions at [https://ollama.com/download](https://ollama.com/download).
    - Start Ollama:
      ```bash
@@ -53,6 +55,7 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
      ```
 
 4. **(Optional) Enable GPU Access**
+
    - Install NVIDIA Container Toolkit (for GPU support):
      ```bash
      sudo apt-get install -y nvidia-container-toolkit
@@ -93,19 +96,21 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
    This will start services with hot-reload enabled. Access at [http://localhost:80/policybot](http://localhost:80/policybot).
 
    **Additional Commands:**
+
    ```bash
    make help           # Show all available commands
    make prod-down      # Stop production services
-   make dev-down       # Stop development services  
+   make dev-down       # Stop development services
    make clean          # Stop all containers (keep data)
    make clean-volumes  # Stop all and remove data (WARNING: destructive)
    ```
 
 6. **Access the logs**
+
    - To enter the running Docker container and view logs:
 
      ```bash
-     docker exec -it backend tail -f logs/app.log
+     docker exec -it policybot-backend-1 tail -f logs/app.log
      ```
 
 ## v2.0.0 — Release Highlights
@@ -130,7 +135,7 @@ flows, and improved concurrent query handling for multiple users.
 
 If you encounter a `PermissionError: [Errno 13] Permission denied: './backend/logs/app_logs.jsonl'` error when running the backend:
 
-This occurs when the logs directory is owned by root and the container runs as a non-root user. Fix it by running:
+This occurs when the logs directory is owned by root and the container runs as a non-root user. Fix it by running at the root of the project:
 
 ```bash
 sudo chown -R 1000:1000 ./backend/logs
