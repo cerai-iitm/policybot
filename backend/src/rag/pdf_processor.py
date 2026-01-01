@@ -47,37 +47,52 @@ class PDFProcessor:
 
         yield "Checking for existing embeddings..."
         await asyncio.sleep(0)
-        if await self._check_existing_embeddings(file_name):
-            yield "Embeddings already exist. Skipping processing."
-            yield "done"
-            return
+        embeddings_exist = await self._check_existing_embeddings(file_name)
 
-        yield "Extracting text from PDF..."
-        await asyncio.sleep(0)
-        docs = await asyncio.to_thread(self._extract_text_from_pdf, file_name)
-        if not docs:
-            yield "Error: Failed to extract text."
-            return
+        docs = None
+        if embeddings_exist:
+            yield "Embeddings already exist. Skipping to summary generation..."
+            # Extract text for summary generation only
+            yield "Extracting text from PDF for summary..."
+            await asyncio.sleep(0)
+            docs = await asyncio.to_thread(self._extract_text_from_pdf, file_name)
+            if not docs:
+                yield "Error: Failed to extract text."
+                return
+        else:
+            yield "Embeddings not found. Starting full processing..."
+            yield "Extracting text from PDF..."
+            await asyncio.sleep(0)
+            docs = await asyncio.to_thread(self._extract_text_from_pdf, file_name)
+            if not docs:
+                yield "Error: Failed to extract text."
+                return
 
-        yield "Running splitter for creating chunks..."
-        await asyncio.sleep(0)
-        split_docs = await asyncio.to_thread(self._run_splitter, docs, file_name)
-        if not split_docs:
-            yield "Error: Failed to split documents."
-            return
+            yield "Running splitter for creating chunks..."
+            await asyncio.sleep(0)
+            split_docs = await asyncio.to_thread(self._run_splitter, docs, file_name)
+            if not split_docs:
+                yield "Error: Failed to split documents."
+                return
 
-        yield "Embedding chunks..."
-        await asyncio.sleep(0)
-        embeddings = await asyncio.to_thread(self._embed_docs, split_docs, file_name)
-        if embeddings is None:
-            yield "Error: Failed to generate embeddings."
-            return
-        logger.info(f"Generated embeddings shape: {embeddings.shape} for {file_name}.")
+            yield "Embedding chunks..."
+            await asyncio.sleep(0)
+            embeddings = await asyncio.to_thread(
+                self._embed_docs, split_docs, file_name
+            )
+            if embeddings is None:
+                yield "Error: Failed to generate embeddings."
+                return
+            logger.info(
+                f"Generated embeddings shape: {embeddings.shape} for {file_name}."
+            )
 
-        yield "Saving embeddings to database..."
-        await asyncio.sleep(0)
-        await self._store_embeddings(split_docs, embeddings, file_name)
-        logger.info(f"Successfully processed and stored embeddings for {file_name}.")
+            yield "Saving embeddings to database..."
+            await asyncio.sleep(0)
+            await self._store_embeddings(split_docs, embeddings, file_name)
+            logger.info(
+                f"Successfully processed and stored embeddings for {file_name}."
+            )
 
         yield "Creating summary..."
         await asyncio.sleep(0)
