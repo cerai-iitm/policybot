@@ -1,13 +1,9 @@
-import os
-import subprocess
-import tempfile
-import time
 import warnings
-from gc import set_debug
 from typing import Any, Dict, List
 
 import torch
 from langchain_huggingface import HuggingFaceEmbeddings
+
 from src.config import cfg
 from src.logger import logger
 

@@ -2,9 +2,9 @@ import hashlib
 import json
 from typing import List, Optional
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
-
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.schema.overall_summaries import OverallSummary
 
 
@@ -14,8 +14,8 @@ def _hash_filenames(file_names: List[str]) -> str:
     return hashlib.sha256(key_str.encode("utf-8")).hexdigest()
 
 
-def add_overall_summary(
-    db: Session, file_names: List[str], summary: str
+async def add_overall_summary(
+    db: AsyncSession, file_names: List[str], summary: str
 ) -> OverallSummary:
     pdf_set_hash = _hash_filenames(file_names)
     pdf_file_names_json = json.dumps(sorted(file_names))
@@ -24,31 +24,64 @@ def add_overall_summary(
     )
     db.add(new_summary)
     try:
-        db.commit()
-        db.refresh(new_summary)
+        await db.commit()
+        await db.refresh(new_summary)
         return new_summary
     except IntegrityError:
-        db.rollback()
-        # Fetch and return the existing summary
-        existing = get_overall_summary(db, file_names)
+        await db.rollback()
+        existing = await get_overall_summary(db, file_names)
         if existing:
             return existing
-        else:
-            # If for some reason it still doesn't exist, raise the error
-            raise
+        raise
 
 
-def get_overall_summary(db: Session, file_names: List[str]) -> Optional[OverallSummary]:
+async def get_overall_summary(
+    db: AsyncSession, file_names: List[str]
+) -> Optional[OverallSummary]:
     pdf_set_hash = _hash_filenames(file_names)
-    return db.query(OverallSummary).filter_by(pdf_set_hash=pdf_set_hash).first()
+    stmt = select(OverallSummary).filter_by(pdf_set_hash=pdf_set_hash)
+    res = await db.execute(stmt)
+    return res.scalars().first()
 
 
-def delete_overall_summary(db: Session, file_names: List[str]) -> bool:
-    """Delete an overall summary for a set of filenames. Returns True if deleted."""
+async def delete_overall_summary(db: AsyncSession, file_names: List[str]) -> bool:
     pdf_set_hash = _hash_filenames(file_names)
-    summary = db.query(OverallSummary).filter_by(pdf_set_hash=pdf_set_hash).first()
+    stmt = select(OverallSummary).filter_by(pdf_set_hash=pdf_set_hash)
+    res = await db.execute(stmt)
+    summary = res.scalars().first()
     if summary:
         db.delete(summary)
-        db.commit()
+        await db.commit()
         return True
     return False
+
+
+async def delete_overall_summaries_containing_file(
+    db: AsyncSession, file_name: str
+) -> int:
+    """
+    Delete all overall summaries where the deleted file was part of the summary set.
+
+    Returns the number of summaries deleted.
+    """
+    stmt = select(OverallSummary)
+    res = await db.execute(stmt)
+    summaries = res.scalars().all()
+
+    to_delete = []
+    for summary in summaries:
+        try:
+            file_list = json.loads(summary.pdf_file_names)
+        except Exception:
+            file_list = []
+        if file_name in file_list:
+            to_delete.append(summary)
+
+    deleted = 0
+    if to_delete:
+        for summary in to_delete:
+            db.delete(summary)
+            deleted += 1
+        await db.commit()
+
+    return deleted

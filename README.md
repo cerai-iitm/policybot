@@ -30,25 +30,33 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
    cd policybot
    ```
 
-2. **Host Ollama on Your Machine**
-   - Ensure Ollama is running on your host at port `11434`.
+2. **Configure Environment Variables**
+
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
+
+   Edit `backend/.env` and update the required variables:
+
+   - `OLLAMA_IP`: Keep default `host.docker.internal` for local Ollama
+   - `OLLAMA_PORT`: Keep default `11434`
+   - Other variables as needed (see `backend/.env.example` for details)
+
+3. **Install and Run Ollama**
+
    - If you don't have Ollama installed, follow instructions at [https://ollama.com/download](https://ollama.com/download).
-   - Start Ollama with:
+   - Start Ollama:
      ```bash
      OLLAMA_HOST=0.0.0.0 ollama serve
      ```
-   - (Optional) Pull the model, e.g.:
+   - Pull a model:
      ```bash
      ollama pull gemma3n:e4b
      ```
-   - The app inside Docker will connect to Ollama using the special host name `host.docker.internal:11434` (default in `docker-compose.yml`).
 
-   - **Note:** If Ollama is running on a different IP or port (not on your localhost), update the `OLLAMA_IP` and `OLLAMA_PORT` environment variables in `docker-compose.yml` to point to the correct location.
+4. **(Optional) Enable GPU Access**
 
-3. **Update values in `backend/.env` if needed**
-
-4. **Enable GPU Access**
-   - Install NVIDIA Container Toolkit (for GPU support) if needed:
+   - Install NVIDIA Container Toolkit (for GPU support):
      ```bash
      sudo apt-get install -y nvidia-container-toolkit
      sudo systemctl restart docker
@@ -69,22 +77,40 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
      sudo systemctl restart docker
      ```
 
-5. **Start and Build the App**
+5. **Deploy the Application**
+
+   **For Production:**
 
    ```bash
-   docker compose up
+   make prod
    ```
 
-   This will:
-   - Build the Docker image.
-   - Uses default port 80 to host. Change port in nginx.conf if hosting on some other port is necessary.
-   - Visit the app at [http://localhost:80](http://localhost:80).
+   This will build images, download models, and start all services. Visit the app at [http://localhost:80/policybot](http://localhost:80/policybot).
+
+   **For Development:**
+
+   ```bash
+   make dev BUILD=1
+   ```
+
+   This will start services with hot-reload enabled. Access at [http://localhost:80/policybot](http://localhost:80/policybot).
+
+   **Additional Commands:**
+
+   ```bash
+   make help           # Show all available commands
+   make prod-down      # Stop production services
+   make dev-down       # Stop development services
+   make clean          # Stop all containers (keep data)
+   make clean-volumes  # Stop all and remove data (WARNING: destructive)
+   ```
 
 6. **Access the logs**
+
    - To enter the running Docker container and view logs:
 
      ```bash
-     docker exec -it backend tail -f logs/app.log
+     docker exec -it policybot-backend-1 tail -f logs/app.log
      ```
 
 ## v2.0.0 — Release Highlights
@@ -102,3 +128,24 @@ flows, and improved concurrent query handling for multiple users.
 - `download_models.py` and `entrypoint.sh`: Model and startup updates.
 
 **Notes:** If you used the old Streamlit UI, it's now replaced by the Next.js frontend. Start services with `docker compose up` and visit `http://localhost:80`.
+
+## Troubleshooting
+
+### Permission Denied Error on Log Files
+
+If you encounter a `PermissionError: [Errno 13] Permission denied: './backend/logs/app_logs.jsonl'` error when running the backend:
+
+This occurs when the logs directory is owned by root and the container runs as a non-root user. Fix it by running at the root of the project:
+
+```bash
+sudo chown -R 1000:1000 ./backend/logs
+sudo chmod 755 ./backend/logs
+```
+
+Then restart the services:
+
+```bash
+make prod
+```
+
+After this, logs will be accessible at `./backend/logs/` on your host machine.

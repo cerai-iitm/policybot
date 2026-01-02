@@ -14,36 +14,31 @@ services:
   backend:
     build:
       context: ./backend
-      args:
-        MODE: prod
-    container_name: backend
+      target: production
     ports:
       - "8000:8000"
-    environment:
-      - IN_DOCKER=1
-      - OLLAMA_IP=host.docker.internal
-      - OLLAMA_PORT=11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     env_file:
       - ./backend/.env
+    environment:
+      - IN_DOCKER=${IN_DOCKER:-1}
+      - OLLAMA_IP=${OLLAMA_IP:-host.docker.internal}
+      - OLLAMA_PORT=${OLLAMA_PORT:-11434}
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      # Huggingface cache dir config
+      - HF_HOME=${HF_HOME:-/app/cache/huggingface}
+      # Use POSTGRES_* vars as the single source of truth for DB connection.
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-policybot}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - RUN_MIGRATIONS=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - pdf_data:/app/data
-      - huggingface_cache:/root/.cache/huggingface
+      - huggingface_cache:/app/cache/huggingface
       - ./backend/logs:/app/logs
-    develop:
-      watch:
-        - path: ./backend/src
-          action: sync
-          target: /app/src
-        - path: ./backend/Dockerfile
-          action: rebuild
-        - path: ./backend/requirements.txt
-          action: rebuild
-        - path: ./backend/download_models.py
-          action: rebuild
-        - path: ./backend/entrypoint.sh
-          action: rebuild
     deploy:
       resources:
         reservations:
@@ -56,54 +51,58 @@ services:
       - postgres
       - qdrant
 
+  model_downloader:
+    build:
+      context: ./backend
+      target: model_downloader
+    environment:
+      HF_HOME: ${HF_HOME:-/app/cache/huggingface}
+    volumes:
+      - huggingface_cache:/app/cache/huggingface
+    restart: "no"
+
   frontend:
     build:
       context: ./frontend
-      args:
-        MODE: prod
-    container_name: frontend
+      target: production
     ports:
       - "3000:3000"
-    develop:
-      watch:
-        - action: rebuild
-          path: ./frontend/src
-          target: /app/src
-        - action: sync
-          path: ./frontend/public
-          target: /app/public
-        - action: rebuild
-          path: ./frontend/package.json
-        - action: rebuild
-          path: ./frontend/package-lock.json
-        - action: rebuild
-          path: ./frontend/Dockerfile
-        - action: rebuild
-          path: ./frontend/next.config.ts
-        - action: rebuild
-          path: ./frontend/tailwind.config.ts
-        - action: rebuild
-          path: ./frontend/postcss.config.mjs
-        - action: rebuild
-          path: ./frontend/eslint.config.mjs
     depends_on:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
 
   postgres:
-    image: postgres:15
-    container_name: postgres_db
+    image: postgres:17-alpine
+    env_file:
+      - backend/.env
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=policybot
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-policybot}
+      # - PGDATA=/var/lib/postgresql/18/docker
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/init-db:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+        reservations:
+          cpus: "1"
+          memory: 512M
 
   qdrant:
     image: qdrant/qdrant
-    container_name: qdrant
     ports:
       - "6333:6333" # HTTP API
       - "6334:6334" # gRPC API
@@ -122,4 +121,5 @@ volumes:
   pdf_data:
     driver: local
   huggingface_cache:
+    name: policybot_huggingface_cache
     driver: local

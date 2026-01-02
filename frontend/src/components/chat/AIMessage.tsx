@@ -1,10 +1,17 @@
 "use clinet";
 import React, { useState } from "react";
 import MarkdownRenderer from "../common/Markdown";
+import { FiFile, FiFileText } from "react-icons/fi";
+
+interface SourceChunk {
+  text: string;
+  source: string;
+  page_number: number | null;
+}
 
 interface AIMessageProps {
   content: string;
-  sourceChunks?: string[];
+  sourceChunks?: SourceChunk[];
 }
 
 const AIMessage: React.FC<AIMessageProps> = ({ content, sourceChunks }) => {
@@ -52,13 +59,32 @@ const AIMessage: React.FC<AIMessageProps> = ({ content, sourceChunks }) => {
                     key={idx}
                     className="bg-bg-light rounded-lg p-3 border border-border"
                   >
-                    <div className="flex items-center gap-2 mb-3">
+                    {/* Chunk Number - Line 1 */}
+                    <div className="flex items-center gap-2 mb-2">
                       <span className="text-text font-bold text-lg tracking-wide">
                         Chunk {idx + 1}
                       </span>
                     </div>
-                    <div className="text-text text-base leading-relaxed">
-                      {chunk}
+
+                    {/* File Name - Line 2 (conditional) */}
+                    {chunk.source && (
+                      <div className="flex items-center gap-2 mb-1 text-sm text-text-muted">
+                        <FiFile className="w-4 h-4" />
+                        <span>File: {chunk.source}</span>
+                      </div>
+                    )}
+
+                    {/* Page Number - Line 3 (conditional) */}
+                    {chunk.page_number !== null && chunk.page_number !== undefined && (
+                      <div className="flex items-center gap-2 mb-3 text-sm text-text-muted">
+                        <FiFileText className="w-4 h-4" />
+                        <span>Page: {chunk.page_number}</span>
+                      </div>
+                    )}
+
+                    {/* Chunk Text Content */}
+                    <div className="text-text text-base leading-relaxed mt-2 pt-2 border-t border-border-muted">
+                      {chunk.text}
                     </div>
                   </div>
                 ))}

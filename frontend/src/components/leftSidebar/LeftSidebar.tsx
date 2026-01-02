@@ -4,6 +4,7 @@ import { AiOutlineCheckCircle, AiOutlineMinusCircle } from "react-icons/ai";
 import React, { useState, useRef, useEffect } from "react";
 import SourceItem from "./SourceItem";
 import FileUpload from "./FileUpload";
+import { withBase } from "@/lib/url";
 
 export interface SidebarItem {
   name: string;
@@ -16,6 +17,10 @@ interface SidebarProps {
   setCheckedPdfs: React.Dispatch<React.SetStateAction<string[]>>;
   sources: SidebarItem[];
   setSources: React.Dispatch<React.SetStateAction<SidebarItem[]>>;
+  selectedFilename: string | null;
+  setSelectedFilename: React.Dispatch<React.SetStateAction<string | null>>;
+  setIsPDFEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowRightSidebar: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const LeftSidebar: React.FC<SidebarProps> = ({
@@ -26,6 +31,10 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   setCheckedPdfs,
   sources,
   setSources,
+  selectedFilename,
+  setSelectedFilename,
+  setIsPDFEnabled,
+  setShowRightSidebar,
 }) => {
   const initializedRef = useRef(false);
 
@@ -33,7 +42,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     const fetchPdfs = async () => {
       try {
-        const response = await fetch("/api/pdf/list");
+        const response = await fetch(withBase("/api/pdf/list"));
         if (response.ok) {
           const data = await response.json();
           const names = data.pdfs.map((filename: string) => ({
@@ -52,6 +61,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
       }
     };
     fetchPdfs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleFileSelect = (filename: string) => {
@@ -69,12 +79,35 @@ const LeftSidebar: React.FC<SidebarProps> = ({
 
   // Updating sidebar when new source uploaded
   const handleUploadSuccess = (newSource: { name: string }) => {
-    setSources((prev) => [...prev, newSource]);
-    // keep default selection behaviour: newly uploaded file should be selected
+    setSources((prev) => {
+      // Prevent duplicates - safety check
+      if (prev.some(s => s.name === newSource.name)) {
+        console.log(`File ${newSource.name} already exists in sources, skipping duplicate addition`);
+        return prev; // Already exists, don't add
+      }
+      return [...prev, newSource];
+    });
+    
+    // Keep default selection behaviour: newly uploaded file should be selected
     setCheckedPdfs((prev) => {
       if (prev.includes(newSource.name)) return prev;
       return [...prev, newSource.name];
     });
+  };
+
+  // Handle PDF deletion
+  const handleDeletePdf = (filename: string) => {
+    // Remove from sources list
+    setSources((prev) => prev.filter((s) => s.name !== filename));
+    // Remove from checked PDFs
+    setCheckedPdfs((prev) => prev.filter((f) => f !== filename));
+
+    // If the deleted file is currently open, clear selection and close the right sidebar
+    if (filename === selectedFilename) {
+      setSelectedFilename(null);
+      setIsPDFEnabled(false);
+      setShowRightSidebar(false);
+    }
   };
 
   // Select / Deselect All toggle
@@ -131,7 +164,6 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   const areAllSelected =
     allNames.length > 0 && allNames.every((n) => checkedPdfs.includes(n));
   const areNoneSelected = allNames.every((n) => !checkedPdfs.includes(n));
-  const isPartial = !areAllSelected && !areNoneSelected;
   // use circled icons for the three states; use the same open circle as SourceItem for "none"
   const SelectAllIcon = areAllSelected
     ? AiOutlineCheckCircle
@@ -149,7 +181,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
       {!(width < 150) && (
         <>
           <div className="flex items-center justify-between px-4 pt-8">
-            <span className="text-lg text-black font-semibold">Sources</span>
+            <span className="text-lg text-text font-semibold">Sources</span>
             <button
               className="p-2 bg-background-dark rounded text-foreground"
               onClick={() => onWidthChange(64)}
@@ -204,11 +236,12 @@ const LeftSidebar: React.FC<SidebarProps> = ({
             onToggle={toggleChecked}
             isCollapsedSidebar={width < 150}
             onClick={() => handleFileSelect(item.name)}
+            onDelete={handleDeletePdf}
           />
         ))}
       </div>
       <FileUpload
-        uploadEndpoint="/api/pdf/upload"
+        uploadEndpoint={withBase("/api/pdf/upload")}
         onUploadSuccess={handleUploadSuccess}
         isCollapsedSidebar={width < 150}
       />

@@ -14,11 +14,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filename }) => {
     );
   }
 
-  // Adjust the URL to match your backend endpoint
-  const fileUrl = `pdf/view/${encodeURIComponent(filename)}`;
+  // TODO: Re-enable PDF viewer when ready
+  // const fileUrl = `pdf/view/${encodeURIComponent(filename)}`;
 
   return (
     <div className="w-full flex-1 min-h-0 flex flex-col items-center overflow-auto">
+      {/* PDF viewer disabled - to be implemented */}
       {/* <embed
         src={fileUrl}
         type="application/pdf"
