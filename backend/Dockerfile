@@ -52,8 +52,7 @@ VOLUME [ "/app/cache/huggingface" ]
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
 	HF_HOME=/app/cache/huggingface \
-	TRANSFORMERS_CACHE=/app/cache/huggingface \
-	HF_TOKEN=""
+	HF_TOKEN="" 
 
 USER appuser
 CMD [ "python", "download_models.py" ]
@@ -68,8 +67,7 @@ RUN mkdir -p /app/data /app/logs /app/cache/huggingface && \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
-	HF_HOME=/app/cache/huggingface \
-	TRANSFORMERS_CACHE=/app/cache/huggingface
+	HF_HOME=/app/cache/huggingface 
 
 WORKDIR /app
 
@@ -92,8 +90,7 @@ RUN mkdir -p /app/data /app/logs /app/cache/huggingface && \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
-	HF_HOME=/app/cache/huggingface \
-	TRANSFORMERS_CACHE=/app/cache/huggingface
+	HF_HOME=/app/cache/huggingface 
 
 WORKDIR /app
 

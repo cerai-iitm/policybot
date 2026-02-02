@@ -51,10 +51,12 @@ const SourceItem: React.FC<SourceItemProps> = ({
     e.stopPropagation();
 
     try {
-      const response = await fetch(
-        withBase(`/api/pdf/delete/${encodeURIComponent(item.name)}`),
-        { method: "DELETE" }
-      );
+      const formData = new FormData();
+      formData.append("filename", item.name);
+      const response = await fetch(withBase(`/api/pdf/remove`), {
+        method: "POST",
+        body: formData,
+      });
 
       if (response.ok) {
         setIsMenuOpen(false);

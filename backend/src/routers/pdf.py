@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 import aiofiles
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,10 +11,11 @@ from src.config import cfg
 from src.logger import logger
 from src.rag import PDFProcessor
 from src.schema.db import get_db
-from src.schema.overall_summaries_crud import \
-    delete_overall_summaries_containing_file
-from src.schema.source_summaries_crud import (delete_source_summary,
-                                              get_summary_by_source_name)
+from src.schema.overall_summaries_crud import delete_overall_summaries_containing_file
+from src.schema.source_summaries_crud import (
+    delete_source_summary,
+    get_summary_by_source_name,
+)
 
 router = APIRouter()
 
@@ -71,6 +72,7 @@ async def _check_file_processing_state(
 
     logger.info(f"File {filename} is fully processed - complete state")
     return "complete"
+
 
 @router.post("/upload")
 async def upload_pdf(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
@@ -163,23 +165,14 @@ async def _delete_pdf_file(filename: str) -> bool:
     except FileNotFoundError:
         logger.warning(f"PDF file not found during deletion: {filename}")
         return False
-    except PermissionError:
-        logger.error(f"Permission denied when deleting file: {filename}")
-        return False
-    except Exception as e:
-        logger.error(
-            f"Unexpected error deleting file {filename}: {type(e).__name__} - {e}"
-        )
-        return False
 
 
-@router.delete("/delete/{filename}")
-async def delete_pdf(filename: str, db: AsyncSession = Depends(get_db)):
+async def _perform_deletion(filename: str, db: AsyncSession) -> tuple[int, dict]:
     """
-    Delete a PDF and all associated data (file, embeddings, summaries).
-    Runs all deletion operations in parallel for efficiency.
+    Shared deletion logic used by both the DELETE route and the POST /remove endpoint.
+    Returns a JSONResponse matching the previous delete_pdf behavior.
     """
-    logger.info(f"Received delete request for PDF: {filename}")
+    logger.info(f"Performing deletion for PDF: {filename}")
 
     if not filename.lower().endswith(".pdf"):
         logger.warning(f"Invalid file format in delete request: {filename}")
@@ -274,31 +267,56 @@ async def delete_pdf(filename: str, db: AsyncSession = Depends(get_db)):
         else:
             logger.info(f"Complete deletion successful for: {filename}")
 
-        return JSONResponse(
-            status_code=200,
-            content={
-                "message": f"File '{filename}' deleted.",
-                "file_deleted": bool(file_deleted)
-                and not isinstance(file_deleted, Exception),
-                "embeddings_deleted": bool(embeddings_deleted)
-                and not isinstance(embeddings_deleted, Exception),
-                "summary_deleted": not isinstance(summary_result, Exception)
-                and summary_result is not None,
-                "overall_summaries_deleted": (
-                    0
-                    if isinstance(overall_deleted, Exception)
-                    else int(overall_deleted)
-                    if isinstance(overall_deleted, int)
-                    else 0
-                ),
-            },
-        )
+        return 200, {
+            "message": f"File '{filename}' deleted.",
+            "file_deleted": bool(file_deleted)
+            and not isinstance(file_deleted, Exception),
+            "embeddings_deleted": bool(embeddings_deleted)
+            and not isinstance(embeddings_deleted, Exception),
+            "summary_deleted": not isinstance(summary_result, Exception)
+            and summary_result is not None,
+            "overall_summaries_deleted": (
+                0
+                if isinstance(overall_deleted, Exception)
+                else int(overall_deleted)
+                if isinstance(overall_deleted, int)
+                else 0
+            ),
+        }
     except Exception as e:
         logger.error(
             f"Unexpected error during deletion of {filename}: {type(e).__name__} - {str(e)}",
             exc_info=True,
         )
         raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+
+
+@router.delete("/delete/{filename}")
+async def delete_pdf(filename: str, db: AsyncSession = Depends(get_db)):
+    """
+    Legacy DELETE route retained for compatibility. Delegates to shared deletion logic
+    and returns a deprecation notice in the response.
+    """
+    logger.info(f"Received delete request for PDF (legacy DELETE): {filename}")
+    status_code, content = await _perform_deletion(filename, db)
+    # Add deprecation notice
+    content["deprecation"] = (
+        "This DELETE route is deprecated and will be removed soon. "
+        "Use POST /remove with form field 'filename'."
+    )
+    headers = {"X-Deprecated": "true"}
+    return JSONResponse(status_code=status_code, content=content, headers=headers)
+
+
+@router.post("/remove")
+async def remove_pdf(filename: str = Form(...), db: AsyncSession = Depends(get_db)):
+    """
+    Firewall-friendly endpoint to remove a PDF and related data.
+    Accepts `filename` as form-data to avoid DELETE URL-based blocking.
+    """
+    logger.info(f"Received remove request (form POST) for PDF: {filename}")
+    status_code, content = await _perform_deletion(filename, db)
+    return JSONResponse(status_code=status_code, content=content)
 
 
 @router.get("/process/{filename}")
