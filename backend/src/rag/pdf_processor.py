@@ -11,17 +11,26 @@ from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_text_splitters.character import RecursiveCharacterTextSplitter
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.http.models import (Distance, FieldCondition, Filter,
-                                       FilterSelector, MatchValue, PointStruct,
-                                       VectorParams)
+from qdrant_client.http.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    FilterSelector,
+    MatchValue,
+    PointStruct,
+    VectorParams,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from transformers import logging as hf_logging
 
 from src.config import cfg
 from src.logger import logger
 from src.rag import LLM_Interface
-from src.schema.source_summaries_crud import (add_source_summary,
-                                              get_summary_by_source_name)
+from src.schema.pdfs_crud import update_pdf_status
+from src.schema.source_summaries_crud import (
+    add_source_summary,
+    get_summary_by_source_name,
+)
 from src.util import free_embedding_model, load_embedding_model
 
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
@@ -33,17 +42,27 @@ class PDFProcessor:
         self.interface = LLM_Interface()
 
     async def process_pdf(
-        self, file_name: str, db: Optional[AsyncSession] = None
+        self,
+        file_name: str,
+        pdf_id: Optional[int] = None,
+        db: Optional[AsyncSession] = None,
     ) -> AsyncGenerator[str, None]:
         """
         Process a PDF and yield status updates.
 
-        Accepts an optional AsyncSession `db`. When provided, source summaries
-        will be looked up and persisted using the async CRUD functions.
+        Args:
+            file_name: Name of the PDF file
+            pdf_id: ID of the PDF record in database (for status updates)
+            db: AsyncSession for database operations
         """
-        logger.info(f"Processing PDF file: {file_name}")
+        logger.info(f"Processing PDF file: {file_name} (pdf_id: {pdf_id})")
         yield "Starting PDF processing..."
         await asyncio.sleep(0)
+
+        # Update status to 'processing' if we have pdf_id and db
+        if pdf_id and db:
+            await update_pdf_status(db, pdf_id, "processing")
+            logger.info(f"Updated status to 'processing' for pdf_id: {pdf_id}")
 
         yield "Checking for existing embeddings..."
         await asyncio.sleep(0)
@@ -94,12 +113,27 @@ class PDFProcessor:
                 f"Successfully processed and stored embeddings for {file_name}."
             )
 
+            # Update status to 'embeddings_complete'
+            if pdf_id and db:
+                await update_pdf_status(db, pdf_id, "embeddings_complete")
+                logger.info(
+                    f"Updated status to 'embeddings_complete' for pdf_id: {pdf_id}"
+                )
+
+        # Update status to 'summary_generation' before creating summary
+        if pdf_id and db:
+            await update_pdf_status(db, pdf_id, "summary_generation")
+            logger.info(f"Updated status to 'summary_generation' for pdf_id: {pdf_id}")
+
         yield "Creating summary..."
         await asyncio.sleep(0)
-        # _create_summary is now async and will perform async DB CRUD when a session is provided.
         summary_result = await self._create_summary(docs, file_name, db=db)
         if summary_result:
             yield "Summary created and saved."
+            # Update status to 'complete'
+            if pdf_id and db:
+                await update_pdf_status(db, pdf_id, "complete")
+                logger.info(f"Updated status to 'complete' for pdf_id: {pdf_id}")
         else:
             yield "Error: Failed to create summary."
 

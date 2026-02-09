@@ -119,54 +119,69 @@ dev-down:
 # DATABASE MIGRATION TARGETS
 # ==============================================================================
 
-# Create a new migration (requires MESSAGE variable)
+# Backend container name (auto-detect dev or prod)
+BACKEND_CONTAINER := $(shell docker ps --filter "name=backend" --filter "status=running" --format "{{.Names}}" | head -1)
+
+# Check if backend container is running
+.PHONY: check-backend
+check-backend:
+	@if [ -z "$(BACKEND_CONTAINER)" ]; then \
+		echo "❌ Error: No running backend container found!"; \
+		echo "   Start the stack first: make dev  or  make prod"; \
+		exit 1; \
+	fi
+
+# Create a new migration (requires MESSAGE variable) - runs inside container
 .PHONY: db-migrate
-db-migrate:
+db-migrate: check-backend
 ifndef MESSAGE
 	$(error MESSAGE is required. Usage: make db-migrate MESSAGE="description of changes")
 endif
 	@echo "Creating new migration: $(MESSAGE)..."
-	cd backend && alembic revision --autogenerate -m "$(MESSAGE)"
-	@echo "Migration created. Review it in backend/migrations/versions/"
+	@docker exec -u root $(BACKEND_CONTAINER) alembic revision --autogenerate -m "$(MESSAGE)"
+	@echo "✅ Migration created inside container. Syncing to host..."
+	@docker cp $(BACKEND_CONTAINER):/app/migrations/versions/. backend/migrations/versions/
+	@echo "✅ Migration synced to host. Review it in backend/migrations/versions/"
 
-# Run all pending migrations (upgrade to head)
+# Run all pending migrations (upgrade to head) - runs inside container
 .PHONY: db-upgrade
-db-upgrade:
+db-upgrade: check-backend
 	@echo "Running database migrations..."
-	cd backend && alembic upgrade head
-	@echo "Migrations complete."
+	@docker exec $(BACKEND_CONTAINER) alembic upgrade head
+	@echo "✅ Migrations complete."
 
-# Rollback one migration
+# Rollback one migration - runs inside container
 .PHONY: db-downgrade
-db-downgrade:
+db-downgrade: check-backend
 	@echo "Rolling back one migration..."
-	cd backend && alembic downgrade -1
-	@echo "Rollback complete."
+	@docker exec $(BACKEND_CONTAINER) alembic downgrade -1
+	@echo "✅ Rollback complete."
 
-# Show migration history
+# Show migration history - runs inside container
 .PHONY: db-history
-db-history:
+db-history: check-backend
 	@echo "Migration history:"
-	@cd backend && alembic history --verbose
+	@docker exec $(BACKEND_CONTAINER) alembic history --verbose
 
-# Show current migration
+# Show current migration - runs inside container
 .PHONY: db-current
-db-current:
+db-current: check-backend
 	@echo "Current migration:"
-	@cd backend && alembic current
+	@docker exec $(BACKEND_CONTAINER) alembic current
 
-# Reset database (WARNING: Destroys all data!)
+# Reset database (WARNING: Destroys all data!) - runs inside container
 .PHONY: db-reset
-db-reset:
-	@echo "WARNING: This will DELETE all data in the database!"
-	@echo "Current database: $$(cd backend && python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.getenv('POSTGRES_DB', 'policybot'))")"
-	@read -p "Type 'destroy' to confirm: " confirm; \
+db-reset: check-backend
+	@echo "⚠️  WARNING: This will DELETE all data in the database!"
+	@docker exec $(BACKEND_CONTAINER) python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(f'   Database: {os.getenv(\"POSTGRES_DB\", \"policybot\")}')"
+	@read -p "   Type 'destroy' to confirm: " confirm; \
 	if [ "$$confirm" = "destroy" ]; then \
-		echo "Resetting database..."; \
-		cd backend && alembic downgrade base && alembic upgrade head; \
-		echo "Database reset complete."; \
+		echo "   Resetting database..."; \
+		docker exec $(BACKEND_CONTAINER) alembic downgrade base; \
+		docker exec $(BACKEND_CONTAINER) alembic upgrade head; \
+		echo "✅ Database reset complete."; \
 	else \
-		echo "Reset cancelled."; \
+		echo "❌ Reset cancelled."; \
 	fi
 
 # ==============================================================================
