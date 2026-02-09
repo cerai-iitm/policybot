@@ -70,6 +70,9 @@ services:
         - action: sync
           path: ./backend/src
           target: /app/src
+        - action: sync
+          path: ./backend/migrations
+          target: /app/migrations
         - action: rebuild
           path: ./backend/Dockerfile
         - action: rebuild
@@ -78,6 +81,12 @@ services:
           path: ./backend/download_models.py
         - action: rebuild
           path: ./backend/entrypoint.sh
+        - action: rebuild
+          path: ./backend/alembic.ini
+        - action: rebuild
+          path: ./backend/pyproject.toml
     depends_on:
-      - postgres
-      - qdrant
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started

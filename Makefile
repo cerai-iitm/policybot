@@ -36,6 +36,12 @@ help:
 	@echo "  make clean             Stop all containers (keep volumes)"
 	@echo "  make clean-volumes     Stop all + delete data (DESTRUCTIVE)"
 	@echo ""
+	@echo "DATABASE:"
+	@echo "  make db-current        Show current migration version"
+	@echo "  make db-history        Show migration history"
+	@echo "  make db-upgrade        Run pending migrations"
+	@echo "  make db-migrate        Create new migration (requires MESSAGE=)"
+	@echo ""
 	@echo "INFORMATION:"
 	@echo "  make help              Show this message"
 	@echo ""
@@ -108,6 +114,60 @@ dev-down:
 	@echo "Stopping development services..."
 	$(COMPOSE) $(DEV_FILES) -p $(PROJECT_NAME)-dev down
 	@echo "Development services stopped."
+
+# ==============================================================================
+# DATABASE MIGRATION TARGETS
+# ==============================================================================
+
+# Create a new migration (requires MESSAGE variable)
+.PHONY: db-migrate
+db-migrate:
+ifndef MESSAGE
+	$(error MESSAGE is required. Usage: make db-migrate MESSAGE="description of changes")
+endif
+	@echo "Creating new migration: $(MESSAGE)..."
+	cd backend && alembic revision --autogenerate -m "$(MESSAGE)"
+	@echo "Migration created. Review it in backend/migrations/versions/"
+
+# Run all pending migrations (upgrade to head)
+.PHONY: db-upgrade
+db-upgrade:
+	@echo "Running database migrations..."
+	cd backend && alembic upgrade head
+	@echo "Migrations complete."
+
+# Rollback one migration
+.PHONY: db-downgrade
+db-downgrade:
+	@echo "Rolling back one migration..."
+	cd backend && alembic downgrade -1
+	@echo "Rollback complete."
+
+# Show migration history
+.PHONY: db-history
+db-history:
+	@echo "Migration history:"
+	@cd backend && alembic history --verbose
+
+# Show current migration
+.PHONY: db-current
+db-current:
+	@echo "Current migration:"
+	@cd backend && alembic current
+
+# Reset database (WARNING: Destroys all data!)
+.PHONY: db-reset
+db-reset:
+	@echo "WARNING: This will DELETE all data in the database!"
+	@echo "Current database: $$(cd backend && python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(os.getenv('POSTGRES_DB', 'policybot'))")"
+	@read -p "Type 'destroy' to confirm: " confirm; \
+	if [ "$$confirm" = "destroy" ]; then \
+		echo "Resetting database..."; \
+		cd backend && alembic downgrade base && alembic upgrade head; \
+		echo "Database reset complete."; \
+	else \
+		echo "Reset cancelled."; \
+	fi
 
 # ==============================================================================
 # CLEANUP TARGETS

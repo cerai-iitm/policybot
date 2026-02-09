@@ -48,8 +48,10 @@ services:
               capabilities: [gpu]
     runtime: nvidia
     depends_on:
-      - postgres
-      - qdrant
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
 
   model_downloader:
     build:
@@ -90,6 +92,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
     ports:
       - "5432:5432"
     deploy:

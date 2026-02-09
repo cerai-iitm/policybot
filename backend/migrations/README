@@ -1,0 +1,68 @@
+# Alembic Migrations
+
+This directory contains database migration scripts managed by Alembic.
+
+## Quick Reference
+
+```bash
+# Create a new migration after model changes
+alembic revision --autogenerate -m "description of changes"
+
+# Upgrade to latest migration
+alembic upgrade head
+
+# Upgrade by one revision
+alembic upgrade +1
+
+# Downgrade by one revision
+alembic downgrade -1
+
+# View migration history
+alembic history --verbose
+
+# View current revision
+alembic current
+```
+
+## Migration Workflow
+
+1. **Modify models** in `src/schema/`
+2. **Generate migration**: `alembic revision --autogenerate -m "description"`
+3. **Review migration** in `migrations/versions/`
+4. **Apply migration**: `alembic upgrade head`
+
+## Makefile Shortcuts
+
+```bash
+make db-migrate MESSAGE="add users table"  # Create new migration
+make db-upgrade                              # Run all pending migrations
+make db-downgrade                            # Rollback one migration
+make db-history                              # Show migration history
+```
+
+## Automatic Migrations
+
+Migrations run automatically when containers start via `entrypoint.sh`:
+- Production: Always runs `alembic upgrade head` before starting the app
+- Development: Manual control via Makefile commands
+
+## Troubleshooting
+
+**Migration failed?**
+```bash
+# Check current revision
+alembic current
+
+# View history to find where you are
+alembic history
+
+# Rollback to specific revision
+alembic downgrade <revision_id>
+
+# Reset database (WARNING: deletes all data)
+make db-reset
+```
+
+**Autogenerate not detecting changes?**
+- Ensure models are imported in `src/schema/__init__.py`
+- Check that models inherit from `Base` in `src/schema/db.py`

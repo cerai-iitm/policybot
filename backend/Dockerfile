@@ -65,19 +65,34 @@ RUN mkdir -p /app/data /app/logs /app/cache/huggingface && \
 	chown -R appuser:appuser /app && \
 	chmod 755 /app/data /app/logs /app/cache/huggingface
 
+# Install netcat for database connection check
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	netcat-openbsd \
+	&& rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
-	HF_HOME=/app/cache/huggingface 
+	HF_HOME=/app/cache/huggingface
 
 WORKDIR /app
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
+# Copy Alembic configuration and migrations
+COPY alembic.ini pyproject.toml ./
+COPY migrations/ ./migrations/
 COPY src/ ./src/
+
+# Copy entrypoint script
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 8000
 USER appuser
+
+# Use entrypoint for automatic migrations (command is overridden in docker-compose.dev.yml)
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production runner
@@ -90,7 +105,7 @@ RUN mkdir -p /app/data /app/logs /app/cache/huggingface && \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
-	HF_HOME=/app/cache/huggingface 
+	HF_HOME=/app/cache/huggingface
 
 WORKDIR /app
 
@@ -103,8 +118,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*
 
+# Copy Alembic configuration and migrations
+COPY alembic.ini pyproject.toml ./
+COPY migrations/ ./migrations/
 COPY src/ ./src/
+
+# Copy entrypoint script
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 8000
 USER appuser
+
+# Use entrypoint for automatic migrations
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
