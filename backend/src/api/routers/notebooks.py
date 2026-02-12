@@ -1,6 +1,6 @@
 """Notebooks router with comprehensive Swagger documentation."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.schemas import (
@@ -37,14 +37,14 @@ router = APIRouter(
 """,
 )
 async def create_new_notebook(
-    title: str = Query(
+    title: str = Form(
         ...,
         description="Title of the notebook (must be unique)",
         example="My Notebook",
         min_length=1,
         max_length=255,
     ),
-    description: str = Query(
+    description: str = Form(
         None,
         description="Optional description of the notebook",
         example="Collection of policy documents for review",

@@ -20,6 +20,16 @@ async def get_notebook_by_id(db: AsyncSession, notebook_id: int) -> Optional[Not
     return result.scalar_one_or_none()
 
 
+async def get_notebook_by_notebook_id(
+    db: AsyncSession, notebook_id: str
+) -> Optional[Notebook]:
+    """Get a notebook by its external `notebook_id` string (e.g. nb_abc123)."""
+    result = await db.execute(
+        select(Notebook).where(Notebook.notebook_id == notebook_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_notebook(
     db: AsyncSession, title: str, description: Optional[str] = None
 ) -> Notebook:

@@ -5,9 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.crud import (
     create_notebook as crud_create_notebook,
-    list_notebooks as crud_list_notebooks,
 )
 from src.db.crud import get_notebook_by_title
+from src.db.crud import (
+    list_notebooks as crud_list_notebooks,
+)
 
 
 async def create_notebook(db: AsyncSession, title: str, description: Optional[str]):
@@ -15,7 +17,7 @@ async def create_notebook(db: AsyncSession, title: str, description: Optional[st
     existing = await get_notebook_by_title(db, title)
     if existing:
         raise HTTPException(
-            status_code=409, detail=f"Notebook with title '{title}' already exists."
+            status_code=409, detail=f"Notebook with title '{title}' already exists." 
         )
 
     nb = await crud_create_notebook(db, title=title, description=description)

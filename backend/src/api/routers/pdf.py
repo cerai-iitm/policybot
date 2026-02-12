@@ -1,20 +1,17 @@
 import asyncio
 import os
-import traceback
 from pathlib import Path
 
 import aiofiles
 from fastapi import (
     APIRouter,
+    BackgroundTasks,  # Added for background processing
     Depends,
     File,
     Form,
     HTTPException,
     Query,
     UploadFile,
-)
-from fastapi import (
-    Path as FastApiPath,
 )
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,9 +20,10 @@ from src.core import cfg, logger
 from src.db import get_db
 from src.db.config import AsyncSessionLocal
 from src.db.crud import (
+    create_pdf,
     delete_overall_summaries_containing_file,
     delete_source_summary,
-    get_notebook_by_title,
+    get_notebook_by_notebook_id,
     get_pdf_by_filename_and_notebook,
     get_pdfs_by_notebook,
     get_summary_by_source_name,
@@ -38,7 +36,6 @@ from src.services import PDFProcessor
 
 from ..schemas import (
     ErrorResponse,
-    HTTPValidationError,
     PDFDeleteResponse,
     PDFListResponse,
     PDFSummaryResponse,
@@ -60,77 +57,6 @@ _MAX_CONCURRENT = getattr(cfg, "MAX_CONCURRENT_PROCESSING", 2)
 _PROCESS_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENT)
 
 
-async def _background_process_pdf(file_name: str, pdf_id: int) -> None:
-    """Run PDF processing in background with a fresh DB session.
-
-    This acquires a semaphore to bound concurrency and opens an independent
-    AsyncSession so the request DB session can be closed immediately after upload.
-    """
-    await _PROCESS_SEMAPHORE.acquire()
-    try:
-        async with AsyncSessionLocal() as bg_db:
-            pdf_processor = PDFProcessor()
-            try:
-                async for update in pdf_processor.process_pdf(
-                    file_name, pdf_id=pdf_id, db=bg_db
-                ):
-                    logger.info(f"[bg:{pdf_id}] {update}")
-            except Exception as e:
-                logger.error(f"Background processing failed for {file_name}: {e}")
-                logger.debug(traceback.format_exc())
-                # attempt to mark the PDF as errored
-                try:
-                    from src.db.crud import update_pdf_status
-
-                    await update_pdf_status(bg_db, pdf_id, "error")
-                except Exception:
-                    logger.exception(
-                        "Failed to set PDF status to 'error' in background task"
-                    )
-    finally:
-        _PROCESS_SEMAPHORE.release()
-
-
-def _schedule_background_task_for_pdf(file_name: str, pdf_id: int) -> None:
-    """Helper to schedule the background processing for a PDF.
-
-    Tries to schedule on the running asyncio loop; falls back to a thread
-    that creates its own event loop if necessary.
-    """
-    try:
-        loop = asyncio.get_running_loop()
-        task = loop.create_task(_background_process_pdf(file_name, pdf_id))
-
-        def _on_task_done(t: asyncio.Task) -> None:
-            try:
-                exc = t.exception()
-                if exc:
-                    logger.error(f"Background task error for pdf_id={pdf_id}: {exc}")
-            except asyncio.CancelledError:
-                logger.info(f"Background task cancelled for pdf_id={pdf_id}")
-
-        task.add_done_callback(_on_task_done)
-        logger.info(
-            f"Scheduled background processing for file: {file_name} (pdf_id={pdf_id})"
-        )
-    except RuntimeError:
-        # No running event loop; fallback to a background thread with its own loop
-        logger.warning(
-            "No running event loop found; running background task in new loop thread (fallback)"
-        )
-
-        def _run_in_thread():
-            import asyncio as _asyncio
-
-            _loop = _asyncio.new_event_loop()
-            _asyncio.set_event_loop(_loop)
-            _loop.run_until_complete(_background_process_pdf(file_name, pdf_id))
-
-        import threading
-
-        threading.Thread(target=_run_in_thread, daemon=True).start()
-
-
 async def _get_processing_state_from_db(
     file_name: str, notebook_id: int, db: AsyncSession
 ) -> tuple[str, PDF | None]:
@@ -149,215 +75,153 @@ async def _get_processing_state_from_db(
     return pdf.processing_status, pdf
 
 
+async def process_pdf_background(file_name: str, pdf_id: int):
+    """Background processing for PDF RAG pipeline."""
+    async with AsyncSessionLocal() as bg_db:
+        pdf_processor = PDFProcessor()
+        try:
+            async for update in pdf_processor.process_pdf(
+                file_name, pdf_id=pdf_id, db=bg_db
+            ):
+                logger.info(f"[bg:{pdf_id}] {update}")
+        except Exception as e:
+            logger.error(f"Background processing failed for {file_name}: {e}")
+            await update_pdf_status(bg_db, pdf_id, "error")
+
+
 @router.post(
     "/upload",
     response_model=PDFUploadResponse,
     status_code=201,
     summary="Upload PDF to notebook",
-    description="""Upload a PDF file to a specific notebook.
+    description="""Upload a PDF file to a specific notebook with background processing.
 
 **Processing States:**
-- `uploaded`: File uploaded, processing not started
-- `processing`: Text extraction and chunking in progress  
+- `uploaded`: File uploaded, processing starting
+- `processing`: Text extraction and chunking
 - `embeddings_complete`: Embeddings stored, summary pending
 - `summary_generation`: Summary being generated
 - `complete`: Fully processed
 
 **Notes:**
-- Only PDF files accepted (.pdf extension required)
-- File names must be unique within a notebook
-- Duplicate uploads return current processing state
-- Notebook must exist before uploading
+- Only PDF files accepted
+- File names must be unique within notebook
+- Duplicate uploads return current state
+- Background processing starts immediately after upload
 """,
     responses={
-        201: {
-            "description": "PDF uploaded successfully",
-            "model": PDFUploadResponse,
-        },
+        201: {"description": "PDF uploaded successfully", "model": PDFUploadResponse},
         200: {
             "description": "PDF already exists, returned current state",
             "model": PDFUploadResponse,
         },
-        400: {
-            "description": "Invalid input - missing file, invalid format, or missing notebook name",
-            "model": ErrorResponse,
-        },
-        404: {
-            "description": "Notebook not found",
-            "model": ErrorResponse,
-        },
-        409: {
-            "description": "PDF already fully processed",
-            "model": ErrorResponse,
-        },
-        422: {
-            "description": "Validation error",
-            "model": HTTPValidationError,
-        },
+        400: {"description": "Invalid input", "model": ErrorResponse},
+        404: {"description": "Notebook not found", "model": ErrorResponse},
+        409: {"description": "PDF already fully processed", "model": ErrorResponse},
     },
 )
 async def upload_pdf(
-    notebook_name: str = Form(
-        ...,
-        description="Name of the notebook (must exist)",
-        example="My Notebook",
+    background_tasks: BackgroundTasks,
+    notebook_id: str = Form(
+        ..., description="Notebook ID (e.g., nb_abc123)", example="nb_a1b2c3d4"
     ),
-    file: UploadFile = File(
-        ...,
-        description="PDF file to upload",
-        media_type="application/pdf",
-    ),
+    file: UploadFile = File(..., description="PDF file", media_type="application/pdf"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload a PDF file to a specific notebook."""
-    logger.info(
-        f"Upload request received - notebook: {notebook_name}, file: {file.filename}"
-    )
+    """Upload a PDF file to a notebook with background RAG processing."""
+    logger.info(f"Upload request - notebook_id: {notebook_id}, file: {file.filename}")
 
     # Validate inputs
     if not file.filename:
-        logger.warning("Upload rejected - no filename provided")
         raise HTTPException(status_code=400, detail="No file uploaded.")
-
-    if not notebook_name:
-        logger.warning("Upload rejected - no notebook name provided")
-        raise HTTPException(status_code=400, detail="Notebook name is required.")
-
+    if not notebook_id.strip():
+        raise HTTPException(status_code=400, detail="Notebook ID is required.")
     if not file.filename.lower().endswith(".pdf"):
-        logger.warning(f"Upload rejected - invalid file format: {file.filename}")
         raise HTTPException(
             status_code=400, detail="Invalid file format. Please upload a PDF."
         )
 
-    # Step 1: Check if notebook exists
-    notebook = await get_notebook_by_title(db, notebook_name)
+    # Check notebook exists
+    notebook = await get_notebook_by_notebook_id(db, notebook_id.strip())
     if not notebook:
-        logger.warning(f"Upload rejected - notebook not found: {notebook_name}")
         raise HTTPException(
-            status_code=404,
-            detail=f"Notebook '{notebook_name}' not found. Create it first.",
+            status_code=404, detail=f"Notebook '{notebook_id}' not found."
         )
 
-    logger.info(f"Found notebook: {notebook.title} (ID: {notebook.id})")
-
-    # Step 2: Check processing state from database
+    # Check processing state
     processing_state, existing_pdf = await _get_processing_state_from_db(
         file.filename, notebook.id, db
     )
-    logger.info(f"Processing state for {file.filename}: {processing_state}")
-
-    # Handle different processing states
     if processing_state == "complete":
-        logger.info(f"File already fully processed: {file.filename}")
         return JSONResponse(
             status_code=409,
             content={
                 "detail": "File already exists and is fully processed.",
                 "filename": file.filename,
-                "notebook": notebook_name,
+                "notebook": notebook.title,
+                "notebook_id": notebook.notebook_id,
                 "processing_state": "complete",
             },
         )
 
-    # If the PDF record exists and is in an error state, return an error and do not schedule
-    if processing_state == "error":
-        logger.error(
-            f"PDF is in error state: {file.filename} (pdf id: {existing_pdf.id if existing_pdf else 'unknown'})"
-        )
+    if existing_pdf and processing_state == "error":
         return JSONResponse(
             status_code=500,
             content={
-                "detail": "PDF is in error state. Please investigate and re-upload if needed.",
+                "detail": "PDF is in error state. Please investigate.",
                 "filename": file.filename,
-                "notebook": notebook_name,
+                "notebook": notebook.title,
+                "notebook_id": notebook.notebook_id,
                 "processing_state": "error",
             },
         )
 
-    # For any other existing non-complete state (uploaded, processing, embeddings_complete, summary_generation),
-    # schedule/resume background processing. The processor is idempotent and will skip already-done stages.
-    if existing_pdf is not None:
-        logger.info(
-            f"Resuming/scheduling background processing for existing file: {file.filename} (state={processing_state})"
+    if existing_pdf:
+        background_tasks.add_task(
+            process_pdf_background, file.filename, existing_pdf.id
         )
-        try:
-            _schedule_background_task_for_pdf(file.filename, existing_pdf.id)
-        except Exception as e:
-            logger.error(
-                f"Failed to schedule background task for existing PDF {file.filename}: {e}"
-            )
-            # Fallthrough to return a 500-like response
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "detail": f"Failed to schedule processing: {str(e)}",
-                    "filename": file.filename,
-                    "notebook": notebook_name,
-                    "processing_state": processing_state,
-                },
-            )
-
         return JSONResponse(
             status_code=200,
             content={
-                "message": "Background processing scheduled/resumed for existing PDF.",
+                "message": "Background processing resumed for existing PDF.",
                 "filename": file.filename,
-                "notebook": notebook_name,
+                "notebook": notebook.title,
+                "notebook_id": notebook.notebook_id,
                 "processing_state": processing_state,
             },
         )
 
-    # Step 3: New file - proceed with upload
-    logger.info(
-        f"Proceeding with new file upload: {file.filename} to notebook: {notebook_name}"
+    # New upload: save file
+    import os
+
+    upload_dir = Path(cfg.DATA_DIR) / notebook.notebook_id
+    os.makedirs(upload_dir, exist_ok=True)  # Ensure dir exists
+    file_path = upload_dir / file.filename
+
+    async with aiofiles.open(file_path, "wb") as buffer:
+        content = await file.read()
+        await buffer.write(content)
+
+    # Create DB record
+    relative_path = f"{notebook.notebook_id}/{file.filename}"
+    pdf = await create_pdf(
+        db=db, file_name=file.filename, file_path=relative_path, notebook_id=notebook.id
     )
 
-    try:
-        # Create notebook folder structure
-        upload_dir = Path(cfg.DATA_DIR) / notebook.notebook_id
-        await asyncio.to_thread(upload_dir.mkdir, parents=True, exist_ok=True)
+    # Start background processing
+    background_tasks.add_task(process_pdf_background, file.filename, pdf.id)
 
-        file_path = upload_dir / file.filename
-        logger.debug(f"Upload directory prepared: {upload_dir}")
-
-        # Save file to disk
-        async with aiofiles.open(file_path, "wb") as buffer:
-            content = await file.read()
-            await buffer.write(content)
-
-        # Create PDF record in database
-        relative_path = f"{notebook.notebook_id}/{file.filename}"
-        pdf = await create_pdf(
-            db=db,
-            file_name=file.filename,
-            file_path=relative_path,
-            notebook_id=notebook.id,
-        )
-
-        logger.info(
-            f"Successfully uploaded file and created DB record: {file.filename}"
-        )
-        # Schedule background processing so embeddings and summary are generated
-        try:
-            _schedule_background_task_for_pdf(file.filename, pdf.id)
-        except Exception as e:
-            logger.error(
-                f"Failed to schedule background task for new PDF {file.filename}: {e}"
-            )
-        return JSONResponse(
-            status_code=201,
-            content={
-                "filename": file.filename,
-                "notebook": notebook_name,
-                "notebook_id": notebook.notebook_id,
-                "pdf_id": pdf.id,
-                "processing_state": "uploaded",
-                "file_path": relative_path,
-            },
-        )
-    except Exception as e:
-        logger.error(f"Failed to upload file {file.filename}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+    return JSONResponse(
+        status_code=201,
+        content={
+            "filename": file.filename,
+            "notebook": notebook.title,
+            "notebook_id": notebook.notebook_id,
+            "pdf_id": pdf.id,
+            "processing_state": "uploaded",
+            "file_path": relative_path,
+        },
+    )
 
 
 @router.get(
@@ -377,21 +241,21 @@ async def upload_pdf(
     },
 )
 async def list_pdfs(
-    notebook_name: str = Query(
+    notebook_id: str = Query(
         ...,
-        description="Name of the notebook to list PDFs from",
-        example="My Notebook",
+        description="Notebook ID (e.g., nb_abc123)",
+        example="nb_a1b2c3d4",
     ),
     db: AsyncSession = Depends(get_db),
 ):
     """List all PDFs in a notebook with current processing status."""
-    logger.info(f"List PDFs request for notebook: {notebook_name}")
+    logger.info(f"List PDFs request for notebook_id: {notebook_id}")
 
     # Check if notebook exists
-    notebook = await get_notebook_by_title(db, notebook_name)
+    notebook = await get_notebook_by_notebook_id(db, notebook_id.strip())
     if not notebook:
         raise HTTPException(
-            status_code=404, detail=f"Notebook '{notebook_name}' not found."
+            status_code=404, detail=f"Notebook '{notebook_id}' not found."
         )
 
     try:
@@ -412,7 +276,7 @@ async def list_pdfs(
 
         return JSONResponse(
             content={
-                "notebook": notebook_name,
+                "notebook": notebook.title,
                 "notebook_id": notebook.notebook_id,
                 "pdfs": pdf_list,
             },
@@ -460,7 +324,7 @@ async def _perform_deletion(file_path: str, db: AsyncSession) -> tuple[int, dict
         )
 
     # Look up the notebook
-    from src.schema.notebooks_crud import get_notebook_by_notebook_id
+    from src.db.crud import get_notebook_by_notebook_id
 
     notebook = await get_notebook_by_notebook_id(db, notebook_id_str)
     if not notebook:
@@ -562,11 +426,11 @@ async def _perform_deletion(file_path: str, db: AsyncSession) -> tuple[int, dict
         raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
 
 
-@router.delete(
-    "/delete/{file_path:path}",
+@router.post(
+    "/remove",
     response_model=PDFDeleteResponse,
-    summary="Delete PDF (DELETE method)",
-    description="""Delete a PDF and all associated data.
+    summary="Delete PDF (POST method)",
+    description="""Delete a PDF and all associated data using POST method (firewall-friendly).
 
 **Deletes:**
 - PDF file from disk
@@ -575,7 +439,7 @@ async def _perform_deletion(file_path: str, db: AsyncSession) -> tuple[int, dict
 - PDF record from database
 - Overall summaries containing this file
 
-**Note:** Use full path format `{notebook_id}/{filename}`
+**Note:** Notebook ID and filename are sent as form data.
 """,
     responses={
         200: {
@@ -583,45 +447,7 @@ async def _perform_deletion(file_path: str, db: AsyncSession) -> tuple[int, dict
             "model": PDFDeleteResponse,
         },
         400: {
-            "description": "Invalid file path or format",
-            "model": ErrorResponse,
-        },
-        404: {
-            "description": "Notebook or PDF not found",
-            "model": ErrorResponse,
-        },
-    },
-)
-async def delete_pdf(
-    file_path: str = FastApiPath(
-        ...,
-        description="Path to PDF in format: {notebook_id}/{filename}",
-        example="nb_a1b2c3d4/document.pdf",
-    ),
-    db: AsyncSession = Depends(get_db),
-):
-    """Delete a PDF by its path."""
-    logger.info(f"Delete request for: {file_path}")
-    status_code, content = await _perform_deletion(file_path, db)
-    return JSONResponse(status_code=status_code, content=content)
-
-
-@router.post(
-    "/remove",
-    response_model=PDFDeleteResponse,
-    summary="Delete PDF (POST method)",
-    description="""Delete a PDF using POST method (firewall-friendly).
-
-Same functionality as DELETE /delete/{file_path} but uses POST 
-for environments where DELETE requests are blocked.
-""",
-    responses={
-        200: {
-            "description": "PDF deleted successfully",
-            "model": PDFDeleteResponse,
-        },
-        400: {
-            "description": "Invalid file path or format",
+            "description": "Invalid or missing form data",
             "model": ErrorResponse,
         },
         404: {
@@ -631,62 +457,84 @@ for environments where DELETE requests are blocked.
     },
 )
 async def remove_pdf(
-    file_path: str = Form(
+    notebook_id: str = Form(
         ...,
-        description="Path to PDF in format: {notebook_id}/{filename}",
-        example="nb_a1b2c3d4/document.pdf",
+        description="Notebook ID (e.g., nb_abc123)",
+        example="nb_a1b2c3d4",
+    ),
+    filename: str = Form(
+        ...,
+        description="PDF filename",
+        example="document.pdf",
     ),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove a PDF by its path (POST for firewall compatibility)."""
-    logger.info(f"Remove request for: {file_path}")
+    """Remove a PDF by notebook ID and filename (POST for firewall compatibility)."""
+    logger.info(f"Remove request for notebook_id: {notebook_id}, filename: {filename}")
+
+    # Validate inputs
+    if not notebook_id or not notebook_id.strip():
+        logger.warning("Remove request rejected - missing or empty notebook_id")
+        raise HTTPException(
+            status_code=400,
+            detail="notebook_id is required and cannot be empty.",
+        )
+    if not filename or not filename.strip():
+        logger.warning("Remove request rejected - missing or empty filename")
+        raise HTTPException(
+            status_code=400,
+            detail="filename is required and cannot be empty.",
+        )
+    if not filename.lower().endswith(".pdf"):
+        logger.warning(f"Remove request rejected - invalid filename: {filename}")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename. Please specify a PDF file.",
+        )
+
+    # Construct file_path for _perform_deletion
+    file_path = f"{notebook_id.strip()}/{filename.strip()}"
+    logger.info(f"Constructed file_path: {file_path}")
+
     status_code, content = await _perform_deletion(file_path, db)
     return JSONResponse(status_code=status_code, content=content)
 
 
 @router.get(
-    "/process/{file_path:path}",
-    summary="Process PDF through RAG pipeline",
-    description="""Process a PDF through the RAG (Retrieval-Augmented Generation) pipeline.
+    "/process",
+    summary="Monitor PDF processing status",
+    description="""Monitor the processing status of a PDF in real-time via Server-Sent Events (SSE).
 
-**Pipeline Stages:**
-1. **Text Extraction**: Extract text from PDF pages
-2. **Chunking**: Split text into semantic chunks
-3. **Embedding**: Generate vector embeddings using AI model
-4. **Storage**: Store embeddings in Qdrant vector database
-5. **Summary**: Generate AI summary using LLM
+**Returns:** SSE stream with status updates every 2 seconds.
 
-**Returns:** Server-Sent Events (SSE) stream with real-time progress updates
-
-**Status Tracking:**
-- Processing status is saved to database after each stage
-- Can be resumed if interrupted (checks existing embeddings/summaries)
-- Status values: uploaded → processing → embeddings_complete → summary_generation → complete
+**Status Values:**
+- uploaded: File uploaded, processing pending
+- processing: Text extraction and chunking
+- embeddings_complete: Embeddings stored, summary pending
+- summary_generation: Summary being generated
+- complete: Fully processed
+- error: Processing failed
 
 **Example Events:**
 ```
-data: Starting PDF processing...
-data: Extracting text from PDF...
-data: Running splitter for creating chunks...
-data: Embedding chunks...
-data: Saving embeddings to database...
-data: Creating summary...
-data: Summary created and saved.
-data: PDF processing complete.
+data: uploaded
+
+data: processing
+
+data: complete
+
 data: done
 ```
 """,
     responses={
         200: {
-            "description": "SSE stream of processing updates",
+            "description": "SSE stream of status updates",
             "content": {
-                "text/event-stream": {
-                    "example": "data: Starting PDF processing...\n\ndata: done\n\n"
-                }
+                "text/event-stream": {"example": "data: processing\n\ndata: done\n\n"}
             },
         },
         400: {
-            "description": "Invalid file path format",
+            "description": "Invalid or missing query parameters",
             "model": ErrorResponse,
         },
         404: {
@@ -695,74 +543,101 @@ data: done
         },
     },
 )
-async def process_uploaded_pdf(
-    file_path: str = FastApiPath(
+async def process_status(
+    notebook_id: str = Query(
         ...,
-        description="Path to PDF in format: {notebook_id}/{filename}",
-        example="nb_a1b2c3d4/document.pdf",
+        description="Notebook ID (e.g., nb_abc123)",
+        example="nb_a1b2c3d4",
+    ),
+    filename: str = Query(
+        ...,
+        description="PDF filename",
+        example="document.pdf",
     ),
     db: AsyncSession = Depends(get_db),
 ):
-    """Process a PDF file using database state tracking."""
-    logger.info(f"Process request for file: {file_path}")
+    """Monitor PDF processing status via SSE."""
+    logger.info(
+        f"Status monitor request for notebook_id: {notebook_id}, filename: {filename}"
+    )
 
-    # Parse file_path to get notebook_id and filename
-    parts = file_path.split("/")
-    if len(parts) != 2:
+    # Validate inputs
+    if not notebook_id or not notebook_id.strip():
+        logger.warning("Status monitor rejected - missing or empty notebook_id")
         raise HTTPException(
             status_code=400,
-            detail="Invalid file path. Expected format: {notebook_id}/{filename}",
+            detail="notebook_id is required and cannot be empty.",
         )
-
-    notebook_id_str, filename = parts
+    if not filename or not filename.strip():
+        logger.warning("Status monitor rejected - missing or empty filename")
+        raise HTTPException(
+            status_code=400,
+            detail="filename is required and cannot be empty.",
+        )
+    if not filename.lower().endswith(".pdf"):
+        logger.warning(f"Status monitor rejected - invalid filename: {filename}")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename. Please specify a PDF file.",
+        )
 
     # Look up the notebook
-    from src.schema.notebooks_crud import get_notebook_by_notebook_id
-
-    notebook = await get_notebook_by_notebook_id(db, notebook_id_str)
+    notebook = await get_notebook_by_notebook_id(db, notebook_id.strip())
     if not notebook:
+        logger.warning(f"Status monitor rejected - notebook not found: {notebook_id}")
         raise HTTPException(
-            status_code=404, detail=f"Notebook '{notebook_id_str}' not found"
+            status_code=404, detail=f"Notebook '{notebook_id}' not found"
         )
 
-    # Look up the PDF record
-    pdf = await get_pdf_by_filename_and_notebook(db, filename, notebook.id)
+    logger.info(f"Found notebook: {notebook.title} (ID: {notebook.id})")
+
+    # Verify PDF exists in notebook
+    pdf = await get_pdf_by_filename_and_notebook(db, filename.strip(), notebook.id)
     if not pdf:
+        logger.warning(
+            f"Status monitor rejected - PDF not found: {filename} in notebook {notebook_id}"
+        )
         raise HTTPException(
             status_code=404,
-            detail=f"PDF '{filename}' not found in notebook '{notebook_id_str}'",
+            detail=f"PDF '{filename}' not found in notebook '{notebook_id}'",
         )
 
-    # Check file exists on disk
-    full_path = Path(cfg.DATA_DIR) / file_path
-    if not await asyncio.to_thread(full_path.exists):
-        logger.error(f"File exists in DB but not on disk: {file_path}")
-        raise HTTPException(status_code=404, detail="File not found on disk.")
-
     logger.info(
-        f"Processing PDF: {filename} (ID: {pdf.id}) in notebook: {notebook.title}"
+        f"Monitoring PDF: {filename} (ID: {pdf.id}, initial status: {pdf.processing_status})"
     )
 
     async def generate():
-        pdf_processor = PDFProcessor()
-        logger.info(f"Starting processing for {file_path} with state tracking")
+        try:
+            while True:
+                # Refresh PDF status from DB
+                await db.refresh(pdf)
+                status = pdf.processing_status
+                logger.debug(f"Current status for {filename}: {status}")
 
-        # Pass pdf_id so processor can update status
-        async for update in pdf_processor.process_pdf(filename, pdf_id=pdf.id, db=db):
-            yield f"data: {update}\n\n"
-        yield "data: done\n\n"
+                yield f"data: {status}\n\n"
+
+                # Stop if complete or error
+                if status in ["complete", "error"]:
+                    yield "data: done\n\n"
+                    break
+
+                # Poll every 2 seconds
+                await asyncio.sleep(2)
+        except asyncio.CancelledError:
+            logger.info(f"SSE connection closed for {filename}")
+        except Exception as e:
+            logger.error(f"Error in SSE stream for {filename}: {e}")
+            yield "data: error\n\ndata: done\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @router.get(
-    "/view/{file_path:path}",
+    "/view",
     response_class=FileResponse,
     summary="View or download PDF",
     description="""View or download a PDF file directly.
-
 **Returns:** The PDF file with `application/pdf` content type.
-
 **Usage:**
 - Browser: Opens PDF viewer or download dialog
 - API clients: Receive raw PDF bytes
@@ -772,39 +647,89 @@ async def process_uploaded_pdf(
             "description": "PDF file",
             "content": {"application/pdf": {}},
         },
+        400: {
+            "description": "Invalid or missing query parameters",
+            "model": ErrorResponse,
+        },
         404: {
-            "description": "PDF not found",
+            "description": "Notebook, PDF, or file not found",
             "model": ErrorResponse,
         },
     },
 )
 async def view_pdf(
-    file_path: str = FastApiPath(
+    notebook_id: str = Query(
         ...,
-        description="Path to PDF in format: {notebook_id}/{filename}",
-        example="nb_a1b2c3d4/document.pdf",
+        description="Notebook ID (e.g., nb_abc123)",
+        example="nb_a1b2c3d4",
     ),
+    filename: str = Query(
+        ...,
+        description="PDF filename",
+        example="document.pdf",
+    ),
+    db: AsyncSession = Depends(get_db),
 ):
     """View a PDF file."""
-    full_path = Path(cfg.DATA_DIR) / file_path
-    logger.info(f"View request for: {file_path}")
-
+    logger.info(f"View request for notebook_id: {notebook_id}, filename: {filename}")
+    # Validate inputs
+    if not notebook_id or not notebook_id.strip():
+        logger.warning("View request rejected - missing or empty notebook_id")
+        raise HTTPException(
+            status_code=400,
+            detail="notebook_id is required and cannot be empty.",
+        )
+    if not filename or not filename.strip():
+        logger.warning("View request rejected - missing or empty filename")
+        raise HTTPException(
+            status_code=400,
+            detail="filename is required and cannot be empty.",
+        )
+    if not filename.lower().endswith(".pdf"):
+        logger.warning(f"View request rejected - invalid filename: {filename}")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename. Please specify a PDF file.",
+        )
+    # Look up the notebook
+    notebook = await get_notebook_by_notebook_id(db, notebook_id.strip())
+    if not notebook:
+        logger.warning(f"View request rejected - notebook not found: {notebook_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Notebook '{notebook_id}' not found"
+        )
+    logger.info(f"Found notebook: {notebook.title} (ID: {notebook.id})")
+    # Verify PDF exists in notebook
+    pdf = await get_pdf_by_filename_and_notebook(db, filename.strip(), notebook.id)
+    if not pdf:
+        logger.warning(
+            f"View request rejected - PDF not found: {filename} in notebook {notebook_id}"
+        )
+        raise HTTPException(
+            status_code=404,
+            detail=f"PDF '{filename}' not found in notebook '{notebook_id}'",
+        )
+    logger.info(
+        f"Found PDF: {filename} (ID: {pdf.id}, status: {pdf.processing_status})"
+    )
+    # Build file path and check existence
+    full_path = Path(cfg.DATA_DIR) / notebook.notebook_id / filename.strip()
     exists = await asyncio.to_thread(full_path.exists)
-    if not exists or not file_path.endswith(".pdf"):
-        raise HTTPException(status_code=404, detail="PDF not found")
-
-    filename = os.path.basename(file_path)
-    return FileResponse(str(full_path), media_type="application/pdf", filename=filename)
+    if not exists:
+        logger.error(f"File exists in DB but not on disk: {full_path}")
+        raise HTTPException(status_code=404, detail="PDF not found on disk")
+    logger.info(f"Successfully serving PDF: {filename}")
+    return FileResponse(
+        str(full_path), media_type="application/pdf", filename=filename.strip()
+    )
 
 
 @router.get(
-    "/summary/{file_path:path}",
+    "/summary",
     response_model=PDFSummaryResponse,
     summary="Get PDF summary",
     description="""Retrieve the AI-generated summary for a processed PDF.
-
 **Note:** PDF must be in `complete` status to have a summary.
-
 **Summary Generation:**
 - Uses map-reduce summarization chain
 - Processes all text chunks to create comprehensive summary
@@ -816,7 +741,7 @@ async def view_pdf(
             "model": PDFSummaryResponse,
         },
         400: {
-            "description": "Invalid file path format",
+            "description": "Invalid or missing query parameters",
             "model": ErrorResponse,
         },
         404: {
@@ -826,50 +751,71 @@ async def view_pdf(
     },
 )
 async def get_summary(
-    file_path: str = FastApiPath(
+    notebook_id: str = Query(
         ...,
-        description="Path to PDF in format: {notebook_id}/{filename}",
-        example="nb_a1b2c3d4/document.pdf",
+        description="Notebook ID (e.g., nb_abc123)",
+        example="nb_a1b2c3d4",
+    ),
+    filename: str = Query(
+        ...,
+        description="PDF filename",
+        example="document.pdf",
     ),
     db: AsyncSession = Depends(get_db),
 ):
     """Get the summary for a processed PDF."""
-    logger.info(f"Fetching summary for: {file_path}")
-
-    # Parse file_path to get notebook_id and filename
-    parts = file_path.split("/")
-    if len(parts) != 2:
+    logger.info(
+        f"Fetching summary for notebook_id: {notebook_id}, filename: {filename}"
+    )
+    # Validate inputs
+    if not notebook_id or not notebook_id.strip():
+        logger.warning("Summary request rejected - missing or empty notebook_id")
         raise HTTPException(
             status_code=400,
-            detail="Invalid file path. Expected format: {notebook_id}/{filename}",
+            detail="notebook_id is required and cannot be empty.",
         )
-
-    notebook_id_str, filename = parts
-
-    # Look up the notebook
-    from src.schema.notebooks_crud import get_notebook_by_notebook_id
-
-    notebook = await get_notebook_by_notebook_id(db, notebook_id_str)
-    if not notebook:
+    if not filename or not filename.strip():
+        logger.warning("Summary request rejected - missing or empty filename")
         raise HTTPException(
-            status_code=404, detail=f"Notebook '{notebook_id_str}' not found"
+            status_code=400,
+            detail="filename is required and cannot be empty.",
         )
-
+    if not filename.lower().endswith(".pdf"):
+        logger.warning(f"Summary request rejected - invalid filename: {filename}")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid filename. Please specify a PDF file.",
+        )
+    # Look up the notebook
+    notebook = await get_notebook_by_notebook_id(db, notebook_id.strip())
+    if not notebook:
+        logger.warning(f"Summary request rejected - notebook not found: {notebook_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Notebook '{notebook_id}' not found"
+        )
+    logger.info(f"Found notebook: {notebook.title} (ID: {notebook.id})")
     # Verify PDF exists in notebook
-    pdf = await get_pdf_by_filename_and_notebook(db, filename, notebook.id)
+    pdf = await get_pdf_by_filename_and_notebook(db, filename.strip(), notebook.id)
     if not pdf:
+        logger.warning(
+            f"Summary request rejected - PDF not found: {filename} in notebook {notebook_id}"
+        )
         raise HTTPException(
             status_code=404,
-            detail=f"PDF '{filename}' not found in notebook '{notebook_id_str}'",
+            detail=f"PDF '{filename}' not found in notebook '{notebook_id}'",
         )
-
-    summary = await get_summary_by_source_name(db, filename)
+    logger.info(
+        f"Found PDF: {filename} (ID: {pdf.id}, status: {pdf.processing_status})"
+    )
+    # Retrieve summary
+    summary = await get_summary_by_source_name(db, filename.strip())
     if summary is None:
+        logger.warning(f"Summary not found for PDF: {filename}")
         raise HTTPException(status_code=404, detail="Summary not found")
-
+    logger.info(f"Successfully retrieved summary for {filename}")
     return {
         "summary": summary,
-        "filename": filename,
+        "filename": filename.strip(),
         "notebook": notebook.title,
         "notebook_id": notebook.notebook_id,
     }

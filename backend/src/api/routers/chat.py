@@ -11,6 +11,7 @@ from src.db import get_db
 from src.db.crud import (
     add_overall_summary,
     get_all_source_summaries,
+    get_notebook_by_notebook_id,
     get_overall_summary,
 )
 from src.services import ChatManager, LLM_Interface, Retriever
@@ -23,20 +24,28 @@ class QueryRequest(BaseModel):
     pdfs: Optional[List[str]] = None
     session_id: str
     model_name: Optional[str] = None
+    notebook_id: str
 
 
 @router.post("/query")
 async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_db)):
     """
-    Query endpoint with per-request model selection.
+    Query endpoint with per-request model selection and notebook scoping.
 
     - request.model_name omitted/None: Uses backend default cfg.MODEL_NAME (regular users)
     - request.model_name provided: Uses specified model (admin users)
     """
+    # Validate notebook exists
+    notebook = await get_notebook_by_notebook_id(db, request.notebook_id.strip())
+    if not notebook:
+        raise HTTPException(
+            status_code=404, detail=f"Notebook '{request.notebook_id}' not found."
+        )
+
     # Resolve model: use provided model_name or default
     resolved_model = request.model_name or cfg.MODEL_NAME
     logger.info(
-        f"Query endpoint - session: {request.session_id[:8]}..., "
+        f"Query endpoint - notebook: {request.notebook_id}, session: {request.session_id[:8]}..., "
         f"model: {resolved_model}, "
         f"pdfs: {len(request.pdfs or [])}"
     )
@@ -51,9 +60,18 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
     for fname in request.pdfs or []:
         if not fname.lower().endswith(".pdf"):
             fname = f"{fname}.pdf"
-        if os.path.exists(os.path.join(cfg.DATA_DIR, fname)):
+        # Check existence in notebook-scoped directory
+        if os.path.exists(os.path.join(cfg.DATA_DIR, request.notebook_id, fname)):
             valid_pdfs.append(fname)
-    logger.info(f"Valid PDFs for the query: {len(valid_pdfs)}")
+    logger.info(
+        f"Valid PDFs for the query in notebook {request.notebook_id}: {len(valid_pdfs)}"
+    )
+
+    if not valid_pdfs:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid PDFs found in the specified notebook.",
+        )
 
     # Pass DB session into retriever so it can load source summaries when available.
     context_chunks, chunk_metadata = await retriever.retrieve(
