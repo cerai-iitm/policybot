@@ -1,0 +1,234 @@
+{
+  "info": {
+    "name": "PolicyBot API (nginx /policybot prefix)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Notebooks",
+      "item": [
+        {
+          "name": "Create Notebook",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/notebooks/create?title={{notebook_title}}&description=Example",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","notebooks","create"],
+              "query": [
+                { "key": "title", "value": "{{notebook_title}}" },
+                { "key": "description", "value": "Example" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Notebooks",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/notebooks/list",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","notebooks","list"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "PDFs",
+      "item": [
+        {
+          "name": "Upload PDF (multipart/form-data)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/pdf/upload",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","pdf","upload"]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "notebook_name",
+                  "value": "{{notebook_title}}",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          },
+          "description": "Choose a local PDF file for the `file` form field. `notebook_name` must match a created notebook title."
+        },
+        {
+          "name": "List PDFs in Notebook",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/list?notebook_name={{notebook_title}}",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","list"],
+              "query": [ { "key": "notebook_name", "value": "{{notebook_title}}" } ]
+            }
+          }
+        },
+        {
+          "name": "Process PDF (SSE)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "text/event-stream" }],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/pdf/process/{{file_path}}",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","pdf","process","{{file_path}}"]
+            }
+          },
+          "description": "SSE stream. If Postman doesn't show events use `curl -N`."
+        },
+        {
+          "name": "Get PDF Summary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/summary/{{file_path}}",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","summary","{{file_path}}"]
+            }
+          }
+        },
+        {
+          "name": "View / Download PDF",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/pdf" }],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/pdf/view/{{file_path}}",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","pdf","view","{{file_path}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete PDF (DELETE)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/delete/{{file_path}}",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","delete","{{file_path}}"]
+            }
+          },
+          "description": "Deletes file, embeddings, summaries and DB record. Use POST /remove as firewall-friendly alternative."
+        },
+        {
+          "name": "Remove PDF (POST form)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file_path", "value": "{{file_path}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/remove",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","remove"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat & Summaries",
+      "item": [
+        {
+          "name": "Query (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"What does this policy say about data retention?\",\n  \"pdfs\": [\"{{pdf_filename}}\"],\n  \"session_id\": \"{{session_id}}\",\n  \"model_name\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/query",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","query"]
+            }
+          }
+        },
+        {
+          "name": "Overall Summary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/overall-summary",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","overall-summary"]
+            }
+          }
+        },
+        {
+          "name": "Suggested Queries (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"session_id\": \"{{session_id}}\" }" },
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/suggested-queries",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","suggested-queries"]
+            }
+          },
+          "description": "Currently returns an empty list (stubbed)."
+        },
+        {
+          "name": "Get Default Model",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/{{prefix}}/api/default-model",
+              "host": ["{{base_url}}"],
+              "path": ["{{prefix}}","api","default-model"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost" },
+    { "key": "prefix", "value": "policybot" },
+    { "key": "notebook_title", "value": "My Notebook" },
+    { "key": "notebook_id", "value": "" },
+    { "key": "pdf_filename", "value": "example.pdf" },
+    { "key": "file_path", "value": "{{notebook_id}}/{{pdf_filename}}" },
+    { "key": "session_id", "value": "test-session-1" }
+  ]
+}
