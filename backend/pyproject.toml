@@ -41,6 +41,21 @@ python-platform = "linux"
 python-version = "3.12"
 python-interpreter-path = ".venv/bin/python"
 
+[tool.ruff]
+# Target your Python version
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F are the basic errors; I handles import sorting (isort style)
+select = ["E", "F", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+
 [tool.alembic]
 
 # path to migration scripts.

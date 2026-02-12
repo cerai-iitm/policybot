@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from src.routers.chat import router as chat_router
 from src.routers.notebooks import router as notebooks_router
 from src.routers.pdf import router as pdf_router

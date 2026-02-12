@@ -1,7 +1,6 @@
 .venv
 backend/.env
 data
-db
 logs
 *.pyc
 

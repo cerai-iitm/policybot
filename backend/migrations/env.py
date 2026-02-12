@@ -18,8 +18,8 @@ if config.config_file_name is not None:
 
 # Import your app's metadata and models so autogenerate can see them
 # backend/src/schema/db.py defines Base and DATABASE_URL
-from src.schema import Base  # type: ignore
-from src.schema.db import DATABASE_URL  # type: ignore
+from src.db import Base  # type: ignore
+from src.db import DATABASE_URL  # type: ignore
 
 target_metadata = Base.metadata
 

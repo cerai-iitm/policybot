@@ -105,7 +105,8 @@ RUN mkdir -p /app/data /app/logs /app/cache/huggingface && \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
-	HF_HOME=/app/cache/huggingface
+	HF_HOME=/app/cache/huggingface \
+	PYTHONPATH=/app
 
 WORKDIR /app
 
