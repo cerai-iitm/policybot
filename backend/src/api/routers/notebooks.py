@@ -7,7 +7,7 @@ from src.api.schemas import (
     NotebookCreateResponse,
     NotebookListResponse,
 )
-from src.db.crud import get_db
+from src.db import get_db
 from src.services.notebooks import create_notebook as svc_create_notebook
 from src.services.notebooks import list_notebooks as svc_list_notebooks
 

@@ -17,7 +17,26 @@ from fastapi import (
     Path as FastApiPath,
 )
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from src.api.routers.pdf_schemas import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.core import cfg, logger
+from src.db import get_db
+from src.db.config import AsyncSessionLocal
+from src.db.crud import (
+    delete_overall_summaries_containing_file,
+    delete_source_summary,
+    get_notebook_by_title,
+    get_pdf_by_filename_and_notebook,
+    get_pdfs_by_notebook,
+    get_summary_by_source_name,
+)
+from src.db.crud import (
+    delete_pdf as delete_pdf_record,
+)
+from src.db.schema import PDF
+from src.services import PDFProcessor
+
+from ..schemas import (
     ErrorResponse,
     HTTPValidationError,
     PDFDeleteResponse,
@@ -25,21 +44,6 @@ from src.api.routers.pdf_schemas import (
     PDFSummaryResponse,
     PDFUploadResponse,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.core import cfg, logger
-from src.db.config import AsyncSessionLocal
-from src.db.crud import (
-    delete_overall_summaries_containing_file,
-    delete_source_summary,
-    get_db,
-    get_notebook_by_title,
-    get_pdf_by_filename_and_notebook,
-    get_pdfs_by_notebook,
-    get_summary_by_source_name,
-    delete_pdf as delete_pdf_record,
-)
-from src.services import PDFProcessor
 
 router = APIRouter(
     tags=["PDF Processing"],

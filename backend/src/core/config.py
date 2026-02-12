@@ -2,8 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-# Import prompt constants from prompts module (moved out of this file)
-from .prompts import prompts
+from . import prompts
 
 load_dotenv()
 
@@ -82,12 +81,19 @@ class Config:
 
     # Admin config for testing models
     SUPPORTED_MODELS = [
-    {"id": "gemma3n:e4b", "name": "Gemma 3n (e4b)"},
-    {"id": "hf.co/mradermacher/MiniMax-M2-THRIFT-55-i1-GGUF:Q3_K_S", "name": "MiniMax M2 Thrift 55"},
-    {"id": "hf.co/mradermacher/MiniMax-M2-THRIFT-i1-GGUF:IQ2_XXS", "name": "MiniMax M2 Thrift XXS"},
-    {"id": "llama4:latest", "name": "Llama 4 Latest"},
-    {"id": "gemma3:27b-it-qat", "name": "Gemma 3 27B IT"}
-]
+        {"id": "gemma3n:e4b", "name": "Gemma 3n (e4b)"},
+        {
+            "id": "hf.co/mradermacher/MiniMax-M2-THRIFT-55-i1-GGUF:Q3_K_S",
+            "name": "MiniMax M2 Thrift 55",
+        },
+        {
+            "id": "hf.co/mradermacher/MiniMax-M2-THRIFT-i1-GGUF:IQ2_XXS",
+            "name": "MiniMax M2 Thrift XXS",
+        },
+        {"id": "llama4:latest", "name": "Llama 4 Latest"},
+        {"id": "gemma3:27b-it-qat", "name": "Gemma 3 27B IT"},
+    ]
+
 
 cfg = Config()
 

@@ -11,12 +11,12 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import FieldCondition, Filter, MatchAny
 from qdrant_client.models import QueryRequest
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.rag.LLM_interface import LLM_Interface
-from src.schema.source_summaries_crud import get_summary_by_source_name
-from src.util import free_embedding_model, load_embedding_model
 from transformers import logging as hf_logging
 
 from src.core import cfg, logger
+from src.core.util import free_embedding_model, load_embedding_model
+from src.db.crud import get_summary_by_source_name
+from src.services.LLM_interface import LLM_Interface
 
 # set HF logging verbosity once at module import
 hf_logging.set_verbosity_error()

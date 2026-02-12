@@ -6,14 +6,14 @@ from langchain_core.documents import Document
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services import ChatManager, LLM_Interface, Retriever
 from src.core import cfg, logger
+from src.db import get_db
 from src.db.crud import (
     add_overall_summary,
     get_all_source_summaries,
-    get_db,
     get_overall_summary,
 )
+from src.services import ChatManager, LLM_Interface, Retriever
 
 router = APIRouter()
 

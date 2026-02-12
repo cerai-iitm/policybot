@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.routers.chat import router as chat_router
-from src.routers.notebooks import router as notebooks_router
-from src.routers.pdf import router as pdf_router
+
+from src.api.routers import chat_router, notebooks_router, pdf_router
 
 app = FastAPI(
     title="PolicyBot API",
