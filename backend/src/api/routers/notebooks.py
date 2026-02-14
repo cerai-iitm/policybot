@@ -1,10 +1,6 @@
 """Notebooks router with comprehensive Swagger documentation."""
 
 import asyncio
-import base64
-from pathlib import Path
-
-import aiofiles
 from fastapi import APIRouter, Depends, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -84,13 +80,6 @@ async def get_notebooks(db: AsyncSession = Depends(get_db)):
 
         first_notebook_pdfs = []
         for pdf in pdfs:
-            content_base64 = None
-            full_path = Path(cfg.DATA_DIR) / first_notebook_id / pdf.file_name
-            if full_path.exists():
-                async with aiofiles.open(full_path, "rb") as f:
-                    content = await f.read()
-                    content_base64 = base64.b64encode(content).decode("utf-8")
-
             first_notebook_pdfs.append(
                 {
                     "filename": pdf.file_name,
@@ -98,7 +87,6 @@ async def get_notebooks(db: AsyncSession = Depends(get_db)):
                     "processing_status": pdf.processing_status,
                     "uploaded_at": pdf.uploaded_at.isoformat(),
                     "pdf_id": pdf.id,
-                    "content_base64": content_base64,
                 }
             )
 

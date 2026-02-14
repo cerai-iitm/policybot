@@ -80,8 +80,9 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy Alembic configuration and migrations
-COPY alembic.ini pyproject.toml ./
+COPY alembic.ini pyproject.toml populate_db.py ./
 COPY migrations/ ./migrations/
+COPY pdfs/ ./pdfs/
 COPY src/ ./src/
 
 # Copy entrypoint script
@@ -120,7 +121,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Copy Alembic configuration and migrations
-COPY alembic.ini pyproject.toml ./
+COPY alembic.ini pyproject.toml populate_db.py ./
 COPY migrations/ ./migrations/
 COPY src/ ./src/
 

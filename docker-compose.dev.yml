@@ -73,6 +73,9 @@ services:
         - action: sync
           path: ./backend/migrations
           target: /app/migrations
+        - action: sync
+          path: ./backend/populate_db.py
+          target: /app/populate_db.py
         - action: rebuild
           path: ./backend/Dockerfile
         - action: rebuild
