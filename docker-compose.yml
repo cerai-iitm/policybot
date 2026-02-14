@@ -119,6 +119,74 @@ services:
       QDRANT__SERVICE__GRPC_PORT: 6334
       QDRANT__HTTP__PORT: 6333
 
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:89-1.6
+    container_name: tei-reranker
+    profiles: ["prod"]
+    ports:
+      - "8082:80"
+    volumes:
+      - ./data:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command:
+      - --model-id
+      - BAAI/bge-reranker-base
+      - --max-batch-tokens
+      - "16384" # Standard default, safe for your 2.4GB slice
+      - --max-client-batch-size
+      - "32" # Allows you to send up to 32 paras at once
+      - --auto-truncate # Automatically cuts paras to 512 tokens to avoid errors
+
+  embedding:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-embeddings
+    profiles: ["prod"]
+    restart: unless-stopped
+    ports:
+      - "8081:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+    command: >
+      --model google/embeddinggemma-300m
+      --dtype auto
+      --gpu-memory-utilization 0.1
+      --max-model-len 2048
+
+  llm:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-gemma3n
+    profiles: ["prod"]
+    restart: unless-stopped
+    ports:
+      - "8080:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - HF_TOKEN=${HF_TOKEN}
+    command: >
+      --model google/gemma-3n-E4B
+      --dtype auto
+      --gpu-memory-utilization 0.7
+      --max-model-len 32000
+
 volumes:
   postgres_data:
     driver: local

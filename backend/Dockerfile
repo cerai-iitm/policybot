@@ -121,7 +121,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Copy Alembic configuration and migrations
-COPY alembic.ini pyproject.toml populate_db.py ./
+COPY alembic.ini pyproject.toml ./
 COPY migrations/ ./migrations/
 COPY src/ ./src/
 
