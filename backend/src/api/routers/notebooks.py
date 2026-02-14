@@ -1,5 +1,10 @@
 """Notebooks router with comprehensive Swagger documentation."""
 
+import asyncio
+import base64
+from pathlib import Path
+
+import aiofiles
 from fastapi import APIRouter, Depends, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,7 +12,9 @@ from src.api.schemas import (
     NotebookCreateResponse,
     NotebookListResponse,
 )
+from src.core import cfg
 from src.db import get_db
+from src.db.crud import get_pdfs_by_notebook
 from src.services.notebooks import create_notebook as svc_create_notebook
 from src.services.notebooks import list_notebooks as svc_list_notebooks
 
@@ -65,4 +72,38 @@ async def create_new_notebook(
 async def get_notebooks(db: AsyncSession = Depends(get_db)):
     """List all notebooks."""
     nbs = await svc_list_notebooks(db)
-    return {"notebooks": nbs}
+
+    first_notebook_id = None
+    first_notebook_pdfs = None
+
+    if nbs:
+        first_notebook = nbs[0]
+        first_notebook_id = first_notebook["notebook_id"]
+
+        pdfs = await get_pdfs_by_notebook(db, first_notebook["id"])
+
+        first_notebook_pdfs = []
+        for pdf in pdfs:
+            content_base64 = None
+            full_path = Path(cfg.DATA_DIR) / first_notebook_id / pdf.file_name
+            if full_path.exists():
+                async with aiofiles.open(full_path, "rb") as f:
+                    content = await f.read()
+                    content_base64 = base64.b64encode(content).decode("utf-8")
+
+            first_notebook_pdfs.append(
+                {
+                    "filename": pdf.file_name,
+                    "file_path": pdf.file_path,
+                    "processing_status": pdf.processing_status,
+                    "uploaded_at": pdf.uploaded_at.isoformat(),
+                    "pdf_id": pdf.id,
+                    "content_base64": content_base64,
+                }
+            )
+
+    return {
+        "notebooks": nbs,
+        "first_notebook_id": first_notebook_id,
+        "first_notebook_pdfs": first_notebook_pdfs,
+    }
