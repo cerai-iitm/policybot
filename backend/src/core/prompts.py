@@ -97,3 +97,51 @@ And the following conversation history:
 Based on this information, suggest 3 relevant follow-up questions a user might ask.
 List each question on a separate line. Do not include any explanations or extra text—only the questions.
      """
+
+
+MAP_SUMMARIZATION_PROMPT = """
+Summarize the following document section concisely. Focus on:
+- Main topics and themes
+- Key entities, acronyms, and technical terms
+- Important facts and data points
+- Maintain the original meaning without adding external information
+
+Format your response in clear markdown with appropriate headers.
+
+**Document Section:**
+{text}
+
+**Summary:**
+"""
+
+
+REDUCE_SUMMARIZATION_PROMPT = """
+Combine the following section summaries into a cohesive overview. 
+Focus on connecting related themes and eliminating redundancies while preserving key information.
+
+Maintain a broad-strokes perspective. Keep technical terms and acronyms intact.
+
+Format in markdown with clear structure.
+
+**Section Summaries:**
+{text}
+
+**Consolidated Summary:**
+"""
+
+
+FINAL_SUMMARY_PROMPT = """
+Create a final comprehensive summary (maximum 500-700 words) from the provided consolidated summaries.
+
+Requirements:
+- Focus on broad strokes and main themes
+- Highlight key entities, acronyms, and critical information
+- Remove redundant details
+- Maintain factual accuracy
+- Use clear markdown formatting with headers
+
+**Consolidated Summaries:**
+{text}
+
+**Final Summary:**
+"""

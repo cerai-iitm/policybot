@@ -1,4 +1,3 @@
-import os
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +12,7 @@ from src.db.crud import (
     get_all_source_summaries,
     get_notebook_by_notebook_id,
     get_overall_summary,
+    get_pdf_by_filename_and_notebook,
 )
 from src.services import ChatManager, LLM_Interface, Retriever
 
@@ -57,12 +57,31 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
     session_id = request.session_id
 
     valid_pdfs = []
+    logger.info(
+        f"Validating PDFs for notebook {request.notebook_id} (DB id={notebook.id})"
+    )
     for fname in request.pdfs or []:
         if not fname.lower().endswith(".pdf"):
             fname = f"{fname}.pdf"
-        # Check existence in notebook-scoped directory
-        if os.path.exists(os.path.join(cfg.DATA_DIR, request.notebook_id, fname)):
+        # Check existence in database and verify processing status
+        logger.info(f"Looking for PDF: '{fname}' in notebook_id={notebook.id}")
+        pdf_record = await get_pdf_by_filename_and_notebook(db, fname, notebook.id)
+        if pdf_record:
+            logger.info(
+                f"Found PDF '{fname}': id={pdf_record.id}, status='{pdf_record.processing_status}'"
+            )
+        else:
+            logger.warning(
+                f"PDF '{fname}' NOT FOUND in database for notebook {notebook.id}"
+            )
+        if pdf_record and pdf_record.processing_status == "complete":
             valid_pdfs.append(fname)
+            logger.info(f"PDF '{fname}' added to valid_pdfs")
+        else:
+            status = pdf_record.processing_status if pdf_record else "not found"
+            logger.warning(
+                f"PDF '{fname}' skipped in notebook {request.notebook_id}: status='{status}'"
+            )
     logger.info(
         f"Valid PDFs for the query in notebook {request.notebook_id}: {len(valid_pdfs)}"
     )

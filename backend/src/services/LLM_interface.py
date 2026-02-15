@@ -116,6 +116,77 @@ class LLM_Interface:
             logger.error(f"Error generating rewritten queries: {e}")
             return []
 
+    async def generate_rewritten_queries_batched(
+        self, query: str, summary: str
+    ) -> List[str]:
+        """Batched query generation - HyDE doc + query rewrite in single vLLM call.
+
+        Uses OpenAI-compatible batching to send both prompts in one request,
+        reducing API calls from 2 to 1 when using vLLM provider.
+        """
+        if cfg.LLM_PROVIDER != "vllm":
+            # Fallback to sequential for non-vLLM providers
+            return await self.generate_rewritten_queries(query, summary)
+
+        try:
+            from openai import AsyncOpenAI
+
+            logger.info("Using batched vLLM query generation")
+
+            # Stateless: fresh client per request
+            client = AsyncOpenAI(
+                api_key=cfg.VLLM_LLM_API_KEY, base_url=cfg.VLLM_LLM_URL
+            )
+
+            # Prepare both prompts
+            doc_prompt = cfg.GENERATED_EXAMPLE_DOCUMENT_PROMPT.format(
+                query=query, summary=summary
+            )
+            rewrite_prompt = cfg.QUERY_REWRITE_SYSTEM_PROMPT.format(
+                query=query, summary=summary
+            )
+
+            # Make two parallel API calls (proper async batching)
+            doc_task = client.chat.completions.create(
+                model=cfg.VLLM_LLM_MODEL,
+                messages=[{"role": "user", "content": doc_prompt}],
+                temperature=cfg.VLLM_LLM_TEMPERATURE,
+                max_tokens=1000,
+            )
+
+            rewrite_task = client.chat.completions.create(
+                model=cfg.VLLM_LLM_MODEL,
+                messages=[{"role": "user", "content": rewrite_prompt}],
+                temperature=cfg.VLLM_LLM_TEMPERATURE,
+                max_tokens=1000,
+            )
+
+            # Wait for both to complete in parallel
+            doc_response, rewrite_response = await asyncio.gather(
+                doc_task, rewrite_task
+            )
+
+            # Extract both responses
+            document = doc_response.choices[0].message.content
+            rewritten = rewrite_response.choices[0].message.content
+
+            logger.info(f"Generated batched queries: {str(rewritten)[:30]}...")
+
+            # Process as before
+            rewritten_queries = str(rewritten).split("\n")
+            rewritten_queries.append(str(document).strip())
+            rewritten_queries = [q.strip() for q in rewritten_queries if q.strip()]
+            rewritten_queries.append(query.strip())
+
+            logger.info(f"Total queries generated: {len(rewritten_queries)}")
+            return rewritten_queries
+
+        except Exception as e:
+            logger.error(f"Error in batched query generation: {e}")
+            # Fallback to sequential method
+            logger.info("Falling back to sequential query generation")
+            return await self.generate_rewritten_queries(query, summary)
+
     def prepare_inputs(
         self,
         session_id: str,

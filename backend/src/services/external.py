@@ -1,5 +1,6 @@
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAI
 from langchain_ollama.llms import OllamaLLM
+from langchain_openai import ChatOpenAI
 
 from src.core import cfg, logger
 
@@ -133,7 +134,7 @@ class External:
                 )
                 raise ValueError(
                     f"Model '{model_name}' not supported for Ollama provider. "
-                    f"Available models: {', '.join(models)}"
+                    f"Available models: {', '.join(str(m) for m in models)}"
                 )
 
             model_config = cfg.SUPPORTED_MODELS[index]
@@ -159,13 +160,38 @@ class External:
                 raise ValueError(
                     f"Ollama initialization failed for model '{model_name}': {str(e)}"
                 ) from e
+
+        elif provider == "vllm":
+            logger.debug(
+                f"Initializing vLLM LLM - "
+                f"model: {cfg.VLLM_LLM_MODEL}, "
+                f"temp: {cfg.VLLM_LLM_TEMPERATURE}, "
+                f"url: {cfg.VLLM_LLM_URL}"
+            )
+
+            try:
+                vllm_llm = ChatOpenAI(
+                    model=cfg.VLLM_LLM_MODEL,
+                    api_key=cfg.VLLM_LLM_API_KEY,
+                    base_url=cfg.VLLM_LLM_URL,
+                    temperature=cfg.VLLM_LLM_TEMPERATURE,
+                    max_tokens=cfg.VLLM_LLM_MAX_TOKENS,
+                )
+                logger.debug("vLLM LLM initialized successfully")
+                return vllm_llm
+            except Exception as e:
+                logger.error(f"Failed to initialize vLLM LLM: {e}")
+                raise ValueError(
+                    f"vLLM initialization failed for model '{cfg.VLLM_LLM_MODEL}': {str(e)}"
+                ) from e
+
         else:
             logger.error(
-                f"Unknown LLM_PROVIDER: '{provider}'. Must be 'gemini' or 'ollama'"
+                f"Unknown LLM_PROVIDER: '{provider}'. Must be 'gemini', 'ollama', or 'vllm'"
             )
             raise ValueError(
                 f"Unknown LLM_PROVIDER: '{provider}'. "
-                f"Supported providers: 'gemini', 'ollama'"
+                f"Supported providers: 'gemini', 'ollama', 'vllm'"
             )
 
     @staticmethod

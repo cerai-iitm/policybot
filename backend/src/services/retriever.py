@@ -1,12 +1,11 @@
 import asyncio
 import os
-import threading
 import warnings
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from FlagEmbedding import FlagReranker
+from huggingface_hub import InferenceClient
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import FieldCondition, Filter, MatchAny
 from qdrant_client.models import QueryRequest
@@ -17,6 +16,7 @@ from src.core import cfg, logger
 from src.core.util import free_embedding_model, load_embedding_model
 from src.db.crud import get_summary_by_source_name
 from src.services.LLM_interface import LLM_Interface
+from src.services.vllm_embeddings import get_vllm_query_embeddings
 
 # set HF logging verbosity once at module import
 hf_logging.set_verbosity_error()
@@ -35,26 +35,6 @@ class Retriever:
     ) -> None:
         self.top_k = top_k
         self.interface = interface
-        # Lazily initialize FlagReranker to avoid blocking import/startup.
-        # The actual heavy initialization will run in a background thread when needed.
-        self.reranker: Optional[FlagReranker] = None
-        self._reranker_init_lock = threading.Lock()
-        self._reranker_ready = False
-
-    def _init_reranker_sync(self):
-        """Synchronous initializer for FlagReranker. Designed to be run inside
-        a thread via asyncio.to_thread so it does not block the event loop.
-        Multiple concurrent callers are guarded by a threading.Lock so init
-        only happens once.
-        """
-        # Use a lock to ensure only one thread initializes the reranker
-        with self._reranker_init_lock:
-            if getattr(self, "_reranker_ready", False):
-                return
-            # Instantiate the heavy reranker synchronously
-            self.reranker = FlagReranker(cfg.RERANKING_MODEL_NAME, use_fp16=True)
-            self._reranker_ready = True
-            logger.info("FlagReranker initialized (sync in background thread).")
 
     def _softmax_top_p_filter(self, scores, items, top_p, temperature):
         scores = np.array(scores)
@@ -97,27 +77,29 @@ class Retriever:
             if not chunks:
                 logger.warning("No chunks provided for reranking.")
                 return []
-            # Ensure reranker is available; try to initialize synchronously if it's not.
-            # This method may be executed inside a thread (via asyncio.to_thread), so
-            # calling the synchronous initializer here will not block the event loop.
-            if self.reranker is None:
-                try:
-                    self._init_reranker_sync()
-                except Exception as e:
-                    logger.error(f"Reranker not available: {e}")
-                    return chunks
-            # Use a local variable to help type-checkers and avoid race windows.
-            reranker = self.reranker
-            if reranker is None:
-                logger.error("Reranker unexpectedly None after init")
+
+            # Create TEI client per request (stateless)
+            client = InferenceClient(base_url=cfg.TEI_RERANKER_URL)
+
+            # Call TEI rerank endpoint
+            response = client.request(
+                json={"query": query, "texts": chunks}, path="/rerank", method="POST"
+            )
+
+            # Parse response: [{"index": 0, "score": 0.95}, ...]
+            if not response or not isinstance(response, list):
+                logger.error(f"Invalid TEI response: {response}")
                 return chunks
-            scores = reranker.compute_score([(query, chunk) for chunk in chunks])
+
+            # Extract scores in order of chunks using index
+            scores = [0.0] * len(chunks)
+            for item in response:
+                if "index" in item and "score" in item:
+                    idx = item["index"]
+                    if 0 <= idx < len(chunks):
+                        scores[idx] = item["score"]
+
             scores = np.array(scores)
-            if len(scores) != len(chunks):
-                logger.error(
-                    f"Mismatch between scores ({len(scores)}) and chunks ({len(chunks)})"
-                )
-                return chunks
 
             selected_chunks = self._softmax_top_p_filter(
                 scores=scores,
@@ -131,15 +113,30 @@ class Retriever:
             logger.error(f"Error during reranking: {e}")
             return chunks
 
-    def _generate_query_embeddings_sync(self, embedding_model, rewritten_queries):
+    async def _generate_query_embeddings(
+        self, rewritten_queries: List[str]
+    ) -> np.ndarray:
+        """Generate embeddings for rewritten queries.
+
+        Uses vLLM async call if enabled (single batch),
+        otherwise falls back to local HuggingFace model in thread.
         """
-        Synchronous helper to generate embeddings for a list of rewritten queries.
-        This runs in a thread via asyncio.to_thread to avoid blocking the event loop.
-        """
-        embeddings = []
-        for rq in rewritten_queries:
-            embeddings.append(embedding_model.embed_query(rq))
-        return np.array(embeddings, dtype=np.float32)
+        if cfg.VLLM_EMBEDDING_ENABLED:
+            # Use vLLM - async single batch request
+            return await get_vllm_query_embeddings(rewritten_queries)
+        else:
+            # Fallback to local HuggingFace model in thread
+            def embed_sync():
+                embedding_model, device = load_embedding_model(None)
+                try:
+                    embeddings = []
+                    for rq in rewritten_queries:
+                        embeddings.append(embedding_model.embed_query(rq))
+                    return np.array(embeddings, dtype=np.float32)
+                finally:
+                    free_embedding_model(embedding_model, device)
+
+            return await asyncio.to_thread(embed_sync)
 
     async def retrieve(
         self,
@@ -152,10 +149,18 @@ class Retriever:
             top_k = self.top_k
 
         try:
-            logger.info("Loading embedding model (threaded)...")
-            embedding_model, device = await asyncio.to_thread(
-                load_embedding_model, None
-            )
+            # Initialize variables for local model (only used if vLLM is disabled)
+            embedding_model = None
+            device = None
+
+            # Only load local embedding model if NOT using vLLM
+            if not cfg.VLLM_EMBEDDING_ENABLED:
+                logger.info("Loading embedding model (threaded)...")
+                embedding_model, device = await asyncio.to_thread(
+                    load_embedding_model, None
+                )
+            else:
+                logger.info("Using vLLM for embeddings (no local model loading)")
 
             logger.info("Generating rewritten queries for better retrieval")
             # Fetch source summaries asynchronously if a DB session is provided.
@@ -171,17 +176,18 @@ class Retriever:
                 summaries = []
 
             summary = "\n\n".join(filter(None, summaries)) if summaries else ""
-            rewritten_queries = await self.interface.generate_rewritten_queries(
+            # Use batched query generation (2-in-1 for vLLM, sequential fallback for others)
+            rewritten_queries = await self.interface.generate_rewritten_queries_batched(
                 query=query, summary=summary
             )
 
-            logger.info("Generating query embeddings (threaded)")
-            # Generate embeddings in a thread (embedding_model.embed_query is sync/CPU-bound).
-            query_embeddings = await asyncio.to_thread(
-                self._generate_query_embeddings_sync, embedding_model, rewritten_queries
-            )
-            # Free embedding model resources in a thread as well.
-            await asyncio.to_thread(free_embedding_model, embedding_model, device)
+            logger.info("Generating query embeddings")
+            # Generate embeddings - async vLLM or threaded local model
+            query_embeddings = await self._generate_query_embeddings(rewritten_queries)
+
+            # Free embedding model resources only if we loaded local model
+            if not cfg.VLLM_EMBEDDING_ENABLED and embedding_model is not None:
+                await asyncio.to_thread(free_embedding_model, embedding_model, device)
 
             logger.info("Connecting to Qdrant")
             client = AsyncQdrantClient(host=cfg.QDRANT_HOST, port=cfg.QDRANT_PORT)
@@ -240,11 +246,6 @@ class Retriever:
             ids_per_query = [
                 [point.id for point in result.points] for result in results
             ]
-
-            # Ensure FlagReranker is initialized before performing fusion/reranking.
-            # Initialization runs synchronously but inside a background thread
-            # so it does not block the event loop.
-            await asyncio.to_thread(self._init_reranker_sync)
 
             ranked_chunk_ids = await asyncio.to_thread(
                 self.reciprocal_rank_fusion, ids_per_query, k=top_k
