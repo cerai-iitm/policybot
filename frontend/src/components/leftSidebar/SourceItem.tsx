@@ -1,17 +1,22 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  FiCheckCircle,
-  FiFileText,
-  FiCircle,
   FiMoreVertical,
   FiTrash2,
 } from "react-icons/fi";
 import { SidebarItem } from "./LeftSidebar";
 import { withBase } from "@/lib/url";
+import docicon from "../../assets/doc.png";
+import uncheckedicon from "../../assets/unmarked.png";
+import checkedicon from "../../assets/marked.png";
 
 interface SourceItemProps {
-  item: SidebarItem;
+   item: {
+    filename: string;
+    processing_status: string;
+    uploaded_at: string;
+  };
   checked: boolean;
+  
   onToggle: (id: string) => void;
   isCollapsedSidebar: boolean;
   onClick: () => void;
@@ -30,10 +35,13 @@ const SourceItem: React.FC<SourceItemProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu when clicking outside
+  /* ---------------- CLOSE MENU ON OUTSIDE CLICK ---------------- */
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node)
+      ) {
         setIsMenuOpen(false);
       }
     };
@@ -41,87 +49,124 @@ const SourceItem: React.FC<SourceItemProps> = ({
     if (isMenuOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener(
+          "mousedown",
+          handleClickOutside
+        );
       };
     }
   }, [isMenuOpen]);
 
-  // Handle delete file
+  /* ---------------- DELETE FILE ---------------- */
   const handleDeleteFile = async (e: React.MouseEvent) => {
     e.stopPropagation();
 
     try {
       const formData = new FormData();
-      formData.append("filename", item.name);
-      const response = await fetch(withBase(`/api/pdf/remove`), {
-        method: "POST",
-        body: formData,
-      });
+      formData.append("filename", item.filename
+);
+
+      const response = await fetch(
+        withBase(`/api/pdf/remove`),
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
       if (response.ok) {
         setIsMenuOpen(false);
-        // Call the parent callback to remove from list
-        if (onDelete) {
-          onDelete(item.name);
-        }
+        onDelete?.(item.filename
+);
       } else {
-        console.error("Failed to delete file");
         alert("Failed to delete file. Please try again.");
       }
     } catch (error) {
-      console.error("Error deleting file:", error);
       alert("Error deleting file. Please try again.");
     }
   };
 
-  // Toggle menu and prevent event bubbling
   const handleMenuClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsMenuOpen(!isMenuOpen);
+    setIsMenuOpen((prev) => !prev);
   };
 
+  /* ---------------- COLLAPSED VIEW ---------------- */
   if (isCollapsed) {
     return (
       <div className="flex justify-center items-center p-2">
-        <FiFileText className="text-red-500" size={20} aria-hidden="true" />
+        <img
+          src={docicon.src}
+          alt="doc"
+          className="w-5 h-5"
+        />
       </div>
     );
   }
 
+  /* ---------------- EXPANDED VIEW ---------------- */
   return (
     <div className="relative">
       <div
-        className="p-2  hover:bg-bg-dark  text-text-muted hover:text-text rounded cursor-pointer flex justify-between items-center"
-        onClick={onClick}
+        className="group h-12 px-6 rounded-lg flex items-center justify-between hover:bg-slate-100"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <button
-          onClick={handleMenuClick}
-          className="flex-shrink-0 flex items-center justify-center p-1 rounded hover:bg-bg-muted transition-colors"
-          aria-label="File options menu"
-          title="More options"
-        >
-          {isHovered ? (
-            <FiMoreVertical className="text-text" size={20} />
-          ) : (
-            <FiFileText className="text-red-500" size={20} />
-          )}
-        </button>
-        <span className="truncate flex-grow min-w-0 mr-2 ">{item.name}</span>
+        {/* LEFT SIDE (Icon + Name) */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          
+          {/* Icon / Menu Button */}
+          <button
+            onClick={handleMenuClick}
+            className="w-8 h-8 flex items-center justify-center shrink-0 rounded hover:bg-slate-200 cursor-pointer"
+            aria-label="File options"
+          >
+            {isHovered ? (
+              <FiMoreVertical
+                className="text-slate-600"
+                size={18}
+              />
+            ) : (
+              <img
+                src={docicon.src}
+                alt="doc"
+                className="w-4 h-4"
+              />
+            )}
+          </button>
+
+          {/* File Name → TOGGLE CHECKBOX */}
+          <span
+            className="truncate text-sm font-inter text-slate-600 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(item.filename
+);
+            }}
+          >
+            {item.filename
+}
+          </span>
+        </div>
+
+        {/* RIGHT SIDE (Checkbox) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onToggle(item.name);
+            onToggle(item.filename
+);
           }}
-          className="ml-2 flex-shrink-0 flex items-center justify-center"
-          aria-label={checked ? "Uncheck" : "Check"}
+          className="ml-2 flex items-center justify-center shrink-0 w-6 h-6 cursor-pointer"
         >
-          {checked ? (
-            <FiCheckCircle className="text-text" size={20} />
-          ) : (
-            <FiCircle className="text-text" size={20} />
-          )}
+          <img
+            src={
+              checked
+                ? checkedicon.src
+                : uncheckedicon.src
+            }
+            className="w-5 h-5"
+            alt="check"
+          />
         </button>
       </div>
 
@@ -129,15 +174,14 @@ const SourceItem: React.FC<SourceItemProps> = ({
       {isMenuOpen && (
         <div
           ref={menuRef}
-          className="absolute left-0 top-full mt-1 bg-bg-light border border-border-muted rounded shadow-lg z-50 min-w-32"
+          className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded shadow-lg z-50 min-w-32"
         >
           <button
             onClick={handleDeleteFile}
-            className="w-full flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-bg-dark rounded transition-colors first:rounded-t last:rounded-b"
-            title="Delete this PDF"
+            className="w-full flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-slate-100"
           >
             <FiTrash2 size={16} />
-            <span>Delete</span>
+            Delete
           </button>
         </div>
       )}
