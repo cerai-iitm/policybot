@@ -1,16 +1,39 @@
 "use client";
-import { FiChevronLeft, FiChevronRight, FiCircle } from "react-icons/fi";
-import { AiOutlineCheckCircle, AiOutlineMinusCircle } from "react-icons/ai";
+
 import React, { useState, useRef, useEffect } from "react";
 import SourceItem from "./SourceItem";
 import FileUpload from "./FileUpload";
 import { withBase } from "@/lib/url";
 
-export interface SidebarItem {
-  name: string;
+import sidebaricon from "../../assets/sidebar.png";
+import selectAllChecked from "../../assets/marked.png";
+import selectAllUnchecked from "../../assets/unmarked.png";
+import selectAllIndeterminate from "../../assets/partialmarked.png";
+import logo from "../../assets/logo.png";
+import { FiMenu, FiX } from "react-icons/fi";
+import { useNotebookId } from "@/hooks/useNotebookId";
+
+import { listPdfs } from "@/lib/router";
+import type { PDFListItem } from "@/lib/interfaces";
+import type { UIPDFItem } from "@/lib/interfaces";
+
+export type SidebarItem = UIPDFItem;
+
+
+
+
+
+
+
+
+export interface PDFListResponse {
+  pdfs: PDFListItem[];
 }
+
+
 interface SidebarProps {
   width: number;
+  defaultWidth: number; 
   onWidthChange: (width: number) => void;
   onFileSelect: (fileName: string) => void;
   checkedPdfs: string[];
@@ -18,13 +41,19 @@ interface SidebarProps {
   sources: SidebarItem[];
   setSources: React.Dispatch<React.SetStateAction<SidebarItem[]>>;
   selectedFilename: string | null;
-  setSelectedFilename: React.Dispatch<React.SetStateAction<string | null>>;
+  setSelectedFilename: React.Dispatch<
+    React.SetStateAction<string | null>
+  >;
   setIsPDFEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   setShowRightSidebar: React.Dispatch<React.SetStateAction<boolean>>;
+    isMobile?: boolean;
+  onMobileClose?: () => void;
+  onExposeUploadTrigger?: (fn: () => void) => void;
 }
 
 const LeftSidebar: React.FC<SidebarProps> = ({
   width,
+  defaultWidth,
   onWidthChange,
   onFileSelect,
   checkedPdfs,
@@ -35,74 +64,93 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   setSelectedFilename,
   setIsPDFEnabled,
   setShowRightSidebar,
+  isMobile = false,
+  onMobileClose, 
+  onExposeUploadTrigger,
 }) => {
   const initializedRef = useRef(false);
+    const notebookId = useNotebookId(); // 🔥 CORE LINE
+const uploadEndpoint = withBase("/api/pdf/upload");
 
-  // Fetch PDFs on component mount to populate the list
-  useEffect(() => {
-    const fetchPdfs = async () => {
-      try {
-        const response = await fetch(withBase("/api/pdf/list"));
-        if (response.ok) {
-          const data = await response.json();
-          const names = data.pdfs.map((filename: string) => ({
-            name: filename,
-          }));
-          setSources(names);
-          if (!initializedRef.current) {
-            setCheckedPdfs(names.map((n: SidebarItem) => n.name));
-            initializedRef.current = true;
-          }
-        } else {
-          console.error("Failed to fetch PDFs");
-        }
-      } catch (error) {
-        console.error("Error fetching PDFs:", error);
+
+  // Top
+const uploadTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+
+
+
+
+useEffect(() => {
+  onExposeUploadTrigger?.(() => {
+    uploadTriggerRef.current?.click();
+  });
+}, []);
+
+  /* ---------------- FETCH PDFs (ORIGINAL LOGIC) ---------------- */
+useEffect(() => {
+  const fetchPdfs = async () => {
+    try {
+     const { pdfs } = await listPdfs(notebookId);
+setSources(pdfs); // ✅ NO ERROR
+
+
+     
+
+      if (!initializedRef.current) {
+        setCheckedPdfs([]);
+        initializedRef.current = true;
       }
-    };
-    fetchPdfs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    } catch (err) {
+      console.error("Failed to load PDFs:", err);
 
+      setSources([]);
+
+      if (!initializedRef.current) {
+        setCheckedPdfs([]);
+        initializedRef.current = true;
+      }
+    }
+  };
+
+  fetchPdfs();
+}, [notebookId]);
+
+  /* ---------------- FILE SELECT ---------------- */
   const handleFileSelect = (filename: string) => {
-    console.log("Reached handle file select ", filename);
     onFileSelect(filename);
   };
-  // Maintain list of checked PDFs
-  const toggleChecked = (filename: string) => {
-    setCheckedPdfs((prev) =>
-      prev.includes(filename)
-        ? prev.filter((f) => f !== filename)
-        : [...prev, filename],
-    );
-  };
 
-  // Updating sidebar when new source uploaded
-  const handleUploadSuccess = (newSource: { name: string }) => {
-    setSources((prev) => {
-      // Prevent duplicates - safety check
-      if (prev.some(s => s.name === newSource.name)) {
-        console.log(`File ${newSource.name} already exists in sources, skipping duplicate addition`);
-        return prev; // Already exists, don't add
-      }
-      return [...prev, newSource];
-    });
-    
-    // Keep default selection behaviour: newly uploaded file should be selected
-    setCheckedPdfs((prev) => {
-      if (prev.includes(newSource.name)) return prev;
-      return [...prev, newSource.name];
-    });
-  };
+  /* ---------------- TOGGLE CHECK ---------------- */
+const toggleChecked = (filename: string) => {
+  setCheckedPdfs((prev) =>
+    prev.includes(filename)
+      ? prev.filter((f) => f !== filename)
+      : [...prev, filename]
+  );
+};
 
-  // Handle PDF deletion
+
+  /* ---------------- UPLOAD SUCCESS ---------------- */
+const handleUploadSuccess = (newSource: { name: string }) => {
+  setSources((prev) => [
+    ...prev,
+    {
+      filename: newSource.name,
+      processing_status: "done",
+      uploaded_at: new Date().toISOString(),
+    },
+  ]);
+};
+
+
+
+  /* ---------------- DELETE PDF ---------------- */
   const handleDeletePdf = (filename: string) => {
-    // Remove from sources list
-    setSources((prev) => prev.filter((s) => s.name !== filename));
-    // Remove from checked PDFs
-    setCheckedPdfs((prev) => prev.filter((f) => f !== filename));
+    setSources((prev) => prev.filter((s) => s.filename !== filename));
+    setCheckedPdfs((prev) =>
+      prev.filter((f) => f !== filename)
+    );
 
-    // If the deleted file is currently open, clear selection and close the right sidebar
     if (filename === selectedFilename) {
       setSelectedFilename(null);
       setIsPDFEnabled(false);
@@ -110,38 +158,55 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  // Select / Deselect All toggle
+  /* ---------------- SELECT ALL ---------------- */
   const selectAllToggle = () => {
-    const allNames = sources.map((s) => s.name);
-    if (allNames.length === 0) return;
-    const areAllSelected =
-      allNames.length > 0 && allNames.every((n) => checkedPdfs.includes(n));
+    const allNames = sources.map((s) => s.filename);
+    if (!allNames.length) return;
+
+    const areAllSelected = allNames.every((n) =>
+      checkedPdfs.includes(n)
+    );
+
     if (areAllSelected) {
-      // deselect all
       setCheckedPdfs([]);
     } else {
-      // select all
       setCheckedPdfs(allNames);
     }
   };
 
-  // Used for resizing
-  const handleRef = useRef<HTMLDivElement>(null);
+  const allNames = sources.map((s) => s.filename);
+  const areAllSelected =
+    allNames.length > 0 &&
+    allNames.every((n) => checkedPdfs.includes(n));
 
-  // Handles the resizing of the sidebar
+  const areNoneSelected = allNames.every(
+    (n) => !checkedPdfs.includes(n)
+  );
+
+  const selectAllIconSrc = areAllSelected
+    ? selectAllChecked.src
+    : areNoneSelected
+    ? selectAllUnchecked.src
+    : selectAllIndeterminate.src;
+
+  /* ---------------- RESIZE ---------------- */
+  const handleRef = useRef<HTMLDivElement>(null);
   const [resizing, setResizing] = useState(false);
+
   const startResizing = (e: React.MouseEvent) => {
     e.preventDefault();
     setResizing(true);
+
     const startX = e.clientX;
     const startWidth = width;
     let latestWidth = startWidth;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const newWidth = Math.min(
-        window.innerWidth / 3,
-        Math.max(64, startWidth + moveEvent.clientX - startX),
+        window.innerWidth * 0.4,
+        Math.max(64, startWidth + moveEvent.clientX - startX)
       );
+
       onWidthChange(newWidth);
       latestWidth = newWidth;
     };
@@ -150,6 +215,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
       if (!(width < 150) && latestWidth <= 150) {
         onWidthChange(64);
       }
+
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
       setResizing(false);
@@ -159,99 +225,120 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     document.addEventListener("mouseup", onMouseUp);
   };
 
-  // compute select-all icon state
-  const allNames = sources.map((s) => s.name);
-  const areAllSelected =
-    allNames.length > 0 && allNames.every((n) => checkedPdfs.includes(n));
-  const areNoneSelected = allNames.every((n) => !checkedPdfs.includes(n));
-  // use circled icons for the three states; use the same open circle as SourceItem for "none"
-  const SelectAllIcon = areAllSelected
-    ? AiOutlineCheckCircle
-    : areNoneSelected
-      ? FiCircle
-      : AiOutlineMinusCircle;
+  /* ================= UI ================= */
 
   return (
     <aside
-      className={`flex flex-col h-screen bg-bg text-text relative  ${
+      className={`flex flex-col h-full bg-slate-50 border-r border-slate-200 relative ${
         !resizing ? "transition-all duration-300" : ""
       }`}
-      style={{ width: width }}
+      style={{ width }}
     >
-      {!(width < 150) && (
-        <>
-          <div className="flex items-center justify-between px-4 pt-8">
-            <span className="text-lg text-text font-semibold">Sources</span>
-            <button
-              className="p-2 bg-background-dark rounded text-foreground"
-              onClick={() => onWidthChange(64)}
-              aria-label="Collapse sidebar"
-            >
-              <FiChevronLeft size={20} />
-            </button>
-          </div>
-          <div className="border-b border-gray-600 my-2 mx-4" />
+      {width < 150 ? (
+        <div className="flex flex-col items-center pt-6 gap-4">
+          <button
+            className="p-2 bg-white rounded shadow-sm"
+            onClick={() => onWidthChange(defaultWidth)}
 
-          {/* Select / Deselect All - only visible when sidebar not collapsed */}
-          {allNames.length > 0 && (
-            <div className="p-2 text-text-muted rounded flex justify-between items-center">
-              <div className="flex items-center">
-                {/* placeholder to align with SourceItem's left file icon (20px) */}
-                <div className="w-5 mr-2 flex-shrink-0" aria-hidden="true" />
-                <span className="truncate flex-grow min-w-0 text-sm">All</span>
-              </div>
+          >
+            <img
+              src={sidebaricon.src}
+              alt="Expand"
+              className="w-4 h-4"
+            />
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between px-6 pt-6 pb-5">
+           <img src={logo.src} alt="Logo" className="h-5 w-auto" />
+
+        {isMobile ? (
+  <button
+    className="p-2 rounded-md hover:bg-slate-100"
+    onClick={onMobileClose}
+    aria-label="Close sidebar"
+  >
+    <FiX size={22} className="text-slate-800" />
+  </button>
+) : (
+  <button
+    className="p-2 rounded-md hover:bg-slate-100"
+    onClick={() => onWidthChange(64)}
+  >
+    <img src={sidebaricon.src} alt="Collapse" className="w-4 h-4" />
+  </button>
+)}
+
+          </div>
+
+          <div className="border-b border-slate-200" />
+
+          <div className="px-6 pt-8 ">
+       <FileUpload
+  uploadEndpoint={uploadEndpoint}
+  notebookId={notebookId}
+  onUploadSuccess={handleUploadSuccess}
+  isCollapsedSidebar={false}
+  triggerRef={uploadTriggerRef}
+/>
+          </div>
+
+          {sources.length > 0 && (
+            <div className="flex items-center justify-between px-5 pt-8 pb-2">
+              <span className="text-sm font-medium text-slate-700">
+                Select all sources
+              </span>
+
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   selectAllToggle();
                 }}
-                aria-label="Select or deselect all sources"
-                className="ml-5 flex-shrink-0 p-1 rounded flex items-center justify-center"
+                className="p-1"
               >
-                {/* match size and vertical centering of SourceItem icons */}
-                <SelectAllIcon size={20} className="text-text" />
+                <img
+                  src={selectAllIconSrc}
+                  alt="select all"
+                  className="w-5 h-5 cursor-pointer"
+                />
               </button>
             </div>
           )}
         </>
       )}
-      {width < 150 && (
-        <div className="flex items-center justify-center pt-8 text-foreground">
-          <button
-            className="p-2 bg-background rounded"
-            onClick={() => onWidthChange(256)}
-            aria-label="Expand sidebar"
-          >
-            <FiChevronRight size={20} />
+
+      <div className="flex-1 overflow-y-auto pt-2 space-y-1">
+ {sources.map((item) => (
+  <SourceItem
+    key={item.filename}
+    item={item}
+    checked={checkedPdfs.includes(item.filename)}
+    onToggle={toggleChecked}
+    isCollapsedSidebar={width < 150}
+    onClick={() => handleFileSelect(item.filename)}
+    onDelete={handleDeletePdf}
+  />
+))}
+
+      </div>
+
+      {width >= 150 && (
+        <div className="px-6 py-5 ">
+          <button className="w-full h-11 rounded-lg border border-black/40 text-sm text-black/70 hover:bg-slate-100 transition">
+            Explore collections 
           </button>
         </div>
       )}
-      {/* Only show items and add button if not collapsed */}
-      <div className="flex-1 pt-4 px-4 overflow-y-auto w-full text-foreground">
-        {sources.map((item) => (
-          <SourceItem
-            key={item.name}
-            item={item}
-            checked={checkedPdfs.includes(item.name)}
-            onToggle={toggleChecked}
-            isCollapsedSidebar={width < 150}
-            onClick={() => handleFileSelect(item.name)}
-            onDelete={handleDeletePdf}
-          />
-        ))}
-      </div>
-      <FileUpload
-        uploadEndpoint={withBase("/api/pdf/upload")}
-        onUploadSuccess={handleUploadSuccess}
-        isCollapsedSidebar={width < 150}
-      />
-      <div
-        ref={handleRef}
-        className="absolute top-0 right-0 h-full w-2 cursor-ew-resize z-20"
-        onMouseDown={startResizing}
-        aria-label="Resize sidebar"
-        style={{ userSelect: "none" }}
-      />
+
+   {typeof window !== "undefined" && window.innerWidth >= 768 && (
+  <div
+    ref={handleRef}
+    className="absolute top-0 right-0 h-full w-2 cursor-ew-resize z-20"
+    onMouseDown={startResizing}
+    style={{ userSelect: "none" }}
+  />
+)}
     </aside>
   );
 };

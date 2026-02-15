@@ -44,7 +44,7 @@ import {
   ApiResult,
 } from "./interfaces";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? ""; // e.g. http://localhost:8000
+const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost"; // e.g. http://localhost:8000
 
 export const api: AxiosInstance = axios.create({
   baseURL: BASE,
@@ -124,9 +124,11 @@ export async function uploadPdf(
   const resp = await api.post<PDFUploadResponse>(
     withBase("/api/pdf/upload"),
     form,
+    /*
     {
       headers: { "Content-Type": "multipart/form-data" },
     },
+    */
   );
   return resp.data;
 }
@@ -299,13 +301,19 @@ export async function getOverallSummary(notebookId: string): ApiResult<OverallSu
  *   GET /suggested_queries
  *   backend file: backend/src/api/routers/chat.py -> @router.get(\"/suggested_queries\")
  */
-export async function getSuggestedQueries(sessionId: string): ApiResult<SuggestedQueriesResponse> {
-  const resp = await api.get<SuggestedQueriesResponse>(withBase("/api/suggested_queries"), {
-    params: { session_id: sessionId },
-  });
-  return resp.data;
+export async function getSuggestedQueries(
+  notebookId: string,
+  selectedFilenames: string[]
+): ApiResult<{ suggested_queries: string[] }> {
+  // For now, return hardcoded questions
+  return {
+    suggested_queries: [
+      "What are the key compliance requirements mentioned in this document?",
+      "Can you explain the main policy objectives and scope?",
+      "What are the penalties or consequences outlined in this policy?"
+    ]
+  };
 }
-
 /**
  * Get the default model configuration.
  *
