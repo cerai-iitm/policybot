@@ -698,7 +698,7 @@ onSelect={(question) => {
 {(!isMobile || (isMobile && !hasConversationStarted)) && (
   <div className="text-center px-4">
     <div className="text-slate-950 text-[10px] sm:text-[12px] font-normal font-inter leading-4 pb-4">
-      Developed by: N Gautam, Omir Kumar, and Dr. Sudarsun Santhiappan
+      Developed by: N Gautam, S Raji, Omir Kumar, and Dr. Sudarsun Santhiappan
     </div>
   </div>
 )}
