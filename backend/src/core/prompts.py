@@ -116,19 +116,9 @@ Format your response in clear markdown with appropriate headers.
 
 
 REDUCE_SUMMARIZATION_PROMPT = """
-Combine the following section summaries into a cohesive overview. 
-Focus on connecting related themes and eliminating redundancies while preserving key information.
+Combine the following section summaries into a single consolidated summary. Focus on: connecting related themes, removing redundancies, and preserving key facts, entities, acronyms, and technical terms present in the input. Do not introduce information not present in the source.
 
-Maintain a broad-strokes perspective. Keep technical terms and acronyms intact.
-
-Format in markdown with clear structure.
-
-**Section Summaries:**
-{text}
-
-**Consolidated Summary:**
-"""
-Combine the following section summaries into a cohesive overview. Focus on connecting related themes and eliminating redundancies while preserving key information. Maintain a broad-strokes perspective and keep technical terms and acronyms intact. Limit the consolidated summary to a maximum of 500 tokens. Format the output in clear markdown with concise structure; avoid excessive detail.
+Limit the consolidated summary to a maximum of 500 tokens. Output should be clear and concise; markdown is acceptable, but keep structure minimal (short paragraphs, optional headers).
 
 **Section Summaries:**
 {text}
