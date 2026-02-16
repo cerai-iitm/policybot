@@ -1,9 +1,10 @@
-# Multi-stage Dockerfile for backend
+# Multi-stage Dockerfile for PolicyBot (root level)
 FROM python:3.12.12-slim AS base
 
 # Create non-root user and group
 RUN groupadd --gid 1000 appuser && \
 	useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home appuser
+
 # Build stage for dependencies
 FROM base AS builder
 
@@ -28,12 +29,28 @@ RUN set -eux; \
 
 WORKDIR /app
 
-COPY requirements.txt ./
-
+# Copy backend requirements and install
+COPY backend/requirements.txt ./backend/
 RUN pip install --no-cache-dir --upgrade pip && \
-	pip install --no-cache-dir -r requirements.txt
+	pip install --no-cache-dir -r backend/requirements.txt
 
-# Downloading models single stage 
+# Stage: Build Homepage
+FROM node:20-alpine AS homepage-builder
+WORKDIR /build
+COPY Homepage/package*.json ./
+RUN npm ci
+COPY Homepage/ .
+RUN npm run build
+
+# Stage: Build Chat Frontend
+FROM node:20-alpine AS chat-builder
+WORKDIR /build
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ .
+RUN npm run build
+
+# Stage: Model downloader
 FROM base AS model_downloader
 
 # Create cache directory with proper ownership
@@ -45,25 +62,25 @@ WORKDIR /app
 RUN pip install --no-cache-dir --upgrade pip && \
 	pip install --no-cache-dir huggingface-hub
 
-COPY download_models.py .env ./
+COPY backend/download_models.py backend/.env ./
 
-VOLUME [ "/app/cache/huggingface" ]
+VOLUME ["/app/cache/huggingface"]
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
 	HF_HOME=/app/cache/huggingface \
-	HF_TOKEN="" 
+	HF_TOKEN=""
 
 USER appuser
-CMD [ "python", "download_models.py" ]
+CMD ["python", "download_models.py"]
 
 # Development stage
 FROM base AS development
 
 # Create directories with proper ownership
-RUN mkdir -p /app/data /app/logs /app/cache/huggingface && \
+RUN mkdir -p /app/backend/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat && \
 	chown -R appuser:appuser /app && \
-	chmod 755 /app/data /app/logs /app/cache/huggingface
+	chmod 755 /app/backend/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat
 
 # Install netcat for database connection check
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -79,30 +96,34 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy Alembic configuration and migrations
-COPY alembic.ini pyproject.toml populate_db.py ./
-COPY migrations/ ./migrations/
-COPY pdfs/ ./pdfs/
-COPY src/ ./src/
+# Copy built static files
+COPY --from=homepage-builder /build/dist ./static/homepage
+COPY --from=chat-builder /build/dist ./static/chat
+
+# Copy backend code
+COPY backend/alembic.ini backend/pyproject.toml backend/populate_db.py ./backend/
+COPY backend/migrations/ ./backend/migrations/
+COPY backend/pdfs/ ./backend/pdfs/
+COPY backend/src/ ./backend/src/
 
 # Copy entrypoint script
-COPY entrypoint.sh /usr/local/bin/
+COPY backend/entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 8000
 USER appuser
 
-# Use entrypoint for automatic migrations (command is overridden in docker-compose.dev.yml)
+# Use entrypoint for automatic migrations
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "backend.src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production runner
 FROM base AS production
 
 # Create directories with proper ownership
-RUN mkdir -p /app/data /app/logs /app/cache/huggingface && \
+RUN mkdir -p /app/backend/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat && \
 	chown -R appuser:appuser /app && \
-	chmod 755 /app/data /app/logs /app/cache/huggingface
+	chmod 755 /app/backend/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
@@ -111,22 +132,26 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Copy site-packages and binaries from builder so we don't reinstall at runtime
+# Copy site-packages and binaries from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy built static files
+COPY --from=homepage-builder /build/dist ./static/homepage
+COPY --from=chat-builder /build/dist ./static/chat
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
 	netcat-openbsd \
 	ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*
 
-# Copy Alembic configuration and migrations
-COPY alembic.ini pyproject.toml ./
-COPY migrations/ ./migrations/
-COPY src/ ./src/
+# Copy backend code
+COPY backend/alembic.ini backend/pyproject.toml ./backend/
+COPY backend/migrations/ ./backend/migrations/
+COPY backend/src/ ./backend/src/
 
 # Copy entrypoint script
-COPY entrypoint.sh /usr/local/bin/
+COPY backend/entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 8000
@@ -134,4 +159,4 @@ USER appuser
 
 # Use entrypoint for automatic migrations
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.src.main:app", "--host", "0.0.0.0", "--port", "8000"]

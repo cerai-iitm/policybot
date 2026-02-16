@@ -44,7 +44,9 @@ import {
   ApiResult,
 } from "./interfaces";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost"; // e.g. http://localhost:8000
+// Use relative URL - will automatically use the same origin as the current page
+// This works with any IP: localhost, 192.168.x.x, or any domain
+const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
 export const api: AxiosInstance = axios.create({
   baseURL: BASE,

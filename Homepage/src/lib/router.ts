@@ -44,9 +44,8 @@ import {
   ApiResult,
 } from "./interfaces";
 
-
-const BASE = import.meta.env.VITE_API_BASE ?? "http://172.26.112.1";
-
+// Use relative URL to go through nginx proxy (avoids CORS)
+const BASE = import.meta.env.VITE_API_BASE ?? "";
 
 export const api: AxiosInstance = axios.create({
   baseURL: BASE,
@@ -253,7 +252,7 @@ export function monitorPdfProcessing(
     if (onError) onError(ev);
     // leave EventSource open for caller to decide
   };
-   return es;
+  return es;
 }
 
 /* -----------------------
@@ -269,7 +268,9 @@ export function monitorPdfProcessing(
  *
  * Returns QueryResponse or QueryErrorResponse.
  */
-export async function queryChat(request: QueryRequest): ApiResult<QueryResponse | QueryErrorResponse> {
+export async function queryChat(
+  request: QueryRequest,
+): ApiResult<QueryResponse | QueryErrorResponse> {
   const resp = await api.post<QueryResponse | QueryErrorResponse>(
     withBase("/api/query"),
     request,
@@ -287,10 +288,15 @@ export async function queryChat(request: QueryRequest): ApiResult<QueryResponse 
  *   GET /overall_summary
  *   backend file: backend/src/api/routers/chat.py -> @router.get(\"/overall_summary\")
  */
-export async function getOverallSummary(notebookId: string): ApiResult<OverallSummaryResponse> {
-  const resp = await api.get<OverallSummaryResponse>(withBase("/api/overall_summary"), {
-    params: { notebook_id: notebookId },
-  });
+export async function getOverallSummary(
+  notebookId: string,
+): ApiResult<OverallSummaryResponse> {
+  const resp = await api.get<OverallSummaryResponse>(
+    withBase("/api/overall_summary"),
+    {
+      params: { notebook_id: notebookId },
+    },
+  );
   return resp.data;
 }
 
@@ -301,10 +307,15 @@ export async function getOverallSummary(notebookId: string): ApiResult<OverallSu
  *   GET /suggested_queries
  *   backend file: backend/src/api/routers/chat.py -> @router.get(\"/suggested_queries\")
  */
-export async function getSuggestedQueries(sessionId: string): ApiResult<SuggestedQueriesResponse> {
-  const resp = await api.get<SuggestedQueriesResponse>(withBase("/api/suggested_queries"), {
-    params: { session_id: sessionId },
-  });
+export async function getSuggestedQueries(
+  sessionId: string,
+): ApiResult<SuggestedQueriesResponse> {
+  const resp = await api.get<SuggestedQueriesResponse>(
+    withBase("/api/suggested_queries"),
+    {
+      params: { session_id: sessionId },
+    },
+  );
   return resp.data;
 }
 
@@ -316,6 +327,8 @@ export async function getSuggestedQueries(sessionId: string): ApiResult<Suggeste
  *   backend file: backend/src/api/routers/chat.py -> @router.get(\"/default_model\")
  */
 export async function getDefaultModel(): ApiResult<DefaultModelResponse> {
-  const resp = await api.get<DefaultModelResponse>(withBase("/api/default_model"));
+  const resp = await api.get<DefaultModelResponse>(
+    withBase("/api/default_model"),
+  );
   return resp.data;
 }

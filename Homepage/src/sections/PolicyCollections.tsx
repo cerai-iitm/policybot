@@ -9,27 +9,27 @@ import { useEffect, useRef } from "react";
 const PolicyCollections = (): JSX.Element => {
   const mobileCards = [
     {
-      img: "/images/education.jpg",
+      img: "images/education.jpg",
       title: "Education & Academic Policies",
       desc: "Policies related to education systems and learning frameworks."
     },
     {
-      img: "/images/health.jpg",
+      img: "images/health.jpg",
       title: "Health & Public Healthcare",
       desc: "Policies regulating public healthcare systems."
     },
     {
-      img: "/images/employment.jpg",
+      img: "images/employment.jpg",
       title: "Employment & Labour",
       desc: "Labour laws, employment rights, wages and security."
     },
     {
-      img: "/images/digital.jpg",
+      img: "images/digital.jpg",
       title: "Digital Governance & IT",
       desc: "Digital governance, cybersecurity, and e-government policies."
     },
     {
-      img: "/images/social.jpg",
+      img: "images/social.jpg",
       title: "Social Welfare",
       desc: "Welfare schemes supporting citizens and vulnerable groups."
     }
@@ -159,17 +159,17 @@ if (position <= -halfWidth) {
 
         <div className="grid md:grid-cols-3 gap-8">
           <Card
-            img="/images/education.jpg"
+            img="images/education.jpg"
             title="Education & Academic Policies"
             desc="Policies related to education systems and learning frameworks."
           />
           <Card
-            img="/images/health.jpg"
+            img="images/health.jpg"
             title="Health & Public Healthcare"
             desc="Policies regulating public healthcare systems."
           />
           <Card
-            img="/images/employment.jpg"
+            img="images/employment.jpg"
             title="Employment & Labour"
             desc="Labour laws, employment rights, wages and security."
           />
@@ -178,14 +178,14 @@ if (position <= -halfWidth) {
         <div className="flex justify-center gap-8 mt-8">
           <div className="w-full md:w-1/3">
             <Card
-              img="/images/digital.jpg"
+              img="images/digital.jpg"
               title="Digital Governance & IT"
               desc="Digital governance, cybersecurity, and e-government policies."
             />
           </div>
           <div className="w-full md:w-1/3">
             <Card
-              img="/images/social.jpg"
+              img="images/social.jpg"
               title="Social Welfare"
               desc="Welfare schemes supporting citizens and vulnerable groups."
             />

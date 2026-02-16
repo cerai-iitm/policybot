@@ -6,9 +6,10 @@ type Props = {
   pdfs: FirstNotebookPDFItem[]
   loading: boolean
   title: string
+  notebookId?: string
 }
 
-const PolicyTopicsSection = ({ pdfs, loading, title }: Props) => {
+const PolicyTopicsSection = ({ pdfs, loading, title, notebookId }: Props) => {
   const [search, setSearch] = useState("")
 
   const filteredPdfs = useMemo(() => {
@@ -18,6 +19,12 @@ const PolicyTopicsSection = ({ pdfs, loading, title }: Props) => {
       pdf.filename.toLowerCase().includes(search.toLowerCase())
     )
   }, [pdfs, search])
+
+  const handleExplore = () => {
+    if (notebookId) {
+      window.location.href = `/policybot/chat?notebookid=${notebookId}`
+    }
+  }
 
   return (
     <div className="px-12 sm:px-12 mt-6">
@@ -68,6 +75,7 @@ const PolicyTopicsSection = ({ pdfs, loading, title }: Props) => {
             title={pdf.filename}
             description="Explore this policy document to understand key provisions, regulatory structure, and implementation framework."
             meta="Policy Document"
+            onExplore={handleExplore}
           />
         ))}
 

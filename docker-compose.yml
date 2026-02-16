@@ -2,21 +2,18 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      # Change if the port is already in use. "port_to_use:80"
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
       - pdf_data:/var/www/pdf
     depends_on:
-      - frontend
       - backend
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: Dockerfile
       target: production
-    ports:
-      - "8000:8000"
     env_file:
       - ./backend/.env
     environment:
@@ -55,30 +52,14 @@ services:
 
   model_downloader:
     build:
-      context: ./backend
+      context: .
+      dockerfile: Dockerfile
       target: model_downloader
     environment:
       HF_HOME: ${HF_HOME:-/app/cache/huggingface}
     volumes:
       - huggingface_cache:/app/cache/huggingface
     restart: "no"
-
-  frontend:
-    build:
-      context: ./frontend
-      target: production
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: 512M
-        reservations:
-          cpus: "0.5"
-          memory: 256M
 
   postgres:
     image: postgres:17-alpine
@@ -96,8 +77,6 @@ services:
       interval: 5s
       timeout: 10s
       retries: 5
-    ports:
-      - "5432:5432"
     deploy:
       resources:
         limits:
@@ -109,9 +88,6 @@ services:
 
   qdrant:
     image: qdrant/qdrant
-    ports:
-      - "6333:6333" # HTTP API
-      - "6334:6334" # gRPC API
     volumes:
       - qdrant_data:/qdrant/storage
     restart: unless-stopped
@@ -190,6 +166,9 @@ services:
       --gpu-memory-utilization 0.7
       --max-model-len 32000
       --chat-template /app/template.jinja
+      --temperature 0.5
+      --frequency-penalty 0.2
+      --top-p 0.9
 
 volumes:
   postgres_data:

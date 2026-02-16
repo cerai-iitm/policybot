@@ -66,6 +66,7 @@ return (
       pdfs={pdfs}
       loading={loading}
       title={activeNotebookTitle}
+      notebookId={activeCollection}
     />
   </div>
 )

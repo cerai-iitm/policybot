@@ -325,7 +325,10 @@ const handleUploadSuccess = (newSource: { name: string }) => {
 
       {width >= 150 && (
         <div className="px-6 py-5 ">
-          <button className="w-full h-11 rounded-lg border border-black/40 text-sm text-black/70 hover:bg-slate-100 transition">
+          <button 
+            onClick={() => window.location.href = '/policybot/notebook'}
+            className="w-full h-11 rounded-lg border border-black/40 text-sm text-black/70 hover:bg-slate-100 transition"
+          >
             Explore collections 
           </button>
         </div>

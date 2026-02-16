@@ -2,9 +2,10 @@ type Props = {
   title: string
   description: string
   meta?: string
+  onExplore?: () => void
 }
 
-const TopicRow = ({ title, description, meta }: Props) => {
+const TopicRow = ({ title, description, meta, onExplore }: Props) => {
   return (
     <div
       className="
@@ -39,6 +40,7 @@ const TopicRow = ({ title, description, meta }: Props) => {
       {/* CTA SECTION */}
       <div className="pt-2 sm:pt-0">
         <button
+          onClick={onExplore}
           className="
             bg-primary text-white 
             px-5 py-2.5

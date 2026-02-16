@@ -78,22 +78,25 @@ class Retriever:
                 logger.warning("No chunks provided for reranking.")
                 return []
 
-            # Create TEI client per request (stateless)
-            client = InferenceClient(base_url=cfg.TEI_RERANKER_URL)
+            # Call TEI rerank endpoint using requests
+            import requests
 
-            # Call TEI rerank endpoint
-            response = client.request(
-                json={"query": query, "texts": chunks}, path="/rerank", method="POST"
+            response = requests.post(
+                f"{cfg.TEI_RERANKER_URL}/rerank",
+                json={"query": query, "texts": chunks},
+                headers={"Content-Type": "application/json"},
             )
+            response.raise_for_status()
+            results = response.json()
 
             # Parse response: [{"index": 0, "score": 0.95}, ...]
-            if not response or not isinstance(response, list):
-                logger.error(f"Invalid TEI response: {response}")
+            if not results or not isinstance(results, list):
+                logger.error(f"Invalid TEI response: {results}")
                 return chunks
 
             # Extract scores in order of chunks using index
             scores = [0.0] * len(chunks)
-            for item in response:
+            for item in results:
                 if "index" in item and "score" in item:
                     idx = item["index"]
                     if 0 <= idx < len(chunks):
