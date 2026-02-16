@@ -284,6 +284,7 @@ async def list_pdfs(
         pdf_list = []
         for pdf in pdfs:
             if pdf.processing_status == "complete":
+                summary = await get_summary_by_source_name(db, pdf.file_name)
                 pdf_list.append(
                     {
                         "filename": pdf.file_name,
@@ -291,6 +292,7 @@ async def list_pdfs(
                         "processing_status": pdf.processing_status,
                         "uploaded_at": pdf.uploaded_at.isoformat(),
                         "pdf_id": pdf.id,
+                        "summary": summary,
                     }
                 )
 

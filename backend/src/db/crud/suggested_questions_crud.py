@@ -10,9 +10,12 @@ from ..schema.suggested_questions import SuggestedQuestion
 
 
 async def get_random_suggested_questions(
-    db: AsyncSession, notebook_id: str, limit: int = 3
+    db: AsyncSession,
+    notebook_id: str,
+    selected_filenames: Optional[List[str]] = None,
+    limit: int = 3,
 ) -> List[dict]:
-    """Get random suggested questions for a notebook."""
+    """Get random suggested questions for a notebook, optionally filtered by filenames."""
     stmt = select(
         SuggestedQuestion.id,
         SuggestedQuestion.question,
@@ -20,6 +23,17 @@ async def get_random_suggested_questions(
         SuggestedQuestion.notebook_id,
         SuggestedQuestion.created_at,
     ).where(SuggestedQuestion.notebook_id == notebook_id)
+
+    # Filter by selected filenames if provided
+    if selected_filenames:
+        stmt = stmt.where(
+            (SuggestedQuestion.filename.is_(None))
+            | (SuggestedQuestion.filename.in_(selected_filenames))
+        )
+    else:
+        # If no filenames selected, only return general questions (filename IS NULL)
+        stmt = stmt.where(SuggestedQuestion.filename.is_(None))
+
     stmt = stmt.order_by(func.random()).limit(limit)
     res = await db.execute(stmt)
     rows = res.all()

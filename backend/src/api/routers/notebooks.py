@@ -10,7 +10,7 @@ from src.api.schemas import (
 )
 from src.core import cfg
 from src.db import get_db
-from src.db.crud import get_pdfs_by_notebook
+from src.db.crud import get_pdfs_by_notebook, get_summary_by_source_name
 from src.services.notebooks import create_notebook as svc_create_notebook
 from src.services.notebooks import list_notebooks as svc_list_notebooks
 
@@ -81,6 +81,7 @@ async def get_notebooks(db: AsyncSession = Depends(get_db)):
         first_notebook_pdfs = []
         for pdf in pdfs:
             if pdf.processing_status == "complete":
+                summary = await get_summary_by_source_name(db, pdf.file_name)
                 first_notebook_pdfs.append(
                     {
                         "filename": pdf.file_name,
@@ -88,6 +89,7 @@ async def get_notebooks(db: AsyncSession = Depends(get_db)):
                         "processing_status": pdf.processing_status,
                         "uploaded_at": pdf.uploaded_at.isoformat(),
                         "pdf_id": pdf.id,
+                        "summary": summary,
                     }
                 )
 

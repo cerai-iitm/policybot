@@ -1,7 +1,7 @@
 """Pydantic schemas for PDF router responses."""
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -51,6 +51,7 @@ class PDFListItem(BaseModel):
     )
     uploaded_at: datetime = Field(..., description="When the PDF was uploaded")
     pdf_id: int = Field(..., example=1)
+    summary: Optional[str] = Field(None, example="This document discusses...")
 
 
 class PDFListResponse(BaseModel):
