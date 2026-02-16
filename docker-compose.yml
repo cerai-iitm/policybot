@@ -124,6 +124,7 @@ services:
     image: vllm/vllm-openai:latest
     container_name: vllm-embeddings
     restart: unless-stopped
+    profiles: ["prod"]
     ports:
       - "8081:8000"
     deploy:
@@ -144,6 +145,7 @@ services:
   gemma-llm:
     image: vllm/vllm-openai:latest
     container_name: vllm-gemma3n
+    profiles: ["prod"]
     restart: unless-stopped
     ports:
       - "8080:8000"
