@@ -178,23 +178,19 @@ async def suggested_queries_endpoint(
     request: SuggestedQueriesRequest, db: AsyncSession = Depends(get_db)
 ):
     """
-    Get random suggested questions for a notebook.
+    Get random suggested questions for a notebook, filtered by selected filenames.
 
     - Validates notebook exists using notebook_id
-    - Ignores selected_filenames (for future use)
-    - Returns exactly 3 random questions from the DB for the notebook
+    - Filters questions by selected_filenames (general questions + file-specific questions)
+    - Returns up to 3 random questions from the DB for the notebook
     """
     notebook = await get_notebook_by_notebook_id(db, request.notebook_id.strip())
     if not notebook:
         raise HTTPException(status_code=404, detail="Notebook not found")
 
-    questions = await get_random_suggested_questions(db, notebook.notebook_id, limit=3)
-
-    if len(questions) < 3:
-        raise HTTPException(
-            status_code=500,
-            detail="Not enough suggested questions for notebook (expected at least 3)",
-        )
+    questions = await get_random_suggested_questions(
+        db, notebook.notebook_id, selected_filenames=request.selected_filenames, limit=3
+    )
 
     return {"suggested_queries": questions}
 

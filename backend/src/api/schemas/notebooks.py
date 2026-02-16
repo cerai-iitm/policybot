@@ -41,6 +41,7 @@ class NotebookListResponse(BaseModel):
         processing_status: str = Field(..., example="complete")
         uploaded_at: str = Field(..., example="2026-02-09T18:34:56")
         pdf_id: int = Field(..., example=1)
+        summary: Optional[str] = Field(None, example="This document discusses...")
 
     first_notebook_pdfs: Optional[List[FirstNotebookPDFItem]] = Field(
         None, description="PDF list (with contents) for the first notebook"

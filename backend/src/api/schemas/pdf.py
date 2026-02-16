@@ -51,6 +51,7 @@ class PDFListItem(BaseModel):
     )
     uploaded_at: datetime = Field(..., description="When the PDF was uploaded")
     pdf_id: int = Field(..., example=1)
+    summary: Optional[str] = Field(None, example="This document discusses...")
 
 
 class PDFListResponse(BaseModel):
