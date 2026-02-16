@@ -74,7 +74,6 @@ const PolicyTopicsSection = ({ pdfs, loading, title, notebookId }: Props) => {
             key={pdf.pdf_id}
             title={pdf.filename}
             description="Explore this policy document to understand key provisions, regulatory structure, and implementation framework."
-            meta="Policy Document"
             onExplore={handleExplore}
           />
         ))}

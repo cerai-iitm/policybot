@@ -1,11 +1,10 @@
 type Props = {
   title: string
   description: string
-  meta?: string
   onExplore?: () => void
 }
 
-const TopicRow = ({ title, description, meta, onExplore }: Props) => {
+const TopicRow = ({ title, description, onExplore }: Props) => {
   return (
     <div
       className="
@@ -29,11 +28,7 @@ const TopicRow = ({ title, description, meta, onExplore }: Props) => {
           {description}
         </p>
 
-        {meta && (
-          <p className="text-xs sm:text-sm text-gray-400 pt-1">
-            {meta}
-          </p>
-        )}
+    
 
       </div>
 
