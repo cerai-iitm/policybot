@@ -425,12 +425,18 @@ const fetchSuggestedQuestions = async (filename: string) => {
         className="h-5 w-auto"
       />
     </div>
-
+<a
+  href="https://cerai.iitm.ac.in/"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-block"
+>
     <div className="flex items-center gap-3 border border-black/20 rounded-md px-3 py-2">
       <img alt="icon one" src={Iconone.src} className="h-4 w-auto" />
       <img alt="icon two" src={Icontwo.src} className="h-4 w-4" />
       <img alt="icon three" src={Iconthree.src} className="h-4 w-4" />
     </div>
+    </a>
   </div>
 )}
 
@@ -451,6 +457,12 @@ const fetchSuggestedQuestions = async (filename: string) => {
 
   {/* === New Figma Design Container === */}
   <div className="ml-2">
+    <a
+  href="https://cerai.iitm.ac.in/"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-block"
+>
   <div className="flex items-center justify-between w-[208px] h-[64px] px-4 rounded-[10px] border border-black/20">
     
     {/* Logo */}
@@ -475,7 +487,7 @@ const fetchSuggestedQuestions = async (filename: string) => {
     </div>
 
   </div>
-  
+  </a>
 
 
   </div>
