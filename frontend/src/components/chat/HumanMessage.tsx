@@ -38,7 +38,7 @@ const HumanMessage: React.FC<HumanMessageProps> = ({ content }) => {
         transition-all duration-200
         sm:hover:shadow-md
       ">
-        <p className="text-slate-800 text-[13px] sm:text-sm leading-5 sm:leading-6 break-words">
+        <p className="text-slate-800 text-[15px] sm:text-base leading-5 sm:leading-6 break-words">
           {content}
         </p>
       </div>
