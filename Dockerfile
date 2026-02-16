@@ -78,9 +78,9 @@ CMD ["python", "download_models.py"]
 FROM base AS development
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat && \
-	chown -R appuser:appuser /app && \
-	chmod 755 /app/backend/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat
+RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat && \
+    chown -R appuser:appuser /app && \
+    chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat
 
 # Install netcat for database connection check
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -121,9 +121,9 @@ CMD ["uvicorn", "backend.src.main:app", "--host", "0.0.0.0", "--port", "8000", "
 FROM base AS production
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat && \
-	chown -R appuser:appuser /app && \
-	chmod 755 /app/backend/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat
+RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat && \
+    chown -R appuser:appuser /app && \
+    chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \

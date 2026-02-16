@@ -128,17 +128,24 @@ Format in markdown with clear structure.
 
 **Consolidated Summary:**
 """
+Combine the following section summaries into a cohesive overview. Focus on connecting related themes and eliminating redundancies while preserving key information. Maintain a broad-strokes perspective and keep technical terms and acronyms intact. Limit the consolidated summary to a maximum of 500 tokens. Format the output in clear markdown with concise structure; avoid excessive detail.
+
+**Section Summaries:**
+{text}
+
+**Consolidated Summary:**
+"""
 
 
 FINAL_SUMMARY_PROMPT = """
-Create a final comprehensive summary (maximum 500-700 words) from the provided consolidated summaries.
+Create a concise final summary of the provided consolidated summaries, limited to approximately 100–120 tokens.
 
 Requirements:
-- Focus on broad strokes and main themes
-- Highlight key entities, acronyms, and critical information
-- Remove redundant details
-- Maintain factual accuracy
-- Use clear markdown formatting with headers
+- Focus on the main themes and most important facts.
+- Highlight key entities and acronyms where relevant.
+- Remove redundancies and avoid fine-grained details.
+- Be factual and do not introduce information not present in the input.
+- Produce exactly one short paragraph. Do not include headers, lists, or extra commentary.
 
 **Consolidated Summaries:**
 {text}

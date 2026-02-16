@@ -124,7 +124,6 @@ services:
     image: vllm/vllm-openai:latest
     container_name: vllm-embeddings
     restart: unless-stopped
-    profiles: ["prod"]
     ports:
       - "8081:8000"
     deploy:
@@ -145,7 +144,6 @@ services:
   gemma-llm:
     image: vllm/vllm-openai:latest
     container_name: vllm-gemma3n
-    profiles: ["prod"]
     restart: unless-stopped
     ports:
       - "8080:8000"
@@ -166,9 +164,6 @@ services:
       --gpu-memory-utilization 0.7
       --max-model-len 32000
       --chat-template /app/template.jinja
-      --temperature 0.5
-      --frequency-penalty 0.2
-      --top-p 0.9
 
 volumes:
   postgres_data:
