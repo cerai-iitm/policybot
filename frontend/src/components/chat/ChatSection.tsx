@@ -11,8 +11,8 @@ import { v4 as uuidv4 } from "uuid";
 import { withBase } from "@/lib/url";
 import ModelSelector from "./ModelSelector";
 import { useAdmin } from "@/app/components/AdminContext";
-import Iconone from "@/assets/cerai.png";
 import logo from "@/assets/logo.png";
+import Iconone from "@/assets/cerai.png";
 import Icontwo from "@/assets/iiit.png";
 import Iconthree from "@/assets/wsai.png";
 import SuggestedQuestions from "./SuggestedQuestions";
@@ -425,18 +425,46 @@ const fetchSuggestedQuestions = async (filename: string) => {
         className="h-5 w-auto"
       />
     </div>
-<a
-  href="https://cerai.iitm.ac.in/"
-  target="_blank"
-  rel="noopener noreferrer"
-  className="inline-block"
->
+
     <div className="flex items-center gap-3 border border-black/20 rounded-md px-3 py-2">
-      <img alt="icon one" src={Iconone.src} className="h-4 w-auto" />
-      <img alt="icon two" src={Icontwo.src} className="h-4 w-4" />
-      <img alt="icon three" src={Iconthree.src} className="h-4 w-4" />
+    <a
+    href="https://cerai.iitm.ac.in/"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    <img
+      alt="CeRAI"
+      src={Iconone.src}
+      className="h-4 w-auto cursor-pointer transition duration-300 hover:scale-110"
+    />
+  </a>
+
+  <a
+    href="https://www.iitm.ac.in/"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    <img
+      alt="IITM"
+      src={Icontwo.src}
+      className="h-4 w-4 cursor-pointer transition duration-300 hover:scale-110"
+    />
+  </a>
+
+  <a
+    href="https://wsai.iitm.ac.in/"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    <img
+      alt="WSAI"
+      src={Iconthree.src}
+      className="h-4 w-4 cursor-pointer transition duration-300 hover:scale-110"
+    />
+  </a>
+
     </div>
-    </a>
+    
   </div>
 )}
 
@@ -457,37 +485,54 @@ const fetchSuggestedQuestions = async (filename: string) => {
 
   {/* === New Figma Design Container === */}
   <div className="ml-2">
-    <a
-  href="https://cerai.iitm.ac.in/"
-  target="_blank"
-  rel="noopener noreferrer"
-  className="inline-block"
->
+ 
   <div className="flex items-center justify-between w-[208px] h-[64px] px-4 rounded-[10px] border border-black/20">
     
     {/* Logo */}
-   <img src={Iconone.src} alt="PolicyBot Logo" className="h-7 w-auto object-contain" />
+  <a
+    href="https://cerai.iitm.ac.in/"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    <img
+      src={Iconone.src}
+      alt="CeRAI"
+      className="h-7 w-auto object-contain cursor-pointer transition duration-300 hover:scale-110"
+    />
+  </a>
 
     {/* Right Icons */}
     <div className="flex items-center gap-3">
       
     
 
+        <a
+      href="https://www.iitm.ac.in/"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
       <img
         src={Icontwo.src}
-        alt="Icon Two"
-        className="h-7 w-7 object-contain"
+        alt="IITM"
+        className="h-7 w-7 object-contain cursor-pointer transition duration-300 hover:scale-110"
       />
-       <img
+    </a>
+          <a
+      href="https://wsai.iitm.ac.in/"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <img
         src={Iconthree.src}
-        alt="Icon Two"
-        className="h-7 w-7 object-contain"
+        alt="WSAI"
+        className="h-7 w-7 object-contain cursor-pointer transition duration-300 hover:scale-110"
       />
+    </a>
 
     </div>
 
   </div>
-  </a>
+ 
 
 
   </div>
