@@ -2,8 +2,10 @@ import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
-  assetPrefix: "/policybot", // Add this back
+  output: "export",
+  distDir: "dist",
+  basePath: "/policybot/chat",
+  trailingSlash: true,
 
   webpack(config) {
     config.resolve.alias["@"] = path.resolve(__dirname, "src");

@@ -4,7 +4,7 @@ import Notebook from "./pages/Notebook"
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/policybot">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/notebook" element={<Notebook />} />

@@ -49,6 +49,32 @@ class Config:
     RERANKER_TEMP = 1.3
     RRF_TEMP = 0.17
 
+    # TEI Reranker Configuration
+    TEI_RERANKER_IP = os.getenv("TEI_RERANKER_IP", "localhost")
+    TEI_RERANKER_PORT = int(os.getenv("TEI_RERANKER_PORT", "8080"))
+    TEI_RERANKER_URL = f"http://{TEI_RERANKER_IP}:{TEI_RERANKER_PORT}"
+
+    # vLLM Embedding Configuration (for retrieval queries)
+    VLLM_EMBEDDING_ENABLED = (
+        os.getenv("VLLM_EMBEDDING_ENABLED", "false").lower() == "true"
+    )
+    VLLM_EMBEDDING_IP = os.getenv("VLLM_EMBEDDING_IP", "localhost")
+    VLLM_EMBEDDING_PORT = int(os.getenv("VLLM_EMBEDDING_PORT", "8081"))
+    VLLM_EMBEDDING_URL = f"http://{VLLM_EMBEDDING_IP}:{VLLM_EMBEDDING_PORT}/v1"
+    VLLM_EMBEDDING_MODEL = os.getenv(
+        "VLLM_EMBEDDING_MODEL", "google/embeddinggemma-300m"
+    )
+    VLLM_EMBEDDING_API_KEY = os.getenv("VLLM_EMBEDDING_API_KEY", "EMPTY")
+
+    # vLLM LLM Configuration (port 8080 - different from embeddings)
+    VLLM_LLM_IP = os.getenv("VLLM_LLM_IP", "localhost")
+    VLLM_LLM_PORT = int(os.getenv("VLLM_LLM_PORT", "8080"))
+    VLLM_LLM_URL = f"http://{VLLM_LLM_IP}:{VLLM_LLM_PORT}/v1"
+    VLLM_LLM_MODEL = os.getenv("VLLM_LLM_MODEL", "google/gemma-3n-E4B")
+    VLLM_LLM_API_KEY = os.getenv("VLLM_LLM_API_KEY", "EMPTY")
+    VLLM_LLM_TEMPERATURE = float(os.getenv("VLLM_LLM_TEMPERATURE", "0.7"))
+    VLLM_LLM_MAX_TOKENS = int(os.getenv("VLLM_LLM_MAX_TOKENS", "4096"))
+
     CHUNK_SEPARATOR = "###$$$%%%^^^&&&***"
     CHUNK_PREFIX = "CHUNK_"
     RESPONSE_START = "RESPONSE_START" + CHUNK_SEPARATOR

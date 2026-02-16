@@ -2,11 +2,10 @@ import asyncio
 import os
 import uuid
 import warnings
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, List, Optional, Union
 
 import numpy as np
 import pymupdf
-from langchain_classic.chains.summarize import load_summarize_chain
 from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_text_splitters.character import RecursiveCharacterTextSplitter
@@ -94,12 +93,26 @@ class PDFProcessor:
 
             yield "Embedding chunks..."
             await asyncio.sleep(0)
-            embeddings = await asyncio.to_thread(
-                self._embed_docs, split_docs, file_name
-            )
+
+            # Process embeddings with progress updates
+            embeddings = None
+            async for update in self._embed_docs(split_docs, file_name):
+                if isinstance(update, str):
+                    # Progress update - yield it to user
+                    if update.startswith("Embedding:") or update.startswith("Error:"):
+                        yield update
+                elif isinstance(update, np.ndarray):
+                    # Final result
+                    embeddings = update
+                elif update is None:
+                    # Error case
+                    yield "Error: Failed to generate embeddings."
+                    return
+
             if embeddings is None:
                 yield "Error: Failed to generate embeddings."
                 return
+
             logger.info(
                 f"Generated embeddings shape: {embeddings.shape} for {file_name}."
             )
@@ -150,59 +163,145 @@ class PDFProcessor:
     async def _create_summary(
         self, docs: List[Document], file_name: str, db: Optional[AsyncSession]
     ) -> Optional[tuple[str, str]]:
-        """
-        Create a summary for the provided documents.
+        """Create summary using hierarchical batch reduction with 8:1 compression ratio."""
+        from openai import AsyncOpenAI
+        from src.core.prompts import (
+            MAP_SUMMARIZATION_PROMPT,
+            REDUCE_SUMMARIZATION_PROMPT,
+            FINAL_SUMMARY_PROMPT,
+        )
 
-        - If `db` (AsyncSession) is provided, use async CRUD to check for and store summaries.
-        - If a summary already exists in the DB, return it and skip generation.
-        - Uses an async `arun` on the map-reduce summarize chain when available.
-        """
         logger.info(f"Creating a summary for {file_name}.")
+
         try:
-            # Check for existing summary in DB if session supplied
-            existing_summary = None
+            # Check for existing summary
             if db is not None:
                 existing_summary = await get_summary_by_source_name(
                     db, os.path.basename(file_name)
                 )
-            else:
-                logger.debug(
-                    "No AsyncSession provided to _create_summary; will not read/write DB."
-                )
+                if existing_summary:
+                    logger.info(f"Summary already exists for {file_name}.")
+                    return file_name, existing_summary
 
-            if existing_summary:
-                logger.info(
-                    f"Summary already exists for {file_name}. Skipping sumamary creation."
-                )
-                return file_name, existing_summary
-
-            # Build a single document and chunk it for summarization
+            # Chunk the document
             text = "\n".join([doc.page_content for doc in docs])
             doc = Document(page_content=text, metadata={"source": file_name})
-            splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=0)
+            splitter = RecursiveCharacterTextSplitter(
+                chunk_size=8000, chunk_overlap=200
+            )
             recursive_docs = splitter.split_documents([doc])
             logger.info(
                 f"Split text into {len(recursive_docs)} chunks for summarization."
             )
 
-            # Create the summarization chain and prefer async execution if available
-            chain = load_summarize_chain(self.interface.llm, chain_type="map_reduce")
-            summary_result = None
-            if hasattr(chain, "arun"):
-                summary_result = await chain.arun({"input_documents": recursive_docs})
-            else:
-                # Fallback to running the synchronous invoke in a thread
-                summary_result = await asyncio.to_thread(
-                    chain.invoke, {"input_documents": recursive_docs}
+            # Initialize OpenAI client
+            client = AsyncOpenAI(
+                base_url=cfg.VLLM_LLM_URL, api_key=cfg.VLLM_LLM_API_KEY
+            )
+
+            # MAP PHASE: Summarize chunks in batches of max 8
+            async def summarize_chunk(chunk: Document) -> str:
+                prompt = MAP_SUMMARIZATION_PROMPT.format(text=chunk.page_content[:8000])
+                response = await client.chat.completions.create(
+                    model=cfg.VLLM_LLM_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1000,  # Each summary ~1000 tokens
+                    temperature=0.7,
+                )
+                return response.choices[0].message.content
+
+            # Process chunks in batches of 8
+            chunk_summaries = []
+            batch_size = 8
+            for i in range(0, len(recursive_docs), batch_size):
+                batch = recursive_docs[i : i + batch_size]
+                batch_results = await asyncio.gather(
+                    *[summarize_chunk(doc) for doc in batch]
+                )
+                chunk_summaries.extend(batch_results)
+                logger.info(
+                    f"Processed batch {i // batch_size + 1}/{(len(recursive_docs) - 1) // batch_size + 1}"
                 )
 
-            # Extract text from chain result
-            if isinstance(summary_result, dict):
-                summary_text = summary_result.get("output_text", str(summary_result))
-            else:
-                summary_text = str(summary_result)
+            logger.info(f"Generated {len(chunk_summaries)} chunk summaries.")
 
-            # Persist the summary using async CRUD if session supplied
+            # REDUCE PHASE: Hierarchical batch reduction with 8:1 ratio
+            current_summaries = chunk_summaries.copy()
+            reduce_depth = 0
+
+            while True:
+                total_tokens = sum(len(s.split()) for s in current_summaries)
+                logger.info(
+                    f"Reduce depth {reduce_depth}: {len(current_summaries)} summaries, ~{total_tokens} tokens"
+                )
+
+                # If total is under 8000 tokens, we can do final reduce
+                if total_tokens <= 8000 and len(current_summaries) <= 8:
+                    break
+
+                # Batch summaries into groups of max 8000 tokens
+                batches = []
+                current_batch = []
+                current_batch_tokens = 0
+
+                for summary in current_summaries:
+                    summary_tokens = len(summary.split())
+                    # If adding this summary exceeds 8000 tokens, start new batch
+                    if current_batch_tokens + summary_tokens > 8000 and current_batch:
+                        batches.append(current_batch)
+                        current_batch = [summary]
+                        current_batch_tokens = summary_tokens
+                    else:
+                        current_batch.append(summary)
+                        current_batch_tokens += summary_tokens
+
+                # Add final batch
+                if current_batch:
+                    batches.append(current_batch)
+
+                logger.info(
+                    f"Created {len(batches)} batches for reduce depth {reduce_depth}"
+                )
+
+                # Reduce each batch to ~1000 tokens
+                new_summaries = []
+                for batch_idx, batch in enumerate(batches):
+                    combined_text = "\n\n---\n\n".join(batch)
+                    reduce_prompt = REDUCE_SUMMARIZATION_PROMPT.format(
+                        text=combined_text
+                    )
+
+                    reduce_response = await client.chat.completions.create(
+                        model=cfg.VLLM_LLM_MODEL,
+                        messages=[{"role": "user", "content": reduce_prompt}],
+                        max_tokens=1000,  # Each reduce produces ~1000 tokens
+                        temperature=0.7,
+                    )
+                    new_summaries.append(reduce_response.choices[0].message.content)
+                    logger.info(
+                        f"Reduced batch {batch_idx + 1}/{len(batches)} at depth {reduce_depth}"
+                    )
+
+                current_summaries = new_summaries
+                reduce_depth += 1
+
+            # FINAL REDUCE: Create final 500-700 word summary
+            combined_text = "\n\n---\n\n".join(current_summaries)
+            final_prompt = FINAL_SUMMARY_PROMPT.format(text=combined_text)
+
+            final_response = await client.chat.completions.create(
+                model=cfg.VLLM_LLM_MODEL,
+                messages=[{"role": "user", "content": final_prompt}],
+                max_tokens=2000,
+                temperature=0.7,
+            )
+
+            summary_text = final_response.choices[0].message.content
+            logger.info(
+                f"Generated final summary for {file_name} after {reduce_depth} reduction levels."
+            )
+
+            # Persist summary
             if db is not None:
                 await add_source_summary(
                     db,
@@ -210,14 +309,12 @@ class PDFProcessor:
                     summary=summary_text,
                 )
                 logger.info("Summary created and saved to database.")
-            else:
-                logger.info("Summary created but not saved (no DB session provided).")
 
             return file_name, summary_text
 
         except Exception as e:
             logger.error(f"Error creating summary for {file_name}: {e}")
-            return
+            return None
 
     def _extract_text_from_pdf(self, file_name: str) -> Optional[List[Document]]:
         # Try the provided path first (may be "nb_xxx/filename.pdf" or just "filename.pdf")
@@ -326,9 +423,62 @@ class PDFProcessor:
             logger.error(f"Error processing PDF {file_name} with splitter: {e}")
             return None
 
-    def _embed_docs(self, docs: List[Document], file_name: str) -> Optional[np.ndarray]:
+    async def _embed_docs(
+        self, docs: List[Document], file_name: str
+    ) -> AsyncGenerator[Union[str, np.ndarray], None]:
+        """Embed documents using vLLM async or local fallback with progress updates."""
         try:
-            logger.info(f"Embedding {len(docs)} chunks for {file_name}.")
+            total_docs = len(docs)
+            logger.info(f"Embedding {total_docs} chunks for {file_name}.")
+
+            # Yield initial progress
+            yield f"Embedding: Starting {total_docs} documents..."
+            last_progress_time = asyncio.get_event_loop().time()
+
+            if cfg.VLLM_EMBEDDING_ENABLED:
+                # Use vLLM with progress tracking
+                from src.services.vllm_embeddings import (
+                    get_vllm_document_embeddings,
+                )
+
+                embeddings = await get_vllm_document_embeddings(
+                    documents=docs, batch_size=128, max_concurrent=4
+                )
+
+                # Yield final progress
+                yield f"Embedding: Complete ({total_docs}/{total_docs} documents, 100%)"
+                yield embeddings
+            else:
+                # Local embedding with periodic progress
+                all_embeddings = []
+                for i, doc in enumerate(docs):
+                    text = [doc.page_content]
+                    embedding_model, device = load_embedding_model()
+                    embedding = embedding_model.embed_documents(text)
+                    all_embeddings.extend(embedding)
+                    free_embedding_model(embedding_model, device)
+
+                    # Update progress every ~5 seconds
+                    current_time = asyncio.get_event_loop().time()
+                    if current_time - last_progress_time >= 5.0 or i == len(docs) - 1:
+                        progress_pct = int(((i + 1) / total_docs) * 100)
+                        yield f"Embedding: {i + 1}/{total_docs} documents ({progress_pct}%)"
+                        last_progress_time = current_time
+
+                embeddings = np.array(all_embeddings, dtype=np.float32)
+                yield embeddings
+
+        except Exception as e:
+            logger.error(f"Error embedding documents: {e}")
+            yield "Error: Failed to generate embeddings."
+            yield None
+
+    def _embed_docs_local(
+        self, docs: List[Document], file_name: str
+    ) -> Optional[np.ndarray]:
+        """Local HuggingFace embedding fallback (original implementation)."""
+        try:
+            logger.info(f"Embedding {len(docs)} chunks locally for {file_name}.")
             embedding_model, device = load_embedding_model()
             all_embeddings = []
 
@@ -345,13 +495,16 @@ class PDFProcessor:
 
                 except Exception as e:
                     logger.error(f"Error embedding document {i}: {e}")
+                    free_embedding_model(embedding_model, device)
                     return None
+
             embeddings = np.array(all_embeddings, dtype=np.float32)
             free_embedding_model(embedding_model, device)
-            logger.info(f"Generated embeddings for {len(all_embeddings)} chunks.")
+            logger.info(f"Generated {len(all_embeddings)} local embeddings.")
             return embeddings if len(all_embeddings) > 0 else None
+
         except Exception as e:
-            logger.error(f"Error embedding documents: {e}")
+            logger.error(f"Error in local embedding: {e}")
             return None
 
     async def _store_embeddings(

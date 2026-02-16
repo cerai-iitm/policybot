@@ -1,4 +1,3 @@
-import os
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +12,9 @@ from src.db.crud import (
     get_all_source_summaries,
     get_notebook_by_notebook_id,
     get_overall_summary,
+    get_pdf_by_filename_and_notebook,
+    get_random_suggested_questions,
+    insert_suggested_question,
 )
 from src.services import ChatManager, LLM_Interface, Retriever
 
@@ -57,12 +59,31 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
     session_id = request.session_id
 
     valid_pdfs = []
+    logger.info(
+        f"Validating PDFs for notebook {request.notebook_id} (DB id={notebook.id})"
+    )
     for fname in request.pdfs or []:
         if not fname.lower().endswith(".pdf"):
             fname = f"{fname}.pdf"
-        # Check existence in notebook-scoped directory
-        if os.path.exists(os.path.join(cfg.DATA_DIR, request.notebook_id, fname)):
+        # Check existence in database and verify processing status
+        logger.info(f"Looking for PDF: '{fname}' in notebook_id={notebook.id}")
+        pdf_record = await get_pdf_by_filename_and_notebook(db, fname, notebook.id)
+        if pdf_record:
+            logger.info(
+                f"Found PDF '{fname}': id={pdf_record.id}, status='{pdf_record.processing_status}'"
+            )
+        else:
+            logger.warning(
+                f"PDF '{fname}' NOT FOUND in database for notebook {notebook.id}"
+            )
+        if pdf_record and pdf_record.processing_status == "complete":
             valid_pdfs.append(fname)
+            logger.info(f"PDF '{fname}' added to valid_pdfs")
+        else:
+            status = pdf_record.processing_status if pdf_record else "not found"
+            logger.warning(
+                f"PDF '{fname}' skipped in notebook {request.notebook_id}: status='{status}'"
+            )
     logger.info(
         f"Valid PDFs for the query in notebook {request.notebook_id}: {len(valid_pdfs)}"
     )
@@ -148,38 +169,65 @@ async def overall_summary_endpoint(db: AsyncSession = Depends(get_db)):
 
 class SuggestedQueriesRequest(BaseModel):
     session_id: str
+    notebook_id: str
+    selected_filenames: Optional[List[str]] = None
 
 
 @router.post("/suggested-queries")
 async def suggested_queries_endpoint(
     request: SuggestedQueriesRequest, db: AsyncSession = Depends(get_db)
 ):
-    # llm_interface = LLM_Interface()
-    # # 1. Get all source summaries and filenames
-    # all_sources = await get_all_source_summaries(db)
-    # if not all_sources:
-    #     raise HTTPException(status_code=404, detail="No sources found.")
-    # filenames = [str(s.source_name) for s in all_sources]
-    #
-    # overall = await get_overall_summary(db, filenames)
-    # summary = overall.summary if overall else None
-    # if not overall:
-    #     summaries = [s.summary for s in all_sources]
-    #     summary_str = [str(summary) for summary in summaries]
-    #
-    #     docs = [Document(page_content=s, metadata={}) for s in summary_str]
-    #     summary = await llm_interface.summarize_with_stuff_chain(
-    #         docs, max_words=cfg.OVERALL_SUMMARY_MAX_WORDS
-    #     )
-    #     await add_overall_summary(db, filenames, summary)
-    #
-    # queries = await llm_interface.generate_suggested_queries(
-    #     str(summary), session_id=request.session_id
-    # )
-    #
-    # # 5. Return as JSON
-    # return {"suggested_queries": queries}
-    return {"suggested_queries": []}
+    """
+    Get random suggested questions for a notebook.
+
+    - Validates notebook exists using notebook_id
+    - Ignores selected_filenames (for future use)
+    - Returns exactly 3 random questions from the DB for the notebook
+    """
+    notebook = await get_notebook_by_notebook_id(db, request.notebook_id.strip())
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+
+    questions = await get_random_suggested_questions(db, notebook.notebook_id, limit=3)
+
+    if len(questions) < 3:
+        raise HTTPException(
+            status_code=500,
+            detail="Not enough suggested questions for notebook (expected at least 3)",
+        )
+
+    return {"suggested_queries": questions}
+
+
+class SuggestedQueryUploadRequest(BaseModel):
+    notebook_id: str
+    question: str
+    filename: Optional[str] = None
+
+
+@router.post("/suggested-queries/upload")
+async def upload_suggested_query(
+    req: SuggestedQueryUploadRequest, db: AsyncSession = Depends(get_db)
+):
+    """
+    Upload a new suggested question for a notebook.
+
+    - Validates notebook exists
+    - Inserts question into DB
+    - Returns success response
+    """
+    notebook = await get_notebook_by_notebook_id(db, req.notebook_id.strip())
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+
+    await insert_suggested_question(
+        db,
+        notebook.notebook_id,
+        req.question,
+        filename=req.filename,
+    )
+
+    return {"ok": True}
 
 
 @router.get("/default-model")

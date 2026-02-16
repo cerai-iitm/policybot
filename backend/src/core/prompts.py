@@ -97,3 +97,48 @@ And the following conversation history:
 Based on this information, suggest 3 relevant follow-up questions a user might ask.
 List each question on a separate line. Do not include any explanations or extra text—only the questions.
      """
+
+
+MAP_SUMMARIZATION_PROMPT = """
+Summarize the following document section concisely. Focus on:
+- Main topics and themes
+- Key entities, acronyms, and technical terms
+- Important facts and data points
+- Maintain the original meaning without adding external information
+
+Format your response in clear markdown with appropriate headers.
+
+**Document Section:**
+{text}
+
+**Summary:**
+"""
+
+
+REDUCE_SUMMARIZATION_PROMPT = """
+Combine the following section summaries into a single consolidated summary. Focus on: connecting related themes, removing redundancies, and preserving key facts, entities, acronyms, and technical terms present in the input. Do not introduce information not present in the source.
+
+Limit the consolidated summary to a maximum of 500 tokens. Output should be clear and concise; markdown is acceptable, but keep structure minimal (short paragraphs, optional headers).
+
+**Section Summaries:**
+{text}
+
+**Consolidated Summary:**
+"""
+
+
+FINAL_SUMMARY_PROMPT = """
+Create a concise final summary of the provided consolidated summaries, limited to approximately 100–120 tokens.
+
+Requirements:
+- Focus on the main themes and most important facts.
+- Highlight key entities and acronyms where relevant.
+- Remove redundancies and avoid fine-grained details.
+- Be factual and do not introduce information not present in the input.
+- Produce exactly one short paragraph. Do not include headers, lists, or extra commentary.
+
+**Consolidated Summaries:**
+{text}
+
+**Final Summary:**
+"""

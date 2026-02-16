@@ -17,7 +17,7 @@ echo "Database is reachable"
 # ---- Run migrations ----
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
   echo "Running database migrations..."
-  cd /app && PYTHONPATH=/app alembic upgrade head
+  cd /app/backend && PYTHONPATH=/app alembic upgrade head
   echo "Migrations complete"
 else
   echo "Skipping migrations (RUN_MIGRATIONS != true)"

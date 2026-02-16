@@ -1,43 +1,8 @@
 services:
-  frontend:
-    build:
-      context: ./frontend
-      target: development
-    image: frontend:dev
-    environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_BASE_PATH=/policybot
-    ports:
-      - "3000:3000"
-    command: ["npm", "run", "dev"]
-    develop:
-      watch:
-        - action: sync
-          path: ./frontend/src
-          target: /app/src
-        - action: sync
-          path: ./frontend/public
-          target: /app/public
-        - action: rebuild
-          path: ./frontend/package.json
-        - action: rebuild
-          path: ./frontend/package-lock.json
-        - action: rebuild
-          path: ./frontend/Dockerfile
-        - action: rebuild
-          path: ./frontend/next.config.ts
-        - action: rebuild
-          path: ./frontend/tailwind.config.ts
-        - action: rebuild
-          path: ./frontend/postcss.config.mjs
-        - action: rebuild
-          path: ./frontend/eslint.config.mjs
-    depends_on:
-      - backend
-
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: Dockerfile
       target: development
     image: backend:dev
     env_file:
@@ -53,8 +18,6 @@ services:
       - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - RUN_MIGRATIONS=true
       - HF_HOME=${HF_HOME:-/app/cache/huggingface}
-    ports:
-      - "8000:8000"
     command:
       [
         "uvicorn",

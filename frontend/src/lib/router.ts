@@ -20,7 +20,7 @@
 // Exact backend routes (chat, under /api prefix):
 //   POST  /query              (backend file: backend/src/api/routers/chat.py -> @router.post(\"/query\"))
 //   GET   /overall_summary    (backend file: backend/src/api/routers/chat.py -> @router.get(\"/overall_summary\"))
-//   GET   /suggested_queries  (backend file: backend/src/api/routers/chat.py -> @router.get(\"/suggested_queries\"))
+//   POST  /suggested_queries  (backend file: backend/src/api/routers/chat.py -> @router.post(\"/suggested-queries\"))
 //   GET   /default_model      (backend file: backend/src/api/routers/chat.py -> @router.get(\"/default_model\"))
 //
 // Use axios for requests. Ensure NEXT_PUBLIC_API_BASE points to backend base URL (e.g. http://localhost:8000)
@@ -44,7 +44,9 @@ import {
   ApiResult,
 } from "./interfaces";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost"; // e.g. http://localhost:8000
+// Use relative URL - will automatically use the same origin as the current page
+// This works with any IP: localhost, 192.168.x.x, or any domain
+const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
 export const api: AxiosInstance = axios.create({
   baseURL: BASE,
@@ -253,7 +255,7 @@ export function monitorPdfProcessing(
     if (onError) onError(ev);
     // leave EventSource open for caller to decide
   };
-   return es;
+  return es;
 }
 
 /* -----------------------
@@ -295,25 +297,36 @@ export async function getOverallSummary(notebookId: string): ApiResult<OverallSu
 }
 
 /**
- * Get suggested queries based on session history.
+ * Get suggested queries based on notebook.
  *
  * Backend route (exact):
- *   GET /suggested_queries
- *   backend file: backend/src/api/routers/chat.py -> @router.get(\"/suggested_queries\")
+ *   POST /suggested_queries
+ *   backend file: backend/src/api/routers/chat.py -> @router.post(\"/suggested-queries\")
  */
 export async function getSuggestedQueries(
   notebookId: string,
-  selectedFilenames: string[]
+  selectedFilenames: string[],
 ): ApiResult<{ suggested_queries: string[] }> {
-  // For now, return hardcoded questions
-  return {
-    suggested_queries: [
-      "What are the key compliance requirements mentioned in this document?",
-      "Can you explain the main policy objectives and scope?",
-      "What are the penalties or consequences outlined in this policy?"
-    ]
+  const body = {
+    session_id: "frontend",
+    notebook_id: notebookId,
+    selected_filenames: selectedFilenames,
   };
+
+  const resp: AxiosResponse<any> = await api.post(
+    withBase("/api/suggested-queries"),
+    body,
+    {
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+
+  const items = resp.data?.suggested_queries ?? [];
+  const questions: string[] = items.map((it: any) => (typeof it === "string" ? it : it.question));
+
+  return { suggested_queries: questions };
 }
+
 /**
  * Get the default model configuration.
  *

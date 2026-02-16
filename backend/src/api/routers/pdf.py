@@ -27,6 +27,7 @@ from src.db.crud import (
     get_pdf_by_filename_and_notebook,
     get_pdfs_by_notebook,
     get_summary_by_source_name,
+    update_pdf_status,
 )
 from src.db.crud import (
     delete_pdf as delete_pdf_record,
@@ -84,9 +85,12 @@ async def process_pdf_background(file_name: str, pdf_id: int):
                 file_name, pdf_id=pdf_id, db=bg_db
             ):
                 logger.info(f"[bg:{pdf_id}] {update}")
+                # Check if error occurred and stop
+                if isinstance(update, str) and update.startswith("Error:"):
+                    logger.error(f"[bg:{pdf_id}] Error detected, stopping processing")
+                    break
         except Exception as e:
             logger.error(f"Background processing failed for {file_name}: {e}")
-            await update_pdf_status(bg_db, pdf_id, "error")
 
 
 @router.post(
@@ -144,6 +148,7 @@ async def upload_pdf(
     # Check notebook exists
     notebook = await get_notebook_by_notebook_id(db, notebook_id.strip())
     if not notebook:
+        logger.error("Notebook not found: {notebook_id}")
         raise HTTPException(
             status_code=404, detail=f"Notebook '{notebook_id}' not found."
         )
@@ -177,6 +182,20 @@ async def upload_pdf(
         )
 
     if existing_pdf:
+        # Check if file exists on disk, if not, re-save it
+        upload_dir = Path(cfg.DATA_DIR) / notebook.notebook_id
+        file_path = upload_dir / file.filename
+
+        if not file_path.exists():
+            # File missing from disk, re-save it
+            import os
+
+            os.makedirs(upload_dir, exist_ok=True)
+            async with aiofiles.open(file_path, "wb") as buffer:
+                content = await file.read()
+                await buffer.write(content)
+            logger.info(f"Re-saved PDF file to disk: {file_path}")
+
         background_tasks.add_task(
             process_pdf_background, file.filename, existing_pdf.id
         )
@@ -264,14 +283,21 @@ async def list_pdfs(
 
         pdf_list = []
         for pdf in pdfs:
-            pdf_list.append(
-                {
-                    "filename": pdf.file_name,
-                    "file_path": pdf.file_path,
-                    "processing_status": pdf.processing_status,
-                    "uploaded_at": pdf.uploaded_at.isoformat(),
-                    "pdf_id": pdf.id,
-                }
+            if pdf.processing_status == "complete":
+                pdf_list.append(
+                    {
+                        "filename": pdf.file_name,
+                        "file_path": pdf.file_path,
+                        "processing_status": pdf.processing_status,
+                        "uploaded_at": pdf.uploaded_at.isoformat(),
+                        "pdf_id": pdf.id,
+                    }
+                )
+
+        if not pdf_list:
+            raise HTTPException(
+                status_code=400,
+                detail="No completed PDFs found in the specified notebook.",
             )
 
         return JSONResponse(
@@ -607,8 +633,21 @@ async def process_status(
     )
 
     async def generate():
+        start_time = asyncio.get_event_loop().time()
+        max_duration = 15 * 60  # 15 minutes in seconds
+
         try:
             while True:
+                # Check timeout
+                elapsed = asyncio.get_event_loop().time() - start_time
+                if elapsed > max_duration:
+                    logger.warning(
+                        f"Processing timeout for {filename} after 15 minutes"
+                    )
+                    yield "data: error\n\n"
+                    yield "data: done\n\n"
+                    break
+
                 # Refresh PDF status from DB
                 await db.refresh(pdf)
                 status = pdf.processing_status
@@ -627,7 +666,8 @@ async def process_status(
             logger.info(f"SSE connection closed for {filename}")
         except Exception as e:
             logger.error(f"Error in SSE stream for {filename}: {e}")
-            yield "data: error\n\ndata: done\n\n"
+            yield "data: error\n\n"
+            yield "data: done\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

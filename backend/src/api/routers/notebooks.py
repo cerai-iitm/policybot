@@ -80,15 +80,16 @@ async def get_notebooks(db: AsyncSession = Depends(get_db)):
 
         first_notebook_pdfs = []
         for pdf in pdfs:
-            first_notebook_pdfs.append(
-                {
-                    "filename": pdf.file_name,
-                    "file_path": pdf.file_path,
-                    "processing_status": pdf.processing_status,
-                    "uploaded_at": pdf.uploaded_at.isoformat(),
-                    "pdf_id": pdf.id,
-                }
-            )
+            if pdf.processing_status == "complete":
+                first_notebook_pdfs.append(
+                    {
+                        "filename": pdf.file_name,
+                        "file_path": pdf.file_path,
+                        "processing_status": pdf.processing_status,
+                        "uploaded_at": pdf.uploaded_at.isoformat(),
+                        "pdf_id": pdf.id,
+                    }
+                )
 
     return {
         "notebooks": nbs,

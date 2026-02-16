@@ -26,6 +26,10 @@ from .source_summaries_crud import (
     get_all_source_summaries,
     get_summary_by_source_name,
 )
+from .suggested_questions_crud import (
+    get_random_suggested_questions,
+    insert_suggested_question,
+)
 
 __all__ = [
     "get_notebook_by_title",
@@ -48,4 +52,6 @@ __all__ = [
     "get_summary_by_source_name",
     "get_all_source_summaries",
     "get_notebook_by_notebook_id",
+    "get_random_suggested_questions",
+    "insert_suggested_question",
 ]

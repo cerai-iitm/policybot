@@ -21,6 +21,8 @@ dependencies = [
     "pymupdf>=1.26.4",
     "qdrant-client>=1.15.1",
     "structlog>=25.5.0",
+    "openai>=2.21.0",
+    "langchain-openai>=1.1.9",
 ]
 
 

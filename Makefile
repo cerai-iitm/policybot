@@ -58,13 +58,13 @@ prod:
 	@echo "=========================================="
 	@echo ""
 	@echo "Step 1: Building production images..."
-	$(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) build
+	COMPOSE_PROFILES=prod $(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) build
 	@echo ""
 	@echo "Step 2: Downloading LLM models (this may take a few minutes)..."
-	$(MAKE) download-models
+	COMPOSE_PROFILES=prod $(MAKE) download-models
 	@echo ""
 	@echo "Step 3: Starting production services..."
-	$(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) up -d
+	COMPOSE_PROFILES=prod $(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) up -d
 	@echo ""
 	@echo "Production stack is running!"
 	@echo "Access at: http://localhost/policybot"
