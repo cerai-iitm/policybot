@@ -36,7 +36,7 @@ cursor-default sm:cursor-pointer
 
           {/* Column 1 */}
           <div className="space-y-3 sm:space-y-4">
-            <a  href="/#what-it-does" className="block relative
+            <a  href="#what-it-does" className="block relative
               after:absolute after:left-0 after:-bottom-1
               after:h-[2px] after:w-full after:bg-white
               after:scale-x-0 after:origin-left
@@ -45,7 +45,7 @@ cursor-default sm:cursor-pointer
               Overview
             </a>
 
-            <a href="/#collections" className="block relative
+            <a href="#collections" className="block relative
               after:absolute after:left-0 after:-bottom-1
               after:h-[2px] after:w-full after:bg-white
               after:scale-x-0 after:origin-left
@@ -54,7 +54,7 @@ cursor-default sm:cursor-pointer
               Policy Notebooks
             </a>
 
-            <a  href="/#bring-your-own" className="block relative
+            <a  href="#bring-your-own" className="block relative
               after:absolute after:left-0 after:-bottom-1
               after:h-[2px] after:w-full after:bg-white
               after:scale-x-0 after:origin-left
@@ -63,7 +63,7 @@ cursor-default sm:cursor-pointer
               How It Works
             </a>
 
-            <a  href="/#faq" className="block relative
+            <a  href="#faq" className="block relative
               after:absolute after:left-0 after:-bottom-1
               after:h-[2px] after:w-full after:bg-white
               after:scale-x-0 after:origin-left
