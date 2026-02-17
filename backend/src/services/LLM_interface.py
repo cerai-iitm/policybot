@@ -51,14 +51,20 @@ class LLM_Interface:
             client = AsyncOpenAI(
                 api_key=cfg.VLLM_LLM_API_KEY, base_url=cfg.VLLM_LLM_URL
             )
-            logger.debug(
-                f"LLM direct call",
+            logger.info(
+                f"LLM direct call to {self.model_name}",
                 extra={
                     "model": self.model_name,
                     "max_tokens": max_tokens,
                     "timeout": timeout,
+                    "num_messages": len(messages),
                 },
             )
+            # Debug: log first 200 chars of user message
+            if messages and len(messages) > 1:
+                user_msg = messages[-1].get("content", "")[:200]
+                logger.debug(f"User message preview: {user_msg}...")
+
             resp = await asyncio.wait_for(
                 client.chat.completions.create(
                     model=self.model_name,
@@ -70,19 +76,32 @@ class LLM_Interface:
             )
 
             # Extract content robustly
+            logger.debug(f"Raw response object: {resp}")
             if hasattr(resp, "choices") and resp.choices:
                 choice = resp.choices[0]
+                logger.debug(f"First choice: {choice}")
                 if hasattr(choice, "message"):
                     content = choice.message.content
-                    logger.debug(f"LLM response received, length: {len(content)}")
-                    return content
-            logger.warning("LLM returned no content")
+                    logger.debug(
+                        f"Message content type: {type(content)}, value: {content}"
+                    )
+                    if content and isinstance(content, str) and content.strip():
+                        logger.info(f"LLM response received, length: {len(content)}")
+                        return content
+                    else:
+                        logger.warning(f"LLM returned empty or whitespace-only content")
+                        return None
+                else:
+                    logger.warning(f"Choice has no message attribute")
+            else:
+                logger.warning(f"Response has no choices or choices is empty")
+            logger.warning("LLM returned no valid content")
             return None
         except asyncio.TimeoutError:
             logger.warning(f"LLM request timed out after {timeout}s")
             return None
         except Exception as e:
-            logger.error(f"LLM direct call failed: {e}")
+            logger.error(f"LLM direct call failed: {e}", exc_info=True)
             return None
 
     def _create_chain(self):
