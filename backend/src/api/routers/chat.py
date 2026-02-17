@@ -19,6 +19,7 @@ from src.db.crud import (
     insert_suggested_question,
 )
 from src.services import ChatManager, LLM_Interface, Retriever
+from src.services.llm_utils import force_ollama_provider
 
 router = APIRouter()
 
@@ -39,6 +40,12 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
     - request.model_name omitted/None: Uses backend default cfg.MODEL_NAME (regular users)
     - request.model_name provided: Uses specified model (admin users)
     """
+    # Force Ollama provider for this endpoint (runtime override)
+    try:
+        force_ollama_provider()
+    except Exception:
+        logger.exception("Failed to force Ollama provider override")
+
     # Validate notebook exists
     notebook = await get_notebook_by_notebook_id(db, request.notebook_id.strip())
     if not notebook:
@@ -130,7 +137,11 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
             )
             row = res.first()
             if row:
-                return {"example_answer": row[1], "matched_question": row[0], "score": 1.0}
+                return {
+                    "example_answer": row[1],
+                    "matched_question": row[0],
+                    "score": 1.0,
+                }
 
             # 1b) fuzzy match among questions for that filename
             sql_fn = text(
@@ -139,7 +150,9 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
                 "JOIN suggested_question_examples sqe ON sq.id = sqe.suggested_question_id "
                 "WHERE sq.notebook_id = :nb AND sq.filename = :fn"
             )
-            res = await db_session.execute(sql_fn, {"nb": notebook_identifier, "fn": filename})
+            res = await db_session.execute(
+                sql_fn, {"nb": notebook_identifier, "fn": filename}
+            )
             rows = res.mappings().all()
             best = None
             best_score = 0.0
@@ -155,7 +168,11 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
                         best = r["example_answer"]
                         matched = r["suggested_text"]
                 if best_score >= min_ratio:
-                    return {"example_answer": best, "matched_question": matched, "score": best_score}
+                    return {
+                        "example_answer": best,
+                        "matched_question": matched,
+                        "score": best_score,
+                    }
 
         # 2) exact match shortcut (case-insensitive) across notebook (general)
         exact_sql = text(
@@ -198,7 +215,11 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
                 matched = r["suggested_text"]
 
         if best_score >= min_ratio:
-            return {"example_answer": best, "matched_question": matched, "score": best_score}
+            return {
+                "example_answer": best,
+                "matched_question": matched,
+                "score": best_score,
+            }
         return None
 
     try:
@@ -210,9 +231,14 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
 
         # If LLM returned an error marker or empty response, try fallback
         if not response or (isinstance(response, str) and "[LLM Error" in response):
-            logger.warning("LLM returned no usable content; attempting suggested-example fallback")
+            logger.warning(
+                "LLM returned no usable content; attempting suggested-example fallback"
+            )
             fallback = await _get_suggested_example(
-                db, notebook.notebook_id, request.query, filename=valid_pdfs[0] if valid_pdfs else None
+                db,
+                notebook.notebook_id,
+                request.query,
+                filename=valid_pdfs[0] if valid_pdfs else None,
             )
             if fallback:
                 chunks_with_metadata = [
@@ -247,7 +273,10 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
 
         # Try fallback when an exception occurs
         fallback = await _get_suggested_example(
-            db, notebook.notebook_id, request.query, filename=valid_pdfs[0] if valid_pdfs else None
+            db,
+            notebook.notebook_id,
+            request.query,
+            filename=valid_pdfs[0] if valid_pdfs else None,
         )
         chunks_with_metadata = [
             {

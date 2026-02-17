@@ -396,36 +396,82 @@ class LLM_Interface:
         context_chunks: List[str],
         query: str,
     ) -> str:
-        """Async version of generate_response using direct AsyncOpenAI completion."""
+        """Async version of generate_response.
+
+        Branches by provider:
+        - If cfg.LLM_PROVIDER == 'vllm': use the AsyncOpenAI/_direct_chat_completion path.
+        - Else (ollama, gemini): use the langchain chain async methods (arun/ainvoke/astream)
+          and fall back to running chain.invoke in a thread.
+        """
         try:
             if not query or not query.strip():
                 raise ValueError("Query cannot be empty")
 
-            logger.info(f"Async generating response for query: {query[:30]}...")
+            # vLLM/OpenAI-compatible path
+            if cfg.LLM_PROVIDER == "vllm":
+                logger.info(
+                    f"Async generating response for query (vllm path): {query[:30]}..."
+                )
+                formatted_context = self._format_context(context_chunks)
+                prompt = (
+                    f"{self.system_prompt}\n\n"
+                    f"Context:\n\n{formatted_context}\n\n"
+                    f"Question: {query.strip()}\n\n"
+                    f"Answer:"
+                )
+                response = await self._direct_chat_completion(
+                    prompt, max_tokens=1000, timeout=60
+                )
+                if response:
+                    logger.info(f"Generated async response: {str(response)[:30]}...")
+                    return response
+                else:
+                    logger.warning("LLM returned no async response")
+                    return "[LLM Error: No response generated]"
 
-            # Format context
-            formatted_context = self._format_context(context_chunks)
-
-            # Build prompt string for /v1/completions endpoint
-            # Format: System prompt + Context + Question + Explicit instruction to respond
-            prompt = (
-                f"{self.system_prompt}\n\n"
-                f"Context:\n\n{formatted_context}\n\n"
-                f"Question: {query.strip()}\n\n"
-                f"Answer:"
+            # Ollama / langchain path
+            logger.info(
+                f"Async generating response for query (ollama/langchain path): {query[:30]}..."
+            )
+            inputs = self.prepare_inputs(
+                session_id, chat_manager, context_chunks, query
             )
 
-            # Call direct async completion
-            response = await self._direct_chat_completion(
-                prompt, max_tokens=1000, timeout=60
-            )
+            # 1) chain.arun
+            if hasattr(self.chain, "arun"):
+                result = await self.chain.arun(inputs)
+                result = External.extract_llm_output(result)
+                logger.info(f"Generated async response (arun): {str(result)[:30]}...")
+                return result
 
-            if response:
-                logger.info(f"Generated async response: {str(response)[:30]}...")
-                return response
-            else:
-                logger.warning("LLM returned no async response")
-                return "[LLM Error: No response generated]"
+            # 2) chain.ainvoke
+            if hasattr(self.chain, "ainvoke"):
+                result = await self.chain.ainvoke(inputs)
+                result = External.extract_llm_output(result)
+                logger.info(
+                    f"Generated async response (ainvoke): {str(result)[:30]}..."
+                )
+                return result
+
+            # 3) chain.astream
+            if hasattr(self.chain, "astream"):
+                pieces: List[str] = []
+                async for chunk in self.chain.astream(inputs):
+                    chunk = External.extract_llm_output(chunk)
+                    pieces.append(str(chunk))
+                result = "".join(pieces)
+                logger.info(
+                    f"Generated async response (astream): {str(result)[:30]}..."
+                )
+                return result
+
+            # Fallback: run blocking invoke in thread
+            result = await asyncio.to_thread(self.chain.invoke, inputs)
+            result = External.extract_llm_output(result)
+            logger.info(
+                f"Generated async response (fallback invoke): {str(result)[:30]}..."
+            )
+            return result
 
         except ValueError as ve:
             logger.error(f"Input validation error: {ve}")
