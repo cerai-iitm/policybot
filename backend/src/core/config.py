@@ -40,7 +40,7 @@ class Config:
     BREAKPOINT_THRESHOLD_AMOUNT = 1.0
     MAX_HISTORY_MESSAGES = 3
     # default model used by the backend for final generation
-    MODEL_NAME: str = "unsloth/gemma-3n-E4B-it"
+    MODEL_NAME: str = "gemma3n:e4b"
     TEMPERATURE = 0.5
     MAX_CONTEXT_TOKENS = 32000
 
