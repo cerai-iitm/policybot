@@ -299,6 +299,7 @@ class LLM_Interface:
             messages = [
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": user_prompt},
+                {"role": "assistant", "content": ""},
             ]
 
             # Run async function synchronously
@@ -351,6 +352,7 @@ class LLM_Interface:
             messages = [
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": user_prompt},
+                {"role": "assistant", "content": ""},
             ]
 
             # Call direct async OpenAI
