@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncGenerator, Dict, List
+from typing import AsyncGenerator, Dict, List, Optional
 
 from langchain_classic.chains.llm import LLMChain
 from langchain_classic.chains.summarize import load_summarize_chain
@@ -10,6 +10,7 @@ from langchain_core.prompts import (
     MessagesPlaceholder,
     PromptTemplate,
 )
+from openai import AsyncOpenAI
 
 from src.core import cfg, logger
 
@@ -30,6 +31,7 @@ class LLM_Interface:
 
         self.system_prompt = cfg.SYSTEM_PROMPT
         self.max_history_messages = cfg.MAX_HISTORY_MESSAGES
+        self.model_name = effective_model
         self.llm = External.create_llm(effective_model)
         if self.llm is None:
             raise ValueError(
@@ -37,6 +39,51 @@ class LLM_Interface:
             )
         self.chain = self._create_chain()
         self.chat_manager = ChatManager()
+
+    async def _direct_chat_completion(
+        self, messages: List[Dict], max_tokens: int = 1000, timeout: int = 60
+    ) -> Optional[str]:
+        """
+        Perform a direct async chat completion using AsyncOpenAI client.
+        Returns the text if successful, otherwise None on timeout/error.
+        """
+        try:
+            client = AsyncOpenAI(
+                api_key=cfg.VLLM_LLM_API_KEY, base_url=cfg.VLLM_LLM_URL
+            )
+            logger.debug(
+                f"LLM direct call",
+                extra={
+                    "model": self.model_name,
+                    "max_tokens": max_tokens,
+                    "timeout": timeout,
+                },
+            )
+            resp = await asyncio.wait_for(
+                client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=cfg.TEMPERATURE,
+                ),
+                timeout=timeout,
+            )
+
+            # Extract content robustly
+            if hasattr(resp, "choices") and resp.choices:
+                choice = resp.choices[0]
+                if hasattr(choice, "message"):
+                    content = choice.message.content
+                    logger.debug(f"LLM response received, length: {len(content)}")
+                    return content
+            logger.warning("LLM returned no content")
+            return None
+        except asyncio.TimeoutError:
+            logger.warning(f"LLM request timed out after {timeout}s")
+            return None
+        except Exception as e:
+            logger.error(f"LLM direct call failed: {e}")
+            return None
 
     def _create_chain(self):
         prompt = ChatPromptTemplate(
@@ -214,14 +261,39 @@ class LLM_Interface:
         query: str,
     ) -> str:
         try:
-            inputs = self.prepare_inputs(
-                session_id, chat_manager, context_chunks, query
-            )
+            if not query or not query.strip():
+                raise ValueError("Query cannot be empty")
+
             logger.info(f"Generating response for query: {query[:30]}...")
-            response = self.chain.invoke(inputs)
-            response = External.extract_llm_output(response)
-            logger.info(f"Generated response: {str(response)[:30]}...")
-            return response
+
+            # Format context and history
+            formatted_context = self._format_context(context_chunks)
+            history = chat_manager.get_history(session_id)
+            formatted_history = self._format_history(history)
+
+            # Build prompt string
+            user_prompt = (
+                f"Context:\n\n{formatted_context}\n\nQuestion: {query.strip()}"
+            )
+
+            # Build messages
+            messages = [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+
+            # Run async function synchronously
+            response = asyncio.run(
+                self._direct_chat_completion(messages, max_tokens=1000, timeout=60)
+            )
+
+            if response:
+                logger.info(f"Generated response: {str(response)[:30]}...")
+                return response
+            else:
+                logger.warning("LLM returned no response")
+                return "[LLM Error: No response generated]"
+
         except ValueError as ve:
             logger.error(f"Input validation error: {ve}")
             return f"Input Error: {ve}"
@@ -239,54 +311,40 @@ class LLM_Interface:
         context_chunks: List[str],
         query: str,
     ) -> str:
-        """Async version of generate_response.
-
-        This prefers async chain APIs when available (`arun`, `ainvoke`, `astream`),
-        and falls back to running sync `invoke` in a thread to avoid blocking
-        the event loop.
-        """
+        """Async version of generate_response using direct AsyncOpenAI call."""
         try:
-            inputs = self.prepare_inputs(
-                session_id, chat_manager, context_chunks, query
-            )
+            if not query or not query.strip():
+                raise ValueError("Query cannot be empty")
+
             logger.info(f"Async generating response for query: {query[:30]}...")
 
-            # Prefer async run-over documents if available
-            # 1) chain.arun (common pattern for async chain-run)
-            if hasattr(self.chain, "arun"):
-                result = await self.chain.arun(inputs)
-                result = External.extract_llm_output(result)
-                logger.info(f"Generated async response (arun): {str(result)[:30]}...")
-                return result
+            # Format context and history
+            formatted_context = self._format_context(context_chunks)
+            history = chat_manager.get_history(session_id)
+            formatted_history = self._format_history(history)
 
-            # 2) chain.ainvoke (alternative async invoke)
-            if hasattr(self.chain, "ainvoke"):
-                result = await self.chain.ainvoke(inputs)
-                result = External.extract_llm_output(result)
-                logger.info(
-                    f"Generated async response (ainvoke): {str(result)[:30]}..."
-                )
-                return result
-
-            # 3) Streaming async chains via astream: collect chunks
-            if hasattr(self.chain, "astream"):
-                pieces = []
-                async for chunk in self.chain.astream(inputs):
-                    chunk = External.extract_llm_output(chunk)
-                    pieces.append(str(chunk))
-                result = "".join(pieces)
-                logger.info(
-                    f"Generated async response (astream): {str(result)[:30]}..."
-                )
-                return result
-
-            # Fallback: chain.invoke is synchronous — run it in a thread
-            result = await asyncio.to_thread(self.chain.invoke, inputs)
-            result = External.extract_llm_output(result)
-            logger.info(
-                f"Generated async response (fallback invoke): {str(result)[:30]}..."
+            # Build prompt string
+            user_prompt = (
+                f"Context:\n\n{formatted_context}\n\nQuestion: {query.strip()}"
             )
-            return result
+
+            # Build messages
+            messages = [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+
+            # Call direct async OpenAI
+            response = await self._direct_chat_completion(
+                messages, max_tokens=1000, timeout=60
+            )
+
+            if response:
+                logger.info(f"Generated async response: {str(response)[:30]}...")
+                return response
+            else:
+                logger.warning("LLM returned no async response")
+                return "[LLM Error: No response generated]"
 
         except ValueError as ve:
             logger.error(f"Input validation error: {ve}")

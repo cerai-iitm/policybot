@@ -39,14 +39,15 @@ class Config:
     BREAKPOINT_THRESHOLD_TYPE = "standard_deviation"
     BREAKPOINT_THRESHOLD_AMOUNT = 1.0
     MAX_HISTORY_MESSAGES = 3
-    MODEL_NAME: str = "gemma3n:e4b"
+    # default model used by the backend for final generation
+    MODEL_NAME: str = "unsloth/gemma-3n-E4B-it"
     TEMPERATURE = 0.1
     MAX_CONTEXT_TOKENS = 32000
 
     RERANKING_MODEL_NAME = "BAAI/bge-reranker-base"
     TOP_K = 10
     TOP_P = 0.9
-    RERANKER_TEMP = 1.3
+    RERANKER_TEMP = 1.0
     RRF_TEMP = 0.17
 
     # TEI Reranker Configuration
@@ -70,7 +71,7 @@ class Config:
     VLLM_LLM_IP = os.getenv("VLLM_LLM_IP", "localhost")
     VLLM_LLM_PORT = int(os.getenv("VLLM_LLM_PORT", "8080"))
     VLLM_LLM_URL = f"http://{VLLM_LLM_IP}:{VLLM_LLM_PORT}/v1"
-    VLLM_LLM_MODEL = os.getenv("VLLM_LLM_MODEL", "google/gemma-3n-E4B")
+    VLLM_LLM_MODEL = os.getenv("VLLM_LLM_MODEL", "unsloth/gemma-3n-E4B-it")
     VLLM_LLM_API_KEY = os.getenv("VLLM_LLM_API_KEY", "EMPTY")
     VLLM_LLM_TEMPERATURE = float(os.getenv("VLLM_LLM_TEMPERATURE", "0.7"))
     VLLM_LLM_MAX_TOKENS = int(os.getenv("VLLM_LLM_MAX_TOKENS", "4096"))
@@ -108,6 +109,7 @@ class Config:
     # Admin config for testing models
     SUPPORTED_MODELS = [
         {"id": "gemma3n:e4b", "name": "Gemma 3n (e4b)"},
+        {"id": "unsloth/gemma-3n-E4B-it", "name": "Gemma 3n E4B IT (unsloth)"},
         {
             "id": "hf.co/mradermacher/MiniMax-M2-THRIFT-55-i1-GGUF:Q3_K_S",
             "name": "MiniMax M2 Thrift 55",
