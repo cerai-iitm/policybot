@@ -40,11 +40,77 @@ class LLM_Interface:
         self.chain = self._create_chain()
         self.chat_manager = ChatManager()
 
+    def _extract_content_from_resp(self, resp) -> Optional[str]:
+        """
+        Robustly extract final content from various vLLM/OpenAI response shapes.
+        Handles:
+          - chat-style: choices[0].message.content
+          - text-style: choices[0].text
+          - delta-style fragments: choices[0].delta.content
+          - dict-like responses (raw JSON)
+        Returns None if no usable content found.
+        """
+        try:
+            # 1) object-like response with .choices
+            choices = getattr(resp, "choices", None)
+            if choices:
+                choice = choices[0]
+                # chat-style: choice.message.content
+                msg = getattr(choice, "message", None)
+                if msg:
+                    content = getattr(msg, "content", None)
+                    if content and isinstance(content, str) and content.strip():
+                        logger.debug("Extracted content from choice.message.content")
+                        return content
+                # text-style: choice.text (vLLM text-completion format)
+                text = getattr(choice, "text", None)
+                if text and isinstance(text, str) and text.strip():
+                    logger.debug("Extracted content from choice.text")
+                    return text
+                # delta-style fragment (sometimes appears even non-streaming)
+                delta = getattr(choice, "delta", None)
+                if isinstance(delta, dict):
+                    c = delta.get("content") or delta.get("text")
+                    if c and isinstance(c, str) and c.strip():
+                        logger.debug("Extracted content from choice.delta")
+                        return c
+
+            # 2) dict-like response (raw JSON)
+            if isinstance(resp, dict):
+                chs = resp.get("choices")
+                if chs:
+                    ch0 = chs[0]
+                    if isinstance(ch0, dict):
+                        # chat message
+                        m = ch0.get("message")
+                        if isinstance(m, dict):
+                            c = m.get("content")
+                            if c and isinstance(c, str) and c.strip():
+                                logger.debug(
+                                    "Extracted content from dict message.content"
+                                )
+                                return c
+                        # text field
+                        t = ch0.get("text")
+                        if t and isinstance(t, str) and t.strip():
+                            logger.debug("Extracted content from dict text field")
+                            return t
+                        # delta fragment
+                        d = ch0.get("delta")
+                        if isinstance(d, dict):
+                            c = d.get("content") or d.get("text")
+                            if c and isinstance(c, str) and c.strip():
+                                logger.debug("Extracted content from dict delta")
+                                return c
+        except Exception:
+            logger.debug("Exception while extracting response content", exc_info=True)
+        return None
+
     async def _direct_chat_completion(
-        self, messages: List[Dict], max_tokens: int = 1000, timeout: int = 60
+        self, prompt: str, max_tokens: int = 1000, timeout: int = 60
     ) -> Optional[str]:
         """
-        Perform a direct async chat completion using AsyncOpenAI client.
+        Perform a direct async text completion using AsyncOpenAI client on /v1/completions endpoint.
         Returns the text if successful, otherwise None on timeout/error.
         """
         try:
@@ -52,56 +118,42 @@ class LLM_Interface:
                 api_key=cfg.VLLM_LLM_API_KEY, base_url=cfg.VLLM_LLM_URL
             )
             logger.info(
-                f"LLM direct call to {self.model_name}",
+                f"LLM direct completion call to {self.model_name}",
                 extra={
                     "model": self.model_name,
                     "max_tokens": max_tokens,
                     "timeout": timeout,
-                    "num_messages": len(messages),
+                    "prompt_length": len(prompt),
                 },
             )
-            # Debug: log first 200 chars of user message
-            if messages and len(messages) > 1:
-                user_msg = messages[-1].get("content", "")[:200]
-                logger.debug(f"User message preview: {user_msg}...")
+            # Debug: log first 200 chars of prompt
+            logger.debug(f"Prompt preview: {prompt[:200]}...")
 
             resp = await asyncio.wait_for(
-                client.chat.completions.create(
+                client.completions.create(
                     model=self.model_name,
-                    messages=messages,
+                    prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=cfg.TEMPERATURE,
+                    stream=False,  # ensure non-streaming
                 ),
                 timeout=timeout,
             )
 
-            # Extract content robustly
-            logger.debug(f"Raw response object: {resp}")
-            if hasattr(resp, "choices") and resp.choices:
-                choice = resp.choices[0]
-                logger.debug(f"First choice: {choice}")
-                if hasattr(choice, "message"):
-                    content = choice.message.content
-                    logger.debug(
-                        f"Message content type: {type(content)}, value: {content}"
-                    )
-                    if content and isinstance(content, str) and content.strip():
-                        logger.info(f"LLM response received, length: {len(content)}")
-                        return content
-                    else:
-                        logger.warning(f"LLM returned empty or whitespace-only content")
-                        return None
-                else:
-                    logger.warning(f"Choice has no message attribute")
+            # Extract content from text completion response
+            content = self._extract_content_from_resp(resp)
+            if content:
+                logger.info(f"LLM response received, length: {len(content)}")
+                return content
             else:
-                logger.warning(f"Response has no choices or choices is empty")
-            logger.warning("LLM returned no valid content")
-            return None
+                logger.warning("No usable content found in completion response")
+                logger.debug(f"Raw response: {resp}")
+                return None
         except asyncio.TimeoutError:
             logger.warning(f"LLM request timed out after {timeout}s")
             return None
         except Exception as e:
-            logger.error(f"LLM direct call failed: {e}", exc_info=True)
+            logger.error(f"LLM direct completion failed: {e}", exc_info=True)
             return None
 
     def _create_chain(self):
@@ -285,26 +337,21 @@ class LLM_Interface:
 
             logger.info(f"Generating response for query: {query[:30]}...")
 
-            # Format context and history
+            # Format context
             formatted_context = self._format_context(context_chunks)
-            history = chat_manager.get_history(session_id)
-            formatted_history = self._format_history(history)
 
-            # Build prompt string
-            user_prompt = (
-                f"Context:\n\n{formatted_context}\n\nQuestion: {query.strip()}"
+            # Build prompt string for /v1/completions endpoint
+            # Format: System prompt + Context + Question + Explicit instruction to respond
+            prompt = (
+                f"{self.system_prompt}\n\n"
+                f"Context:\n\n{formatted_context}\n\n"
+                f"Question: {query.strip()}\n\n"
+                f"Answer:"
             )
-
-            # Build messages
-            messages = [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": user_prompt},
-                {"role": "assistant", "content": ""},
-            ]
 
             # Run async function synchronously
             response = asyncio.run(
-                self._direct_chat_completion(messages, max_tokens=1000, timeout=60)
+                self._direct_chat_completion(prompt, max_tokens=1000, timeout=60)
             )
 
             if response:
@@ -331,33 +378,28 @@ class LLM_Interface:
         context_chunks: List[str],
         query: str,
     ) -> str:
-        """Async version of generate_response using direct AsyncOpenAI call."""
+        """Async version of generate_response using direct AsyncOpenAI completion."""
         try:
             if not query or not query.strip():
                 raise ValueError("Query cannot be empty")
 
             logger.info(f"Async generating response for query: {query[:30]}...")
 
-            # Format context and history
+            # Format context
             formatted_context = self._format_context(context_chunks)
-            history = chat_manager.get_history(session_id)
-            formatted_history = self._format_history(history)
 
-            # Build prompt string
-            user_prompt = (
-                f"Context:\n\n{formatted_context}\n\nQuestion: {query.strip()}"
+            # Build prompt string for /v1/completions endpoint
+            # Format: System prompt + Context + Question + Explicit instruction to respond
+            prompt = (
+                f"{self.system_prompt}\n\n"
+                f"Context:\n\n{formatted_context}\n\n"
+                f"Question: {query.strip()}\n\n"
+                f"Answer:"
             )
 
-            # Build messages
-            messages = [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": user_prompt},
-                {"role": "assistant", "content": ""},
-            ]
-
-            # Call direct async OpenAI
+            # Call direct async completion
             response = await self._direct_chat_completion(
-                messages, max_tokens=1000, timeout=60
+                prompt, max_tokens=1000, timeout=60
             )
 
             if response:
