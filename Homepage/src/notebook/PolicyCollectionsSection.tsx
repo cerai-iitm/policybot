@@ -1,6 +1,6 @@
 import Card from "../components/ui/Card"
 import { NotebookListItem } from "@/lib/interfaces";
-import eduImage from "@/assets/edu.jpg";
+import eduImage from "@/assets/notebookbg/education.jpg";
 
 type Props = {
   notebooks: NotebookListItem[]
