@@ -48,6 +48,7 @@ export interface FirstNotebookPDFItem {
   uploaded_at: ISODateString;
   pdf_id: number;
   content_base64?: string | null;
+  summary?: string | null;
 }
 
 /* List response (backend may include first_notebook fields) */
@@ -73,6 +74,7 @@ export interface PDFListItem {
   processing_status: string;
   uploaded_at: ISODateString;
   pdf_id: number;
+  summary?: string | null;
 }
 
 export interface PDFListResponse {

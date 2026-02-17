@@ -1,5 +1,5 @@
 import Arrowright from "../assets/arrow.png";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import EducationImg from "../assets/notebookbg/education.jpg";
 import UnionBudgetImg from "../assets/notebookbg/unionbudget.png";
@@ -15,20 +15,22 @@ const PolicyCollections = (): JSX.Element => {
     {
       img: EducationImg,
       title: "Education & Academic Policies",
-      desc: "Policies related to education systems and learning frameworks."
+      desc: "Policies related to education systems and learning frameworks.",
+      keyword: "education",
     },
 
- 
     {
       img: AiImg,
       title: "Digital Governance & IT",
-      desc: "Digital governance, cybersecurity, and e-government policies."
+      desc: "Digital governance, cybersecurity, and e-government policies.",
+      keyword: "digital",
     },
     {
       img: UnionBudgetImg,
       title: "Union Budget 2026-2027",
-      desc: "Government budget allocations and reforms shaping the education sector."
-    }
+      desc: "Government budget allocations and reforms shaping the education sector.",
+      keyword: "budget",
+    },
   ];
 
   const loopCards = [...mobileCards, ...mobileCards];
@@ -38,6 +40,13 @@ const PolicyCollections = (): JSX.Element => {
   /* =========================
      AUTO + SWIPE LOGIC
   ========================= */
+
+  const navigate = useNavigate();
+
+  const openNotebooksFor = (keyword?: string) => {
+    if (keyword) navigate(`/notebook?preferred=${encodeURIComponent(keyword)}`);
+    else navigate("/notebook");
+  };
 
   useEffect(() => {
     const container = rowRef.current;
@@ -135,7 +144,14 @@ if (position <= -halfWidth) {
         >
           {loopCards.map((card, index) => (
             <div key={index} className="min-w-[384px]">
-              <Card {...card} />
+              <button
+                type="button"
+                aria-label={`Open notebooks for ${card.title}`}
+                onClick={() => openNotebooksFor(card.keyword)}
+                className="p-0 m-0 border-0 bg-transparent"
+              >
+                <Card img={card.img} title={card.title} desc={card.desc} />
+              </button>
             </div>
           ))}
         </div>
@@ -154,21 +170,42 @@ if (position <= -halfWidth) {
       <div className="hidden md:block max-w-6xl mx-auto">
 
         <div className="grid md:grid-cols-3 gap-8">
-                <Card
-              img={AiImg}
-              title="Digital Governance & IT"
-              desc="Digital governance, cybersecurity, and e-government policies."
-            />
-          <Card
-           img={EducationImg}
-            title="Education & Academic Policies"
-            desc="Policies related to education systems and learning frameworks."
-          />
-          <Card
-             img={UnionBudgetImg}
-            title="Union Budget 2026-2027"
-            desc="National budget allocations, fiscal strategies, and sector-wide policy reforms."
-          />
+            <button
+              type="button"
+              aria-label="Open notebooks for Digital Governance & IT"
+              onClick={() => openNotebooksFor("digital")}
+              className="p-0 m-0 border-0 bg-transparent"
+            >
+              <Card
+                img={AiImg}
+                title="Digital Governance & IT"
+                desc="Digital governance, cybersecurity, and e-government policies."
+              />
+            </button>
+            <button
+              type="button"
+              aria-label="Open notebooks for Education & Academic Policies"
+              onClick={() => openNotebooksFor("education")}
+              className="p-0 m-0 border-0 bg-transparent"
+            >
+              <Card
+                img={EducationImg}
+                title="Education & Academic Policies"
+                desc="Policies related to education systems and learning frameworks."
+              />
+            </button>
+            <button
+              type="button"
+              aria-label="Open notebooks for Union Budget 2026-2027"
+              onClick={() => openNotebooksFor("budget")}
+              className="p-0 m-0 border-0 bg-transparent"
+            >
+              <Card
+                img={UnionBudgetImg}
+                title="Union Budget 2026-2027"
+                desc="National budget allocations, fiscal strategies, and sector-wide policy reforms."
+              />
+            </button>
    
         </div>
 
