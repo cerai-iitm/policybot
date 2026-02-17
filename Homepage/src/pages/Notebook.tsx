@@ -14,6 +14,7 @@ const Notebook = () => {
 
   // 🔹 Load notebooks on mount (and handle optional preferred query param)
   const location = useLocation()
+  const navigate = useNavigate()
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const preferred = params.get("preferred")
