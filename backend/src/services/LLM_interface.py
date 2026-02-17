@@ -32,11 +32,17 @@ class LLM_Interface:
         self.system_prompt = cfg.SYSTEM_PROMPT
         self.max_history_messages = cfg.MAX_HISTORY_MESSAGES
         self.model_name = effective_model
+
+        # Create provider-specific LLM instance via External factory.
+        # External.create_llm will initialize an Ollama/langchain LLM when
+        # cfg.LLM_PROVIDER == "ollama", or other providers as configured.
         self.llm = External.create_llm(effective_model)
         if self.llm is None:
             raise ValueError(
                 "LLM initialization failed. Ensure LLM_PROVIDER is configured correctly."
             )
+
+        # Build the langchain chain for providers that support it (e.g. Ollama).
         self.chain = self._create_chain()
         self.chat_manager = ChatManager()
 
@@ -335,31 +341,43 @@ class LLM_Interface:
             if not query or not query.strip():
                 raise ValueError("Query cannot be empty")
 
-            logger.info(f"Generating response for query: {query[:30]}...")
+            # Branch by configured provider: vllm uses AsyncOpenAI path, others
+            # (ollama, gemini) use the langchain chain.invoke logic provided.
+            if cfg.LLM_PROVIDER == "vllm":
+                logger.info(
+                    f"Generating response for query (vllm path): {query[:30]}..."
+                )
+                # Format context and build OpenAI-compatible prompt
+                formatted_context = self._format_context(context_chunks)
+                prompt = (
+                    f"{self.system_prompt}\n\n"
+                    f"Context:\n\n{formatted_context}\n\n"
+                    f"Question: {query.strip()}\n\n"
+                    f"Answer:"
+                )
+                # Run async call synchronously
+                response = asyncio.run(
+                    self._direct_chat_completion(prompt, max_tokens=1000, timeout=60)
+                )
+                if response:
+                    logger.info(f"Generated response: {str(response)[:30]}...")
+                    return response
+                else:
+                    logger.warning("LLM returned no response")
+                    return "[LLM Error: No response generated]"
 
-            # Format context
-            formatted_context = self._format_context(context_chunks)
-
-            # Build prompt string for /v1/completions endpoint
-            # Format: System prompt + Context + Question + Explicit instruction to respond
-            prompt = (
-                f"{self.system_prompt}\n\n"
-                f"Context:\n\n{formatted_context}\n\n"
-                f"Question: {query.strip()}\n\n"
-                f"Answer:"
-            )
-
-            # Run async function synchronously
-            response = asyncio.run(
-                self._direct_chat_completion(prompt, max_tokens=1000, timeout=60)
-            )
-
-            if response:
+            else:
+                # Ollama/langchain path: use the chain.invoke logic you provided
+                logger.info(
+                    f"Generating response for query (ollama/langchain path): {query[:30]}..."
+                )
+                inputs = self.prepare_inputs(
+                    session_id, chat_manager, context_chunks, query
+                )
+                response = self.chain.invoke(inputs)
+                response = External.extract_llm_output(response)
                 logger.info(f"Generated response: {str(response)[:30]}...")
                 return response
-            else:
-                logger.warning("LLM returned no response")
-                return "[LLM Error: No response generated]"
 
         except ValueError as ve:
             logger.error(f"Input validation error: {ve}")
