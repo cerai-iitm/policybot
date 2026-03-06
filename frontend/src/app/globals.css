@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+
 /* Light theme (default) */
 :root {
   --bg-dark: hsl(220 59% 91%);
@@ -51,4 +57,47 @@
   --color-warning: var(--warning);
   --color-success: var(--success);
   --color-info: var(--info);
+}
+
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+
+/* Chrome */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+/* Show scrollbar on hover */
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.25);
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out;
 }

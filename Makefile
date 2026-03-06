@@ -36,6 +36,12 @@ help:
 	@echo "  make clean             Stop all containers (keep volumes)"
 	@echo "  make clean-volumes     Stop all + delete data (DESTRUCTIVE)"
 	@echo ""
+	@echo "DATABASE:"
+	@echo "  make db-current        Show current migration version"
+	@echo "  make db-history        Show migration history"
+	@echo "  make db-upgrade        Run pending migrations"
+	@echo "  make db-migrate        Create new migration (requires MESSAGE=)"
+	@echo ""
 	@echo "INFORMATION:"
 	@echo "  make help              Show this message"
 	@echo ""
@@ -52,13 +58,13 @@ prod:
 	@echo "=========================================="
 	@echo ""
 	@echo "Step 1: Building production images..."
-	$(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) build
+	COMPOSE_PROFILES=prod $(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) build
 	@echo ""
 	@echo "Step 2: Downloading LLM models (this may take a few minutes)..."
-	$(MAKE) download-models
+	COMPOSE_PROFILES=prod $(MAKE) download-models
 	@echo ""
 	@echo "Step 3: Starting production services..."
-	$(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) up -d
+	COMPOSE_PROFILES=prod $(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) up -d
 	@echo ""
 	@echo "Production stack is running!"
 	@echo "Access at: http://localhost/policybot"
@@ -108,6 +114,75 @@ dev-down:
 	@echo "Stopping development services..."
 	$(COMPOSE) $(DEV_FILES) -p $(PROJECT_NAME)-dev down
 	@echo "Development services stopped."
+
+# ==============================================================================
+# DATABASE MIGRATION TARGETS
+# ==============================================================================
+
+# Backend container name (auto-detect dev or prod)
+BACKEND_CONTAINER := $(shell docker ps --filter "name=backend" --filter "status=running" --format "{{.Names}}" | head -1)
+
+# Check if backend container is running
+.PHONY: check-backend
+check-backend:
+	@if [ -z "$(BACKEND_CONTAINER)" ]; then \
+		echo "❌ Error: No running backend container found!"; \
+		echo "   Start the stack first: make dev  or  make prod"; \
+		exit 1; \
+	fi
+
+# Create a new migration (requires MESSAGE variable) - runs inside container
+.PHONY: db-migrate
+db-migrate: check-backend
+ifndef MESSAGE
+	$(error MESSAGE is required. Usage: make db-migrate MESSAGE="description of changes")
+endif
+	@echo "Creating new migration: $(MESSAGE)..."
+	@docker exec -u root $(BACKEND_CONTAINER) alembic revision --autogenerate -m "$(MESSAGE)"
+	@echo "✅ Migration created inside container. Syncing to host..."
+	@docker cp $(BACKEND_CONTAINER):/app/migrations/versions/. backend/migrations/versions/
+	@echo "✅ Migration synced to host. Review it in backend/migrations/versions/"
+
+# Run all pending migrations (upgrade to head) - runs inside container
+.PHONY: db-upgrade
+db-upgrade: check-backend
+	@echo "Running database migrations..."
+	@docker exec $(BACKEND_CONTAINER) alembic upgrade head
+	@echo "✅ Migrations complete."
+
+# Rollback one migration - runs inside container
+.PHONY: db-downgrade
+db-downgrade: check-backend
+	@echo "Rolling back one migration..."
+	@docker exec $(BACKEND_CONTAINER) alembic downgrade -1
+	@echo "✅ Rollback complete."
+
+# Show migration history - runs inside container
+.PHONY: db-history
+db-history: check-backend
+	@echo "Migration history:"
+	@docker exec $(BACKEND_CONTAINER) alembic history --verbose
+
+# Show current migration - runs inside container
+.PHONY: db-current
+db-current: check-backend
+	@echo "Current migration:"
+	@docker exec $(BACKEND_CONTAINER) alembic current
+
+# Reset database (WARNING: Destroys all data!) - runs inside container
+.PHONY: db-reset
+db-reset: check-backend
+	@echo "⚠️  WARNING: This will DELETE all data in the database!"
+	@docker exec $(BACKEND_CONTAINER) python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(f'   Database: {os.getenv(\"POSTGRES_DB\", \"policybot\")}')"
+	@read -p "   Type 'destroy' to confirm: " confirm; \
+	if [ "$$confirm" = "destroy" ]; then \
+		echo "   Resetting database..."; \
+		docker exec $(BACKEND_CONTAINER) alembic downgrade base; \
+		docker exec $(BACKEND_CONTAINER) alembic upgrade head; \
+		echo "✅ Database reset complete."; \
+	else \
+		echo "❌ Reset cancelled."; \
+	fi
 
 # ==============================================================================
 # CLEANUP TARGETS

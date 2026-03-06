@@ -1,0 +1,14 @@
+[
+  {
+    "notebook_id": "notebook-1",
+    "question": "What is the National Strategy for Artificial Intelligence?",
+    "filename": null,
+    "example_answer": "The National Strategy for Artificial Intelligence outlines India's vision to apply AI for solving country-specific problems across healthcare, agriculture, and education while emphasising data governance and capacity building."
+  },
+  {
+    "notebook_id": "notebook-1",
+    "question": "How can AI address India's unique challenges in healthcare?",
+    "filename": null,
+    "example_answer": "AI can help by enabling remote diagnostics, triage, predictive analytics for outbreaks, and personalised treatment recommendations to bridge access and infrastructure gaps."
+  }
+]

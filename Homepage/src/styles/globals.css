@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans;
+  }
+}
+@layer base {
+  p {
+    @apply font-serif;
+  }
+}
+
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  animation: gradient 4s ease infinite;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Two-line fade truncation for PDF summaries */
+.two-line-fade {
+  position: relative;
+  max-width: 100%;
+}
+.two-line-fade .fade-content {
+  max-height: 3.2rem; /* approx 2 lines at 1.6rem line-height */
+  line-height: 1.6rem;
+  overflow: hidden;
+}
+.two-line-fade::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 4rem;
+  height: 1.6rem;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,1));
+  pointer-events: none;
+}

@@ -79,31 +79,25 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
 
 5. **Deploy the Application**
 
-   **For Production:**
+    **For Production:**
 
-   ```bash
-   make prod
-   ```
+    ```bash
+    make prod
+    ```
 
-   This will build images, download models, and start all services. Visit the app at [http://localhost:80/policybot](http://localhost:80/policybot).
+    This will build images, download models, and start all services. Visit the app at [http://localhost:80/policybot](http://localhost:80/policybot).
 
-   **For Development:**
+    To stop production services:
 
-   ```bash
-   make dev BUILD=1
-   ```
+    ```bash
+    make prod-down
+    ```
 
-   This will start services with hot-reload enabled. Access at [http://localhost:80/policybot](http://localhost:80/policybot).
+    For a full list of available targets use:
 
-   **Additional Commands:**
-
-   ```bash
-   make help           # Show all available commands
-   make prod-down      # Stop production services
-   make dev-down       # Stop development services
-   make clean          # Stop all containers (keep data)
-   make clean-volumes  # Stop all and remove data (WARNING: destructive)
-   ```
+    ```bash
+    make help
+    ```
 
 6. **Access the logs**
 
@@ -113,21 +107,7 @@ A Retrieval-Augmented Generation (RAG) application for extracting and answering 
      docker exec -it policybot-backend-1 tail -f logs/app.log
      ```
 
-## v2.0.0 — Release Highlights
 
-**Summary:** Major refactor and migration to a production-ready stack — backend moved to `FastAPI`, frontend rewritten in `Next.js`, retrieval moved to `Qdrant` with async RAG
-flows, and improved concurrent query handling for multiple users.
-
-**Notable changes you can find in the code:**
-
-- `backend/main.py`: FastAPI entrypoint (replaces prior Streamlit app).
-- `backend/src/routers/`: API routes such as `chat.py` and `pdf.py`.
-- `backend/src/rag/`: RAG pipeline modules (`retriever.py`, `LLM_interface.py`, `chat_manager.py`, `pdf_processor.py`).
-- `frontend/src/app/`: Complete Next.js frontend redesign.
-- `docker-compose.yml` and `nginx.conf`: Updated to run backend and frontend services.
-- `download_models.py` and `entrypoint.sh`: Model and startup updates.
-
-**Notes:** If you used the old Streamlit UI, it's now replaced by the Next.js frontend. Start services with `docker compose up` and visit `http://localhost:80`.
 
 ## Troubleshooting
 

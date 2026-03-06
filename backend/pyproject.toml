@@ -7,6 +7,7 @@ requires-python = "==3.12.11"
 dependencies = [
     "aiofiles>=25.1.0",
     "alembic>=1.17.2",
+    "python-dotenv>=1.0.0",
     "asyncpg>=0.31.0",
     "colorama>=0.4.6",
     "fastapi[standard]>=0.118.0",
@@ -20,6 +21,8 @@ dependencies = [
     "pymupdf>=1.26.4",
     "qdrant-client>=1.15.1",
     "structlog>=25.5.0",
+    "openai>=2.21.0",
+    "langchain-openai>=1.1.9",
 ]
 
 
@@ -40,6 +43,21 @@ python-platform = "linux"
 python-version = "3.12"
 python-interpreter-path = ".venv/bin/python"
 
+[tool.ruff]
+# Target your Python version
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F are the basic errors; I handles import sorting (isort style)
+select = ["E", "F", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+
 [tool.alembic]
 
 # path to migration scripts.
@@ -52,7 +70,7 @@ script_location = "%(here)s/migrations"
 # Uncomment the line below if you want the files to be prepended with date and time
 # see https://alembic.sqlalchemy.org/en/latest/tutorial.html#editing-the-ini-file
 # for all available tokens
-# file_template = "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s"
+file_template = "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s"
 
 # additional paths to be prepended to sys.path. defaults to the current working directory.
 prepend_sys_path = [
@@ -100,25 +118,17 @@ prepend_sys_path = [
 # This section defines scripts or Python functions that are run
 # on newly generated revision scripts.  See the documentation for further
 # detail and examples
-# [[tool.alembic.post_write_hooks]]
+[[tool.alembic.post_write_hooks]]
 # format using "black" - use the console_scripts runner,
 # against the "black" entrypoint
-# name = "black"
-# type = "console_scripts"
-# entrypoint = "black"
-# options = "-l 79 REVISION_SCRIPT_FILENAME"
-#
-# [[tool.alembic.post_write_hooks]]
-# lint with attempts to fix using "ruff" - use the module runner, against the "ruff" module
-# name = "ruff"
-# type = "module"
-# module = "ruff"
-# options = "check --fix REVISION_SCRIPT_FILENAME"
-#
-# [[tool.alembic.post_write_hooks]]
-# Alternatively, use the exec runner to execute a binary found on your PATH
-# name = "ruff"
-# type = "exec"
-# executable = "ruff"
-# options = "check --fix REVISION_SCRIPT_FILENAME"
+name = "black"
+type = "console_scripts"
+entrypoint = "black"
+options = "-l 88 REVISION_SCRIPT_FILENAME"
 
+[[tool.alembic.post_write_hooks]]
+# lint with attempts to fix using "ruff" - use the module runner, against the "ruff" module
+name = "ruff"
+type = "module"
+module = "ruff"
+options = "check --fix REVISION_SCRIPT_FILENAME"

@@ -1,9 +1,10 @@
 .venv
 backend/.env
 data
-db
 logs
 *.pyc
 
 chroma
 qdrant_storage
+backend/Policybot
+Bruno/Policybot
