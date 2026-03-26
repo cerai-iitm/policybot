@@ -55,7 +55,7 @@ app.mount(
 # Mount images
 app.mount(
     "/policybot/images",
-    StaticFiles(directory="/app/static/homepage/images"),
+    StaticFiles(directory="/app/static/homepage/assets"),
     name="homepage-images",
 )
 

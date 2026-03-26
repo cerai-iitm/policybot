@@ -1,4 +1,6 @@
 from typing import List, Optional
+from difflib import SequenceMatcher
+from sqlalchemy import text
 
 from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.documents import Document
@@ -17,6 +19,7 @@ from src.db.crud import (
     insert_suggested_question,
 )
 from src.services import ChatManager, LLM_Interface, Retriever
+from src.services.llm_utils import force_ollama_provider
 
 router = APIRouter()
 
@@ -37,6 +40,12 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
     - request.model_name omitted/None: Uses backend default cfg.MODEL_NAME (regular users)
     - request.model_name provided: Uses specified model (admin users)
     """
+    # Force Ollama provider for this endpoint (runtime override)
+    try:
+        force_ollama_provider()
+    except Exception:
+        logger.exception("Failed to force Ollama provider override")
+
     # Validate notebook exists
     notebook = await get_notebook_by_notebook_id(db, request.notebook_id.strip())
     if not notebook:
@@ -101,12 +110,152 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
     logger.info(f"Retrieved {len(context_chunks)} chunks for the query in chat.py")
     logger.info(f"Returning {len(context_chunks)} context chunks in response.")
 
+    async def _get_suggested_example(
+        db_session: AsyncSession,
+        notebook_identifier: str,
+        query_text: str,
+        filename: Optional[str] = None,
+        min_ratio: float = 0.90,
+    ) -> Optional[dict]:
+        """Return best example_answer for `query_text` within a notebook.
+
+        Returns dict {"example_answer","matched_question","score"} or None.
+        """
+        q = (query_text or "").strip().lower()
+
+        # Prefer filename-specific matches when a filename is provided.
+        if filename:
+            # 1a) exact match among questions for that filename
+            exact_sql_fn = text(
+                "SELECT sq.question AS suggested_text, sqe.example_answer AS example_answer "
+                "FROM suggested_questions sq "
+                "JOIN suggested_question_examples sqe ON sq.id = sqe.suggested_question_id "
+                "WHERE lower(sq.question)=:q AND sq.notebook_id = :nb AND sq.filename = :fn LIMIT 1"
+            )
+            res = await db_session.execute(
+                exact_sql_fn, {"q": q, "nb": notebook_identifier, "fn": filename}
+            )
+            row = res.first()
+            if row:
+                return {
+                    "example_answer": row[1],
+                    "matched_question": row[0],
+                    "score": 1.0,
+                }
+
+            # 1b) fuzzy match among questions for that filename
+            sql_fn = text(
+                "SELECT sq.question AS suggested_text, sqe.example_answer AS example_answer "
+                "FROM suggested_questions sq "
+                "JOIN suggested_question_examples sqe ON sq.id = sqe.suggested_question_id "
+                "WHERE sq.notebook_id = :nb AND sq.filename = :fn"
+            )
+            res = await db_session.execute(
+                sql_fn, {"nb": notebook_identifier, "fn": filename}
+            )
+            rows = res.mappings().all()
+            best = None
+            best_score = 0.0
+            matched = None
+            if rows:
+                for r in rows:
+                    s_text = (r["suggested_text"] or "").lower()
+                    if not s_text:
+                        continue
+                    score = SequenceMatcher(None, q, s_text).ratio()
+                    if score > best_score:
+                        best_score = score
+                        best = r["example_answer"]
+                        matched = r["suggested_text"]
+                if best_score >= min_ratio:
+                    return {
+                        "example_answer": best,
+                        "matched_question": matched,
+                        "score": best_score,
+                    }
+
+        # 2) exact match shortcut (case-insensitive) across notebook (general)
+        exact_sql = text(
+            "SELECT sq.question AS suggested_text, sqe.example_answer AS example_answer "
+            "FROM suggested_questions sq "
+            "JOIN suggested_question_examples sqe ON sq.id = sqe.suggested_question_id "
+            "WHERE lower(sq.question)=:q AND sq.notebook_id = :nb LIMIT 1"
+        )
+        res = await db_session.execute(exact_sql, {"q": q, "nb": notebook_identifier})
+        row = res.first()
+        if row:
+            return {"example_answer": row[1], "matched_question": row[0], "score": 1.0}
+
+        # 3) fuzzy match across all suggested questions for the notebook
+        sql = text(
+            "SELECT sq.question AS suggested_text, sqe.example_answer AS example_answer "
+            "FROM suggested_questions sq "
+            "JOIN suggested_question_examples sqe ON sq.id = sqe.suggested_question_id "
+            "WHERE sq.notebook_id = :nb"
+        )
+        res = await db_session.execute(sql, {"nb": notebook_identifier})
+        rows = res.mappings().all()
+        if not rows:
+            return None
+
+        if not rows:
+            return None
+
+        best = None
+        best_score = 0.0
+        matched = None
+        for r in rows:
+            s_text = (r["suggested_text"] or "").lower()
+            if not s_text:
+                continue
+            score = SequenceMatcher(None, q, s_text).ratio()
+            if score > best_score:
+                best_score = score
+                best = r["example_answer"]
+                matched = r["suggested_text"]
+
+        if best_score >= min_ratio:
+            return {
+                "example_answer": best,
+                "matched_question": matched,
+                "score": best_score,
+            }
+        return None
+
     try:
         # Use the async LLM API to avoid blocking the event loop.
         response = await llm_interface.agenerate_response(
             session_id, chat_manager, context_chunks, request.query
         )
         logger.info("Generated full response for query.")
+
+        # If LLM returned an error marker or empty response, try fallback
+        if not response or (isinstance(response, str) and "[LLM Error" in response):
+            logger.warning(
+                "LLM returned no usable content; attempting suggested-example fallback"
+            )
+            fallback = await _get_suggested_example(
+                db,
+                notebook.notebook_id,
+                request.query,
+                filename=valid_pdfs[0] if valid_pdfs else None,
+            )
+            if fallback:
+                chunks_with_metadata = [
+                    {
+                        "text": context_chunks[i],
+                        "source": chunk_metadata[i]["source"],
+                        "page_number": chunk_metadata[i]["page_number"],
+                    }
+                    for i in range(len(context_chunks))
+                ]
+                return {
+                    "response": fallback["example_answer"],
+                    "source": "suggested_example_fallback",
+                    "matched_question": fallback["matched_question"],
+                    "score": fallback["score"],
+                    "context_chunks": chunks_with_metadata,
+                }
 
         # Merge chunks with their metadata for the response
         chunks_with_metadata = [
@@ -122,7 +271,13 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
     except Exception as e:
         logger.error(f"Error generating response: {e}")
 
-        # Merge chunks with their metadata for error response too
+        # Try fallback when an exception occurs
+        fallback = await _get_suggested_example(
+            db,
+            notebook.notebook_id,
+            request.query,
+            filename=valid_pdfs[0] if valid_pdfs else None,
+        )
         chunks_with_metadata = [
             {
                 "text": context_chunks[i],
@@ -131,6 +286,15 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
             }
             for i in range(len(context_chunks))
         ]
+
+        if fallback:
+            return {
+                "response": fallback["example_answer"],
+                "source": "suggested_example_fallback",
+                "matched_question": fallback["matched_question"],
+                "score": fallback["score"],
+                "context_chunks": chunks_with_metadata,
+            }
 
         return {
             "error": "Failed to generate response.",

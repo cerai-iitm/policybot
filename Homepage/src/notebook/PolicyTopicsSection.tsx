@@ -73,7 +73,7 @@ const PolicyTopicsSection = ({ pdfs, loading, title, notebookId }: Props) => {
           <TopicRow
             key={pdf.pdf_id}
             title={pdf.filename}
-            description="Explore this policy document to understand key provisions, regulatory structure, and implementation framework."
+            description={pdf.summary ?? "Explore this policy document to understand key provisions, regulatory structure, and implementation framework."}
             onExplore={handleExplore}
           />
         ))}

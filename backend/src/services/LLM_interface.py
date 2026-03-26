@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncGenerator, Dict, List
+from typing import AsyncGenerator, Dict, List, Optional
 
 from langchain_classic.chains.llm import LLMChain
 from langchain_classic.chains.summarize import load_summarize_chain
@@ -10,6 +10,7 @@ from langchain_core.prompts import (
     MessagesPlaceholder,
     PromptTemplate,
 )
+from openai import AsyncOpenAI
 
 from src.core import cfg, logger
 
@@ -30,13 +31,136 @@ class LLM_Interface:
 
         self.system_prompt = cfg.SYSTEM_PROMPT
         self.max_history_messages = cfg.MAX_HISTORY_MESSAGES
+        self.model_name = effective_model
+
+        # Create provider-specific LLM instance via External factory.
+        # External.create_llm will initialize an Ollama/langchain LLM when
+        # cfg.LLM_PROVIDER == "ollama", or other providers as configured.
         self.llm = External.create_llm(effective_model)
         if self.llm is None:
             raise ValueError(
                 "LLM initialization failed. Ensure LLM_PROVIDER is configured correctly."
             )
+
+        # Build the langchain chain for providers that support it (e.g. Ollama).
         self.chain = self._create_chain()
         self.chat_manager = ChatManager()
+
+    def _extract_content_from_resp(self, resp) -> Optional[str]:
+        """
+        Robustly extract final content from various vLLM/OpenAI response shapes.
+        Handles:
+          - chat-style: choices[0].message.content
+          - text-style: choices[0].text
+          - delta-style fragments: choices[0].delta.content
+          - dict-like responses (raw JSON)
+        Returns None if no usable content found.
+        """
+        try:
+            # 1) object-like response with .choices
+            choices = getattr(resp, "choices", None)
+            if choices:
+                choice = choices[0]
+                # chat-style: choice.message.content
+                msg = getattr(choice, "message", None)
+                if msg:
+                    content = getattr(msg, "content", None)
+                    if content and isinstance(content, str) and content.strip():
+                        logger.debug("Extracted content from choice.message.content")
+                        return content
+                # text-style: choice.text (vLLM text-completion format)
+                text = getattr(choice, "text", None)
+                if text and isinstance(text, str) and text.strip():
+                    logger.debug("Extracted content from choice.text")
+                    return text
+                # delta-style fragment (sometimes appears even non-streaming)
+                delta = getattr(choice, "delta", None)
+                if isinstance(delta, dict):
+                    c = delta.get("content") or delta.get("text")
+                    if c and isinstance(c, str) and c.strip():
+                        logger.debug("Extracted content from choice.delta")
+                        return c
+
+            # 2) dict-like response (raw JSON)
+            if isinstance(resp, dict):
+                chs = resp.get("choices")
+                if chs:
+                    ch0 = chs[0]
+                    if isinstance(ch0, dict):
+                        # chat message
+                        m = ch0.get("message")
+                        if isinstance(m, dict):
+                            c = m.get("content")
+                            if c and isinstance(c, str) and c.strip():
+                                logger.debug(
+                                    "Extracted content from dict message.content"
+                                )
+                                return c
+                        # text field
+                        t = ch0.get("text")
+                        if t and isinstance(t, str) and t.strip():
+                            logger.debug("Extracted content from dict text field")
+                            return t
+                        # delta fragment
+                        d = ch0.get("delta")
+                        if isinstance(d, dict):
+                            c = d.get("content") or d.get("text")
+                            if c and isinstance(c, str) and c.strip():
+                                logger.debug("Extracted content from dict delta")
+                                return c
+        except Exception:
+            logger.debug("Exception while extracting response content", exc_info=True)
+        return None
+
+    async def _direct_chat_completion(
+        self, prompt: str, max_tokens: int = 1000, timeout: int = 60
+    ) -> Optional[str]:
+        """
+        Perform a direct async text completion using AsyncOpenAI client on /v1/completions endpoint.
+        Returns the text if successful, otherwise None on timeout/error.
+        """
+        try:
+            client = AsyncOpenAI(
+                api_key=cfg.VLLM_LLM_API_KEY, base_url=cfg.VLLM_LLM_URL
+            )
+            logger.info(
+                f"LLM direct completion call to {self.model_name}",
+                extra={
+                    "model": self.model_name,
+                    "max_tokens": max_tokens,
+                    "timeout": timeout,
+                    "prompt_length": len(prompt),
+                },
+            )
+            # Debug: log first 200 chars of prompt
+            logger.debug(f"Prompt preview: {prompt[:200]}...")
+
+            resp = await asyncio.wait_for(
+                client.completions.create(
+                    model=self.model_name,
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=cfg.TEMPERATURE,
+                    stream=False,  # ensure non-streaming
+                ),
+                timeout=timeout,
+            )
+
+            # Extract content from text completion response
+            content = self._extract_content_from_resp(resp)
+            if content:
+                logger.info(f"LLM response received, length: {len(content)}")
+                return content
+            else:
+                logger.warning("No usable content found in completion response")
+                logger.debug(f"Raw response: {resp}")
+                return None
+        except asyncio.TimeoutError:
+            logger.warning(f"LLM request timed out after {timeout}s")
+            return None
+        except Exception as e:
+            logger.error(f"LLM direct completion failed: {e}", exc_info=True)
+            return None
 
     def _create_chain(self):
         prompt = ChatPromptTemplate(
@@ -214,14 +338,47 @@ class LLM_Interface:
         query: str,
     ) -> str:
         try:
-            inputs = self.prepare_inputs(
-                session_id, chat_manager, context_chunks, query
-            )
-            logger.info(f"Generating response for query: {query[:30]}...")
-            response = self.chain.invoke(inputs)
-            response = External.extract_llm_output(response)
-            logger.info(f"Generated response: {str(response)[:30]}...")
-            return response
+            if not query or not query.strip():
+                raise ValueError("Query cannot be empty")
+
+            # Branch by configured provider: vllm uses AsyncOpenAI path, others
+            # (ollama, gemini) use the langchain chain.invoke logic provided.
+            if cfg.LLM_PROVIDER == "vllm":
+                logger.info(
+                    f"Generating response for query (vllm path): {query[:30]}..."
+                )
+                # Format context and build OpenAI-compatible prompt
+                formatted_context = self._format_context(context_chunks)
+                prompt = (
+                    f"{self.system_prompt}\n\n"
+                    f"Context:\n\n{formatted_context}\n\n"
+                    f"Question: {query.strip()}\n\n"
+                    f"Answer:"
+                )
+                # Run async call synchronously
+                response = asyncio.run(
+                    self._direct_chat_completion(prompt, max_tokens=1000, timeout=60)
+                )
+                if response:
+                    logger.info(f"Generated response: {str(response)[:30]}...")
+                    return response
+                else:
+                    logger.warning("LLM returned no response")
+                    return "[LLM Error: No response generated]"
+
+            else:
+                # Ollama/langchain path: use the chain.invoke logic you provided
+                logger.info(
+                    f"Generating response for query (ollama/langchain path): {query[:30]}..."
+                )
+                inputs = self.prepare_inputs(
+                    session_id, chat_manager, context_chunks, query
+                )
+                response = self.chain.invoke(inputs)
+                response = External.extract_llm_output(response)
+                logger.info(f"Generated response: {str(response)[:30]}...")
+                return response
+
         except ValueError as ve:
             logger.error(f"Input validation error: {ve}")
             return f"Input Error: {ve}"
@@ -241,25 +398,53 @@ class LLM_Interface:
     ) -> str:
         """Async version of generate_response.
 
-        This prefers async chain APIs when available (`arun`, `ainvoke`, `astream`),
-        and falls back to running sync `invoke` in a thread to avoid blocking
-        the event loop.
+        Branches by provider:
+        - If cfg.LLM_PROVIDER == 'vllm': use the AsyncOpenAI/_direct_chat_completion path.
+        - Else (ollama, gemini): use the langchain chain async methods (arun/ainvoke/astream)
+          and fall back to running chain.invoke in a thread.
         """
         try:
+            if not query or not query.strip():
+                raise ValueError("Query cannot be empty")
+
+            # vLLM/OpenAI-compatible path
+            if cfg.LLM_PROVIDER == "vllm":
+                logger.info(
+                    f"Async generating response for query (vllm path): {query[:30]}..."
+                )
+                formatted_context = self._format_context(context_chunks)
+                prompt = (
+                    f"{self.system_prompt}\n\n"
+                    f"Context:\n\n{formatted_context}\n\n"
+                    f"Question: {query.strip()}\n\n"
+                    f"Answer:"
+                )
+                response = await self._direct_chat_completion(
+                    prompt, max_tokens=1000, timeout=60
+                )
+                if response:
+                    logger.info(f"Generated async response: {str(response)[:30]}...")
+                    return response
+                else:
+                    logger.warning("LLM returned no async response")
+                    return "[LLM Error: No response generated]"
+
+            # Ollama / langchain path
+            logger.info(
+                f"Async generating response for query (ollama/langchain path): {query[:30]}..."
+            )
             inputs = self.prepare_inputs(
                 session_id, chat_manager, context_chunks, query
             )
-            logger.info(f"Async generating response for query: {query[:30]}...")
 
-            # Prefer async run-over documents if available
-            # 1) chain.arun (common pattern for async chain-run)
+            # 1) chain.arun
             if hasattr(self.chain, "arun"):
                 result = await self.chain.arun(inputs)
                 result = External.extract_llm_output(result)
                 logger.info(f"Generated async response (arun): {str(result)[:30]}...")
                 return result
 
-            # 2) chain.ainvoke (alternative async invoke)
+            # 2) chain.ainvoke
             if hasattr(self.chain, "ainvoke"):
                 result = await self.chain.ainvoke(inputs)
                 result = External.extract_llm_output(result)
@@ -268,9 +453,9 @@ class LLM_Interface:
                 )
                 return result
 
-            # 3) Streaming async chains via astream: collect chunks
+            # 3) chain.astream
             if hasattr(self.chain, "astream"):
-                pieces = []
+                pieces: List[str] = []
                 async for chunk in self.chain.astream(inputs):
                     chunk = External.extract_llm_output(chunk)
                     pieces.append(str(chunk))
@@ -280,7 +465,7 @@ class LLM_Interface:
                 )
                 return result
 
-            # Fallback: chain.invoke is synchronous — run it in a thread
+            # Fallback: run blocking invoke in thread
             result = await asyncio.to_thread(self.chain.invoke, inputs)
             result = External.extract_llm_output(result)
             logger.info(

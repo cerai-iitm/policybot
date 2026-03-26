@@ -24,9 +24,11 @@ const TopicRow = ({ title, description, onExplore }: Props) => {
           {title}
         </h3>
 
-        <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
-          {description}
-        </p>
+        <div className="two-line-fade">
+          <p className="fade-content text-sm sm:text-base text-gray-600 leading-relaxed whitespace-pre-wrap">
+            {description}
+          </p>
+        </div>
 
     
 
