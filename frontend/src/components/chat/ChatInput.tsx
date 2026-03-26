@@ -116,7 +116,7 @@ className="w-full max-w-[760px] rounded-[32px] border p-3 transition-all duratio
   <button
     aria-label="button"
     type="button"
-    onClick={onSend}
+    onClick={() => onSend()}
     
 className="w-9 h-9 rounded-full flex items-center justify-center transition bg-indigo-100 hover:opacity-80"
 

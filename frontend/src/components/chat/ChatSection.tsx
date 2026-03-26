@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import { withBase } from "@/lib/url";
 import ModelSelector from "./ModelSelector";
 import { useAdmin } from "@/app/components/AdminContext";
-import logo from "@/assets/logo.png";
+import logo from '@/assets/logo.png'
 import Iconone from "@/assets/cerai.png";
 import Icontwo from "@/assets/iiit.png";
 import Iconthree from "@/assets/wsai.png";
