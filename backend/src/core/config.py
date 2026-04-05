@@ -35,6 +35,7 @@ class Config:
 
     EMBEDDING_MODEL_NAME = "Alibaba-NLP/gte-multilingual-base"
     EMBEDDING_MODEL_KWARGS = {"trust_remote_code": True}
+    EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "sentence-transformers")
     ENCODE_KWARGS = {"normalize_embeddings": True}
     BREAKPOINT_THRESHOLD_TYPE = "standard_deviation"
     BREAKPOINT_THRESHOLD_AMOUNT = 1.0
@@ -50,10 +51,15 @@ class Config:
     RERANKER_TEMP = 1.0
     RRF_TEMP = 0.17
 
+    DEV_PROXY_API_KEY = os.getenv("DEV_PROXY_API_KEY", "")
+
     # TEI Reranker Configuration
     TEI_RERANKER_IP = os.getenv("TEI_RERANKER_IP", "localhost")
     TEI_RERANKER_PORT = int(os.getenv("TEI_RERANKER_PORT", "8080"))
-    TEI_RERANKER_URL = f"http://{TEI_RERANKER_IP}:{TEI_RERANKER_PORT}"
+    TEI_RERANKER_PATH = os.getenv("TEI_RERANKER_PATH", "")
+    TEI_RERANKER_URL = (
+        f"http://{TEI_RERANKER_IP}:{TEI_RERANKER_PORT}{TEI_RERANKER_PATH}"
+    )
 
     # vLLM Embedding Configuration (for retrieval queries)
     VLLM_EMBEDDING_ENABLED = (
@@ -61,7 +67,10 @@ class Config:
     )
     VLLM_EMBEDDING_IP = os.getenv("VLLM_EMBEDDING_IP", "localhost")
     VLLM_EMBEDDING_PORT = int(os.getenv("VLLM_EMBEDDING_PORT", "8081"))
-    VLLM_EMBEDDING_URL = f"http://{VLLM_EMBEDDING_IP}:{VLLM_EMBEDDING_PORT}/v1"
+    VLLM_EMBEDDING_PATH = os.getenv("VLLM_EMBEDDING_PATH", "")
+    VLLM_EMBEDDING_URL = (
+        f"http://{VLLM_EMBEDDING_IP}:{VLLM_EMBEDDING_PORT}{VLLM_EMBEDDING_PATH}/v1"
+    )
     VLLM_EMBEDDING_MODEL = os.getenv(
         "VLLM_EMBEDDING_MODEL", "google/embeddinggemma-300m"
     )
@@ -70,7 +79,8 @@ class Config:
     # vLLM LLM Configuration (port 8080 - different from embeddings)
     VLLM_LLM_IP = os.getenv("VLLM_LLM_IP", "localhost")
     VLLM_LLM_PORT = int(os.getenv("VLLM_LLM_PORT", "8080"))
-    VLLM_LLM_URL = f"http://{VLLM_LLM_IP}:{VLLM_LLM_PORT}/v1"
+    VLLM_LLM_PATH = os.getenv("VLLM_LLM_PATH", "")
+    VLLM_LLM_URL = f"http://{VLLM_LLM_IP}:{VLLM_LLM_PORT}{VLLM_LLM_PATH}"
     VLLM_LLM_MODEL = os.getenv("VLLM_LLM_MODEL", "unsloth/gemma-3n-E4B-it")
     VLLM_LLM_API_KEY = os.getenv("VLLM_LLM_API_KEY", "EMPTY")
     VLLM_LLM_TEMPERATURE = float(os.getenv("VLLM_LLM_TEMPERATURE", "0.7"))
@@ -86,16 +96,15 @@ class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-    os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
-
     FRONTEND_URL = "http://localhost:3000"
     OLLAMA_PORT = os.environ.get("OLLAMA_PORT", "11434")
     OLLAMA_IP = os.environ.get("OLLAMA_IP", "host.docker.internal")
+    OLLAMA_PATH = os.environ.get("OLLAMA_PATH", "")
 
     if os.environ.get("IN_DOCKER") == "1":
-        OLLAMA_URL = f"http://{OLLAMA_IP}:{OLLAMA_PORT}"
+        OLLAMA_URL = f"http://{OLLAMA_IP}:{OLLAMA_PORT}{OLLAMA_PATH}"
     else:
-        OLLAMA_URL = "http://localhost:11434"
+        OLLAMA_URL = f"http://localhost:11434{OLLAMA_PATH}"
 
     TEMP_FILE_PATH = "/tmp/policybot_temp.txt"
 

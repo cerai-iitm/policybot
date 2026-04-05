@@ -39,9 +39,6 @@ class External:
 
         # Validate model is supported
         valid_model_ids = [m.get("id") for m in cfg.SUPPORTED_MODELS if m.get("id")]
-        valid_model_names = [
-            m.get("name") for m in cfg.SUPPORTED_MODELS if m.get("name")
-        ]
 
         if model_name not in valid_model_ids:
             logger.error(
@@ -50,7 +47,7 @@ class External:
             )
             raise ValueError(
                 f"Model '{model_name}' is not supported. "
-                f"Available models: {', '.join(valid_model_ids)}"
+                f"Available models: {', '.join(str(valid_model_ids))}"
             )
 
         logger.info(
@@ -152,6 +149,9 @@ class External:
                     temperature=cfg.TEMPERATURE,
                     base_url=cfg.OLLAMA_URL,
                     num_ctx=cfg.MAX_CONTEXT_TOKENS,
+                    client_kwargs={"headers": {"X-API-Key": cfg.DEV_PROXY_API_KEY}}
+                    if cfg.DEV_PROXY_API_KEY
+                    else {},
                 )
                 logger.debug("Ollama LLM initialized successfully")
                 return ollama_llm

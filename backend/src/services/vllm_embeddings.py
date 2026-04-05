@@ -60,9 +60,13 @@ async def get_vllm_query_embeddings(queries: List[str]) -> np.ndarray:
         return np.array([], dtype=np.float32)
 
     # Stateless: fresh client per request, auto-cleanup on scope exit
-    client = AsyncOpenAI(
-        api_key=cfg.VLLM_EMBEDDING_API_KEY, base_url=cfg.VLLM_EMBEDDING_URL
-    )
+    client_kwargs = {
+        "api_key": cfg.VLLM_EMBEDDING_API_KEY,
+        "base_url": cfg.VLLM_EMBEDDING_URL,
+    }
+    if cfg.DEV_PROXY_API_KEY:
+        client_kwargs["default_headers"] = {"X-API-Key": cfg.DEV_PROXY_API_KEY}
+    client = AsyncOpenAI(**client_kwargs)
 
     # Format queries for Gemma 300M if that's the model being used
     if "gemma" in cfg.VLLM_EMBEDDING_MODEL.lower():
@@ -121,9 +125,13 @@ async def get_vllm_document_embeddings(
             batch_docs = documents[start_idx:end_idx]
 
             # Stateless: fresh client per batch
-            client = AsyncOpenAI(
-                api_key=cfg.VLLM_EMBEDDING_API_KEY, base_url=cfg.VLLM_EMBEDDING_URL
-            )
+            client_kwargs = {
+                "api_key": cfg.VLLM_EMBEDDING_API_KEY,
+                "base_url": cfg.VLLM_EMBEDDING_URL,
+            }
+            if cfg.DEV_PROXY_API_KEY:
+                client_kwargs["default_headers"] = {"X-API-Key": cfg.DEV_PROXY_API_KEY}
+            client = AsyncOpenAI(**client_kwargs)
 
             # Format documents for Gemma 300M if using that model
             if "gemma" in cfg.VLLM_EMBEDDING_MODEL.lower():

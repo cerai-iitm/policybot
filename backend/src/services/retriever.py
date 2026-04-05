@@ -81,10 +81,13 @@ class Retriever:
             # Call TEI rerank endpoint using requests
             import requests
 
+            headers = {"Content-Type": "application/json"}
+            if cfg.DEV_PROXY_API_KEY:
+                headers["X-API-Key"] = cfg.DEV_PROXY_API_KEY
             response = requests.post(
                 f"{cfg.TEI_RERANKER_URL}/rerank",
                 json={"query": query, "texts": chunks},
-                headers={"Content-Type": "application/json"},
+                headers=headers,
             )
             response.raise_for_status()
             results = response.json()

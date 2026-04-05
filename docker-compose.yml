@@ -34,7 +34,6 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - pdf_data:/app/data
-      - huggingface_cache:/app/cache/huggingface
       - ./backend/logs:/app/logs
     deploy:
       resources:
@@ -49,17 +48,6 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
-
-  model_downloader:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: model_downloader
-    environment:
-      HF_HOME: ${HF_HOME:-/app/cache/huggingface}
-    volumes:
-      - huggingface_cache:/app/cache/huggingface
-    restart: "no"
 
   postgres:
     image: postgres:17-alpine
@@ -173,7 +161,4 @@ volumes:
   qdrant_data:
     driver: local
   pdf_data:
-    driver: local
-  huggingface_cache:
-    name: policybot_huggingface_cache
     driver: local

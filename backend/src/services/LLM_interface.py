@@ -120,9 +120,13 @@ class LLM_Interface:
         Returns the text if successful, otherwise None on timeout/error.
         """
         try:
-            client = AsyncOpenAI(
-                api_key=cfg.VLLM_LLM_API_KEY, base_url=cfg.VLLM_LLM_URL
-            )
+            client_kwargs = {
+                "api_key": cfg.VLLM_LLM_API_KEY,
+                "base_url": cfg.VLLM_LLM_URL,
+            }
+            if cfg.DEV_PROXY_API_KEY:
+                client_kwargs["default_headers"] = {"X-API-Key": cfg.DEV_PROXY_API_KEY}
+            client = AsyncOpenAI(**client_kwargs)
             logger.info(
                 f"LLM direct completion call to {self.model_name}",
                 extra={
@@ -258,9 +262,13 @@ class LLM_Interface:
             logger.info("Using batched vLLM query generation")
 
             # Stateless: fresh client per request
-            client = AsyncOpenAI(
-                api_key=cfg.VLLM_LLM_API_KEY, base_url=cfg.VLLM_LLM_URL
-            )
+            client_kwargs = {
+                "api_key": cfg.VLLM_LLM_API_KEY,
+                "base_url": cfg.VLLM_LLM_URL,
+            }
+            if cfg.DEV_PROXY_API_KEY:
+                client_kwargs["default_headers"] = {"X-API-Key": cfg.DEV_PROXY_API_KEY}
+            client = AsyncOpenAI(**client_kwargs)
 
             # Prepare both prompts
             doc_prompt = cfg.GENERATED_EXAMPLE_DOCUMENT_PROMPT.format(

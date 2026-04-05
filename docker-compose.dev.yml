@@ -9,15 +9,24 @@ services:
       - ./backend/.env
     environment:
       - IN_DOCKER=${IN_DOCKER:-1}
-      - OLLAMA_IP=${OLLAMA_IP:-host.docker.internal}
-      - OLLAMA_PORT=${OLLAMA_PORT:-11434}
+      - OLLAMA_IP=${OLLAMA_IP:-dev-proxy-nginx}
+      - OLLAMA_PORT=${OLLAMA_PORT:-80}
+      - OLLAMA_PATH=${OLLAMA_PATH:-/ollama}
+      - VLLM_LLM_IP=${VLLM_LLM_IP:-dev-proxy-nginx}
+      - VLLM_LLM_PORT=${VLLM_LLM_PORT:-80}
+      - VLLM_LLM_PATH=${VLLM_LLM_PATH:-/vllm}
+      - VLLM_EMBEDDING_IP=${VLLM_EMBEDDING_IP:-dev-proxy-nginx}
+      - VLLM_EMBEDDING_PORT=${VLLM_EMBEDDING_PORT:-80}
+      - VLLM_EMBEDDING_PATH=${VLLM_EMBEDDING_PATH:-/embedding}
+      - TEI_RERANKER_IP=${TEI_RERANKER_IP:-dev-proxy-nginx}
+      - TEI_RERANKER_PORT=${TEI_RERANKER_PORT:-80}
+      - TEI_RERANKER_PATH=${TEI_RERANKER_PATH:-/reranker}
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-policybot}
       - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - RUN_MIGRATIONS=true
-      - HF_HOME=${HF_HOME:-/app/cache/huggingface}
     command:
       [
         "uvicorn",

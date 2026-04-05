@@ -61,7 +61,7 @@ prod:
 	COMPOSE_PROFILES=prod $(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) build
 	@echo ""
 	@echo "Step 2: Downloading LLM models (this may take a few minutes)..."
-	COMPOSE_PROFILES=prod $(MAKE) download-models
+	# COMPOSE_PROFILES=prod $(MAKE) download-models
 	@echo ""
 	@echo "Step 3: Starting production services..."
 	COMPOSE_PROFILES=prod $(COMPOSE) $(BASE_FILES) $(ENV_FILE) -p $(PROJECT_NAME) up -d
@@ -101,7 +101,7 @@ prod-down:
 dev:
 ifeq ($(BUILD),1)
 	@echo "Building development images..."
-	$(MAKE) download-models
+	# $(MAKE) download-models
 	$(COMPOSE) $(DEV_FILES) $(ENV_FILE) -p $(PROJECT_NAME)-dev up --build --watch
 else
 	@echo "Starting development services (no rebuild)..."

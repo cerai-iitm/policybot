@@ -50,37 +50,13 @@ RUN npm ci
 COPY frontend/ .
 RUN npm run build
 
-# Stage: Model downloader
-FROM base AS model_downloader
-
-# Create cache directory with proper ownership
-RUN mkdir -p /app/cache/huggingface && \
-	chown -R appuser:appuser /app
-
-WORKDIR /app
-
-RUN pip install --no-cache-dir --upgrade pip && \
-	pip install --no-cache-dir huggingface-hub
-
-COPY backend/download_models.py backend/.env ./
-
-VOLUME ["/app/cache/huggingface"]
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-	PYTHONUNBUFFERED=1 \
-	HF_HOME=/app/cache/huggingface \
-	HF_TOKEN=""
-
-USER appuser
-CMD ["python", "download_models.py"]
-
 # Development stage
 FROM base AS development
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat && \
+RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat && \
     chown -R appuser:appuser /app && \
-    chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat
+    chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat
 
 # Install netcat for database connection check
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -88,8 +64,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-	PYTHONUNBUFFERED=1 \
-	HF_HOME=/app/cache/huggingface
+	PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
@@ -121,13 +96,12 @@ CMD ["uvicorn", "backend.src.main:app", "--host", "0.0.0.0", "--port", "8000", "
 FROM base AS production
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat && \
+RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat && \
     chown -R appuser:appuser /app && \
-    chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/cache/huggingface /app/static/homepage /app/static/chat
+    chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
-	HF_HOME=/app/cache/huggingface \
 	PYTHONPATH=/app
 
 WORKDIR /app
