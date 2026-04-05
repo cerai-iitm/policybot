@@ -2,47 +2,26 @@ import warnings
 from typing import Any, Dict, List
 
 import torch
-from langchain_huggingface import HuggingFaceEmbeddings
 
 from .config import cfg
 from .logger import logger
 
+# Import the new factory that returns a fully‑configured Embeddings instance
+from src.services.external import get_embedding_provider
+
 warnings.filterwarnings("ignore")
-embedding_model = None
+# The global caching variable is no longer needed because the factory can be called
+# directly wherever an embedding model is required.
 
-
-def load_embedding_model(device=None):
-    global embedding_model
-    if device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info(f"Loading embedding model on device: {device}")
-    if embedding_model is None:
-        embedding_model = HuggingFaceEmbeddings(
-            model_name=cfg.EMBEDDING_MODEL_NAME,
-            model_kwargs={
-                **cfg.EMBEDDING_MODEL_KWARGS,
-                "device": device,
-            },
-            encode_kwargs=cfg.ENCODE_KWARGS,
-        )
-    return embedding_model, device
-
-
-def free_embedding_model(embedding_model, device):
-    # del embedding_model
-    # import gc
-
-    # gc.collect()
-    # if device == "cuda":
-    #     torch.cuda.empty_cache()
-    #     torch.cuda.synchronize()
-    logger.info("Not using this function")
-    return None
+# NOTE: The old helper functions `load_embedding_model` and `free_embedding_model`
+# have been removed.  If you need to obtain an embedding model, simply call:
+#   embedding_model = get_embedding_provider()
+# The factory respects `cfg.EMBEDDING_PROVIDER` and will instantiate the
+# appropriate provider (sentence‑transformers, vLLM, etc.).
 
 
 def parse_chunks_from_text(content: str) -> List[str]:
     try:
-
         if cfg.RESPONSE_START not in content or cfg.RESPONSE_END not in content:
             logger.error("Invalid response format - missing markers")
             return []
@@ -60,7 +39,6 @@ def parse_chunks_from_text(content: str) -> List[str]:
         for part in chunk_parts:
             part = part.strip()
             if part.startswith(cfg.CHUNK_PREFIX):
-
                 chunk_content = part[len(cfg.CHUNK_PREFIX) :].strip()
                 if chunk_content:
                     chunks.append(chunk_content)
@@ -88,7 +66,6 @@ def format_chunks_to_text(chunks: List[str]) -> str:
 
 def parse_response_from_text(content: str) -> Dict[str, Any]:
     try:
-
         if cfg.RESPONSE_START not in content or cfg.RESPONSE_END not in content:
             logger.error("Invalid response format - missing markers")
             return {"success": False, "error": "Invalid response format"}

@@ -22,13 +22,14 @@ from qdrant_client.http.models import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from transformers import logging as hf_logging
 
-from src.core import cfg, free_embedding_model, load_embedding_model, logger
+from src.core import cfg, logger
 from src.db.crud import (
     add_source_summary,
     get_summary_by_source_name,
     update_pdf_status,
 )
 from src.services import LLM_Interface
+from src.services.external.get_embedding_provider import get_embedding_provider
 
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
 hf_logging.set_verbosity_error()
@@ -406,14 +407,13 @@ class PDFProcessor:
     ) -> Optional[List[Document]]:
         logger.info(f"Running splitter on {len(docs)} documents for {file_name}.")
         try:
-            embedding_model, device = load_embedding_model()
+            embedding_model = get_embedding_provider()
             splitter = SemanticChunker(
                 embeddings=embedding_model,
                 breakpoint_threshold_type=cfg.BREAKPOINT_THRESHOLD_TYPE,
                 breakpoint_threshold_amount=cfg.BREAKPOINT_THRESHOLD_AMOUNT,
             )
             split_docs = splitter.split_documents(docs)
-            free_embedding_model(embedding_model, device)
             logger.info(
                 f"Split {len(docs)} page documents into {len(split_docs)} chunks for {file_name}."
             )
@@ -426,7 +426,7 @@ class PDFProcessor:
     async def _embed_docs(
         self, docs: List[Document], file_name: str
     ) -> AsyncGenerator[Union[str, np.ndarray], None]:
-        """Embed documents using vLLM async or local fallback with progress updates."""
+        """Embed documents using the configured embedding provider with progress updates."""
         try:
             total_docs = len(docs)
             logger.info(f"Embedding {total_docs} chunks for {file_name}.")
@@ -435,35 +435,56 @@ class PDFProcessor:
             yield f"Embedding: Starting {total_docs} documents..."
             last_progress_time = asyncio.get_event_loop().time()
 
-            if cfg.VLLM_EMBEDDING_ENABLED:
-                # Use vLLM with progress tracking
-                from src.services.vllm_embeddings import (
-                    get_vllm_document_embeddings,
-                )
+            embedder = get_embedding_provider()
+            texts = [doc.page_content for doc in docs]
 
-                embeddings = await get_vllm_document_embeddings(
-                    documents=docs, batch_size=128, max_concurrent=4
-                )
-
-                # Yield final progress
-                yield f"Embedding: Complete ({total_docs}/{total_docs} documents, 100%)"
+            # If the embedder supports async embedding, use it in batches
+            if hasattr(embedder, "aembed_documents"):
+                # Use a simple batch size (default 128) – LangChain will handle internal batching as needed
+                batch_size = getattr(embedder, "chunk_size", 128) or 128
+                all_embeddings: List[List[float]] = []
+                for i in range(0, len(texts), batch_size):
+                    batch = texts[i : i + batch_size]
+                    batch_embeddings = await embedder.aembed_documents(batch)
+                    all_embeddings.extend(batch_embeddings)
+                    # Progress update per batch
+                    processed = min(i + batch_size, total_docs)
+                    current_time = asyncio.get_event_loop().time()
+                    if current_time - last_progress_time >= 5.0 or processed >= total_docs:
+                        progress_pct = int((processed / total_docs) * 100)
+                        yield f"Embedding: {processed}/{total_docs} documents ({progress_pct}%)"
+                        last_progress_time = current_time
+                embeddings = np.array(all_embeddings, dtype=np.float32)
                 yield embeddings
             else:
-                # Local embedding with periodic progress
+                # Fallback to sync embedding (HuggingFace) – still provide progress updates
                 all_embeddings = []
-                for i, doc in enumerate(docs):
-                    text = [doc.page_content]
-                    embedding_model, device = load_embedding_model()
-                    embedding = embedding_model.embed_documents(text)
+                for i, text in enumerate(texts):
+                    embedding = embedder.embed_documents([text])
                     all_embeddings.extend(embedding)
-                    free_embedding_model(embedding_model, device)
-
-                    # Update progress every ~5 seconds
                     current_time = asyncio.get_event_loop().time()
-                    if current_time - last_progress_time >= 5.0 or i == len(docs) - 1:
+                    if current_time - last_progress_time >= 5.0 or i == len(texts) - 1:
                         progress_pct = int(((i + 1) / total_docs) * 100)
                         yield f"Embedding: {i + 1}/{total_docs} documents ({progress_pct}%)"
                         last_progress_time = current_time
+                embeddings = np.array(all_embeddings, dtype=np.float32)
+                yield embeddings
+
+        except Exception as e:
+            logger.error(f"Error embedding documents: {e}")
+            yield "Error: Failed to generate embeddings."
+            yield None
+                else:
+                    # Fallback to sync embedding (HuggingFace) – still provide progress updates
+                    all_embeddings = []
+                    for i, text in enumerate(texts):
+                        embedding = embedder.embed_documents([text])
+                        all_embeddings.extend(embedding)
+                        current_time = asyncio.get_event_loop().time()
+                        if current_time - last_progress_time >= 5.0 or i == len(texts) - 1:
+                            progress_pct = int(((i + 1) / total_docs) * 100)
+                            yield f"Embedding: {i + 1}/{total_docs} documents ({progress_pct}%)"
+                            last_progress_time = current_time
 
                 embeddings = np.array(all_embeddings, dtype=np.float32)
                 yield embeddings
@@ -476,30 +497,22 @@ class PDFProcessor:
     def _embed_docs_local(
         self, docs: List[Document], file_name: str
     ) -> Optional[np.ndarray]:
-        """Local HuggingFace embedding fallback (original implementation)."""
+        """Local HuggingFace embedding using factory provider."""
         try:
             logger.info(f"Embedding {len(docs)} chunks locally for {file_name}.")
-            embedding_model, device = load_embedding_model()
+            embedder = get_embedding_provider()
             all_embeddings = []
 
             for i, doc in enumerate(docs):
                 try:
                     text = [doc.page_content]
-                    embedding = embedding_model.embed_documents(text)
+                    embedding = embedder.embed_documents(text)
                     all_embeddings.extend(embedding)
-
-                    if device == "cuda":
-                        import torch
-
-                        torch.cuda.empty_cache()
-
                 except Exception as e:
                     logger.error(f"Error embedding document {i}: {e}")
-                    free_embedding_model(embedding_model, device)
                     return None
 
             embeddings = np.array(all_embeddings, dtype=np.float32)
-            free_embedding_model(embedding_model, device)
             logger.info(f"Generated {len(all_embeddings)} local embeddings.")
             return embeddings if len(all_embeddings) > 0 else None
 

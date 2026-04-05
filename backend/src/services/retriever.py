@@ -5,7 +5,6 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from huggingface_hub import InferenceClient
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import FieldCondition, Filter, MatchAny
 from qdrant_client.models import QueryRequest
@@ -13,10 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from transformers import logging as hf_logging
 
 from src.core import cfg, logger
-from src.core.util import free_embedding_model, load_embedding_model
 from src.db.crud import get_summary_by_source_name
+from src.services.external.get_embedding_provider import get_embedding_provider
 from src.services.LLM_interface import LLM_Interface
-from src.services.vllm_embeddings import get_vllm_query_embeddings
 
 # set HF logging verbosity once at module import
 hf_logging.set_verbosity_error()
@@ -122,27 +120,14 @@ class Retriever:
     async def _generate_query_embeddings(
         self, rewritten_queries: List[str]
     ) -> np.ndarray:
-        """Generate embeddings for rewritten queries.
-
-        Uses vLLM async call if enabled (single batch),
-        otherwise falls back to local HuggingFace model in thread.
-        """
-        if cfg.VLLM_EMBEDDING_ENABLED:
-            # Use vLLM - async single batch request
-            return await get_vllm_query_embeddings(rewritten_queries)
-        else:
-            # Fallback to local HuggingFace model in thread
-            def embed_sync():
-                embedding_model, device = load_embedding_model(None)
-                try:
-                    embeddings = []
-                    for rq in rewritten_queries:
-                        embeddings.append(embedding_model.embed_query(rq))
-                    return np.array(embeddings, dtype=np.float32)
-                finally:
-                    free_embedding_model(embedding_model, device)
-
-            return await asyncio.to_thread(embed_sync)
+        """Generate embeddings for rewritten queries using the configured provider."""
+        embedder = get_embedding_provider()
+        # If async embedding available, use it (batch mode)
+        if hasattr(embedder, "aembed_documents"):
+            return await embedder.aembed_documents(rewritten_queries)
+        # Fallback to sync embed_query for each query
+        embeddings = [embedder.embed_query(q) for q in rewritten_queries]
+        return np.array(embeddings, dtype=np.float32)
 
     async def retrieve(
         self,
@@ -155,16 +140,11 @@ class Retriever:
             top_k = self.top_k
 
         try:
-            # Initialize variables for local model (only used if vLLM is disabled)
-            embedding_model = None
-            device = None
+            # Embedding handling is done inside `_generate_query_embeddings` via the factory.
+            # No explicit model loading / device tracking is needed here.
 
-            # Only load local embedding model if NOT using vLLM
             if not cfg.VLLM_EMBEDDING_ENABLED:
-                logger.info("Loading embedding model (threaded)...")
-                embedding_model, device = await asyncio.to_thread(
-                    load_embedding_model, None
-                )
+                logger.info("Embedding will be performed via factory (local model).")
             else:
                 logger.info("Using vLLM for embeddings (no local model loading)")
 
@@ -188,12 +168,10 @@ class Retriever:
             )
 
             logger.info("Generating query embeddings")
-            # Generate embeddings - async vLLM or threaded local model
+            # Generate embeddings - async vLLM or threaded local model via factory
             query_embeddings = await self._generate_query_embeddings(rewritten_queries)
 
-            # Free embedding model resources only if we loaded local model
-            if not cfg.VLLM_EMBEDDING_ENABLED and embedding_model is not None:
-                await asyncio.to_thread(free_embedding_model, embedding_model, device)
+            # No explicit free needed – the factory‑provided embedder is managed by Python GC.
 
             logger.info("Connecting to Qdrant")
             client = AsyncQdrantClient(host=cfg.QDRANT_HOST, port=cfg.QDRANT_PORT)
@@ -290,7 +268,8 @@ if __name__ == "__main__":
     from qdrant_client.http.models import FieldCondition, Filter, MatchAny
     from qdrant_client.models import QueryRequest
 
-    from src.core import cfg, free_embedding_model, load_embedding_model, logger
+    from src.core import cfg, logger
+    from src.services.external import get_embedding_provider
 
     # 1. Define query and sources
     query = "What are some specific examples of AI applications prohibited by the EU AI Act?"
@@ -300,9 +279,14 @@ if __name__ == "__main__":
     logger.info(f"Query: {query}")
     logger.info(f"PDFs/Sources: {pdfs}")
 
-    # 2. Load embedding model
-    embedding_model, device = load_embedding_model("cpu")
-    logger.info(f"Loaded embedding model on device: {device}")
+    # 2. Load embedding model via factory
+    device = (
+        "cpu"  # retained for logging; the provider will select the appropriate device
+    )
+    embedding_model = get_embedding_provider()
+    logger.info(
+        f"Loaded embedding model (provider={cfg.EMBEDDING_PROVIDER}) on device: {device}"
+    )
 
     # 3. Encode query
     try:
@@ -378,7 +362,4 @@ if __name__ == "__main__":
 
     asyncio.run(direct_query())
 
-    # 8. Free embedding model
-    free_embedding_model(embedding_model, device)
-    logger.info("Freed embedding model.")
-    logger.info("Freed embedding model.")
+    # 8. No explicit free needed – the factory‑provided model is managed by Python GC
