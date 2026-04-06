@@ -6,9 +6,10 @@ from typing import AsyncGenerator, List, Optional, Union
 
 import numpy as np
 import pymupdf
+from langchain_classic.chains.summarize import load_summarize_chain
 from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
-from langchain_text_splitters.character import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.models import (
     Distance,
@@ -164,18 +165,12 @@ class PDFProcessor:
     async def _create_summary(
         self, docs: List[Document], file_name: str, db: Optional[AsyncSession]
     ) -> Optional[tuple[str, str]]:
-        """Create summary using hierarchical batch reduction with 8:1 compression ratio."""
-        from openai import AsyncOpenAI
-        from src.core.prompts import (
-            MAP_SUMMARIZATION_PROMPT,
-            REDUCE_SUMMARIZATION_PROMPT,
-            FINAL_SUMMARY_PROMPT,
-        )
+        """Create summary using LangChain's load_summarize_chain."""
+        from src.services.external.get_llm_provider import get_llm
 
         logger.info(f"Creating a summary for {file_name}.")
 
         try:
-            # Check for existing summary
             if db is not None:
                 existing_summary = await get_summary_by_source_name(
                     db, os.path.basename(file_name)
@@ -184,132 +179,32 @@ class PDFProcessor:
                     logger.info(f"Summary already exists for {file_name}.")
                     return file_name, existing_summary
 
-            # Chunk the document
             text = "\n".join([doc.page_content for doc in docs])
-            doc = Document(page_content=text, metadata={"source": file_name})
+
             splitter = RecursiveCharacterTextSplitter(
                 chunk_size=8000, chunk_overlap=200
             )
-            recursive_docs = splitter.split_documents([doc])
-            logger.info(
-                f"Split text into {len(recursive_docs)} chunks for summarization."
+            splits = splitter.split_text(text)
+            documents = [Document(page_content=t) for t in splits]
+            logger.info(f"Split text into {len(documents)} chunks for summarization.")
+
+            llm = get_llm()
+            chain = load_summarize_chain(llm, chain_type="map_reduce")
+
+            result = await asyncio.to_thread(
+                chain.invoke, {"input_documents": documents}
             )
 
-            # Initialize OpenAI client
-            client = AsyncOpenAI(
-                base_url=cfg.VLLM_LLM_URL, api_key=cfg.VLLM_LLM_API_KEY
-            )
+            summary_text = result["output_text"]
+            logger.info(f"Generated summary for {file_name}.")
 
-            # MAP PHASE: Summarize chunks in batches of max 8
-            async def summarize_chunk(chunk: Document) -> str:
-                prompt = MAP_SUMMARIZATION_PROMPT.format(text=chunk.page_content[:8000])
-                response = await client.chat.completions.create(
-                    model=cfg.VLLM_LLM_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=1000,  # Each summary ~1000 tokens
-                    temperature=0.7,
-                )
-                return response.choices[0].message.content
-
-            # Process chunks in batches of 8
-            chunk_summaries = []
-            batch_size = 8
-            for i in range(0, len(recursive_docs), batch_size):
-                batch = recursive_docs[i : i + batch_size]
-                batch_results = await asyncio.gather(
-                    *[summarize_chunk(doc) for doc in batch]
-                )
-                chunk_summaries.extend(batch_results)
-                logger.info(
-                    f"Processed batch {i // batch_size + 1}/{(len(recursive_docs) - 1) // batch_size + 1}"
-                )
-
-            logger.info(f"Generated {len(chunk_summaries)} chunk summaries.")
-
-            # REDUCE PHASE: Hierarchical batch reduction with 8:1 ratio
-            current_summaries = chunk_summaries.copy()
-            reduce_depth = 0
-
-            while True:
-                total_tokens = sum(len(s.split()) for s in current_summaries)
-                logger.info(
-                    f"Reduce depth {reduce_depth}: {len(current_summaries)} summaries, ~{total_tokens} tokens"
-                )
-
-                # If total is under 8000 tokens, we can do final reduce
-                if total_tokens <= 8000 and len(current_summaries) <= 8:
-                    break
-
-                # Batch summaries into groups of max 8000 tokens
-                batches = []
-                current_batch = []
-                current_batch_tokens = 0
-
-                for summary in current_summaries:
-                    summary_tokens = len(summary.split())
-                    # If adding this summary exceeds 8000 tokens, start new batch
-                    if current_batch_tokens + summary_tokens > 8000 and current_batch:
-                        batches.append(current_batch)
-                        current_batch = [summary]
-                        current_batch_tokens = summary_tokens
-                    else:
-                        current_batch.append(summary)
-                        current_batch_tokens += summary_tokens
-
-                # Add final batch
-                if current_batch:
-                    batches.append(current_batch)
-
-                logger.info(
-                    f"Created {len(batches)} batches for reduce depth {reduce_depth}"
-                )
-
-                # Reduce each batch to ~1000 tokens
-                new_summaries = []
-                for batch_idx, batch in enumerate(batches):
-                    combined_text = "\n\n---\n\n".join(batch)
-                    reduce_prompt = REDUCE_SUMMARIZATION_PROMPT.format(
-                        text=combined_text
-                    )
-
-                    reduce_response = await client.chat.completions.create(
-                        model=cfg.VLLM_LLM_MODEL,
-                        messages=[{"role": "user", "content": reduce_prompt}],
-                        max_tokens=1000,  # Each reduce produces ~1000 tokens
-                        temperature=0.7,
-                    )
-                    new_summaries.append(reduce_response.choices[0].message.content)
-                    logger.info(
-                        f"Reduced batch {batch_idx + 1}/{len(batches)} at depth {reduce_depth}"
-                    )
-
-                current_summaries = new_summaries
-                reduce_depth += 1
-
-            # FINAL REDUCE: Create final 500-700 word summary
-            combined_text = "\n\n---\n\n".join(current_summaries)
-            final_prompt = FINAL_SUMMARY_PROMPT.format(text=combined_text)
-
-            final_response = await client.chat.completions.create(
-                model=cfg.VLLM_LLM_MODEL,
-                messages=[{"role": "user", "content": final_prompt}],
-                max_tokens=2000,
-                temperature=0.7,
-            )
-
-            summary_text = final_response.choices[0].message.content
-            logger.info(
-                f"Generated final summary for {file_name} after {reduce_depth} reduction levels."
-            )
-
-            # Persist summary
             if db is not None:
                 await add_source_summary(
                     db,
                     source_name=os.path.basename(file_name),
                     summary=summary_text,
                 )
-                logger.info("Summary created and saved to database.")
+                logger.info("Summary saved to database.")
 
             return file_name, summary_text
 

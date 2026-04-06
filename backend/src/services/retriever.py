@@ -163,7 +163,7 @@ class Retriever:
 
             requests = [
                 QueryRequest(
-                    query=embedding.tolist(),
+                    query=embedding,
                     limit=top_k,
                     filter=filter_,
                     with_payload=True,

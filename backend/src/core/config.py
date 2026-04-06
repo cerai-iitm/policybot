@@ -102,10 +102,16 @@ class Config:
     OLLAMA_IP = os.environ.get("OLLAMA_IP", "host.docker.internal")
     OLLAMA_PATH = os.environ.get("OLLAMA_PATH", "")
 
+    OLLAMA_PROXY_URL = os.environ.get("OLLAMA_PROXY_URL", "")
+    OLLAMA_PROXY_API_KEY = os.environ.get("OLLAMA_PROXY_API_KEY", "")
+
     if os.environ.get("IN_DOCKER") == "1":
         OLLAMA_URL = f"http://{OLLAMA_IP}:{OLLAMA_PORT}{OLLAMA_PATH}"
     else:
         OLLAMA_URL = f"http://localhost:11434{OLLAMA_PATH}"
+
+    if OLLAMA_PROXY_URL:
+        OLLAMA_URL = OLLAMA_PROXY_URL
 
     TEMP_FILE_PATH = "/tmp/policybot_temp.txt"
 

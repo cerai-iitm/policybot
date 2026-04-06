@@ -55,8 +55,8 @@ FROM base AS development
 
 # Create directories with proper ownership
 RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat && \
-    chown -R appuser:appuser /app && \
-    chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat
+	chown -R appuser:appuser /app && \
+	chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat
 
 # Install netcat for database connection check
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -64,7 +64,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-	PYTHONUNBUFFERED=1
+	PYTHONUNBUFFERED=1 \
+	PYTHONPATH=/app/backend
 
 WORKDIR /app
 
@@ -90,19 +91,19 @@ USER appuser
 
 # Use entrypoint for automatic migrations
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["uvicorn", "backend.src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # Production runner
 FROM base AS production
 
 # Create directories with proper ownership
 RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat && \
-    chown -R appuser:appuser /app && \
-    chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat
+	chown -R appuser:appuser /app && \
+	chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
-	PYTHONPATH=/app
+	PYTHONPATH=/app/backend
 
 WORKDIR /app
 
@@ -133,4 +134,4 @@ USER appuser
 
 # Use entrypoint for automatic migrations
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["uvicorn", "backend.src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

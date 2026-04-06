@@ -27,33 +27,22 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-policybot}
       - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - RUN_MIGRATIONS=true
-    command:
-      [
-        "uvicorn",
-        "src.main:app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--reload",
-      ]
     develop:
       watch:
         - action: sync
           path: ./backend/src
-          target: /app/src
+          target: /app/backend/src
+        - action: sync
+          path: ./backend/.env
+          target: /app/backend/.env
         - action: rebuild
           path: ./backend/migrations
-          target: /app/migrations
-        - action: sync
-          path: ./backend/populate_db.py
-          target: /app/populate_db.py
         - action: rebuild
-          path: ./backend/Dockerfile
+          path: ./backend/populate_db.py
+        - action: rebuild
+          path: ./Dockerfile
         - action: rebuild
           path: ./backend/requirements.txt
-        - action: rebuild
-          path: ./backend/download_models.py
         - action: rebuild
           path: ./backend/entrypoint.sh
         - action: rebuild

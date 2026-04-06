@@ -15,7 +15,7 @@ from openai import AsyncOpenAI
 from src.core import cfg, logger
 
 from .chat_manager import ChatManager
-from .external_service import External
+from .external import extract_llm_output, get_llm
 
 
 class LLM_Interface:
@@ -33,10 +33,7 @@ class LLM_Interface:
         self.max_history_messages = cfg.MAX_HISTORY_MESSAGES
         self.model_name = effective_model
 
-        # Create provider-specific LLM instance via External factory.
-        # External.create_llm will initialize an Ollama/langchain LLM when
-        # cfg.LLM_PROVIDER == "ollama", or other providers as configured.
-        self.llm = External.create_llm(effective_model)
+        self.llm = get_llm(model_name=effective_model)
         if self.llm is None:
             raise ValueError(
                 "LLM initialization failed. Ensure LLM_PROVIDER is configured correctly."
@@ -223,13 +220,13 @@ class LLM_Interface:
                     query=query, summary=summary
                 ),
             )
-            document = External.extract_llm_output(document)
+            document = extract_llm_output(document)
 
             response = await asyncio.to_thread(
                 self.llm.invoke,
                 cfg.QUERY_REWRITE_SYSTEM_PROMPT.format(query=query, summary=summary),
             )
-            response = External.extract_llm_output(response)
+            response = extract_llm_output(response)
             logger.info(f"Generated rewritten queries: {str(response)[:30]}...")
 
             rewritten_queries = str(response).split("\n")
@@ -383,7 +380,7 @@ class LLM_Interface:
                     session_id, chat_manager, context_chunks, query
                 )
                 response = self.chain.invoke(inputs)
-                response = External.extract_llm_output(response)
+                response = extract_llm_output(response)
                 logger.info(f"Generated response: {str(response)[:30]}...")
                 return response
 
@@ -448,14 +445,14 @@ class LLM_Interface:
             # 1) chain.arun
             if hasattr(self.chain, "arun"):
                 result = await self.chain.arun(inputs)
-                result = External.extract_llm_output(result)
+                result = extract_llm_output(result)
                 logger.info(f"Generated async response (arun): {str(result)[:30]}...")
                 return result
 
             # 2) chain.ainvoke
             if hasattr(self.chain, "ainvoke"):
                 result = await self.chain.ainvoke(inputs)
-                result = External.extract_llm_output(result)
+                result = extract_llm_output(result)
                 logger.info(
                     f"Generated async response (ainvoke): {str(result)[:30]}..."
                 )
@@ -465,7 +462,7 @@ class LLM_Interface:
             if hasattr(self.chain, "astream"):
                 pieces: List[str] = []
                 async for chunk in self.chain.astream(inputs):
-                    chunk = External.extract_llm_output(chunk)
+                    chunk = extract_llm_output(chunk)
                     pieces.append(str(chunk))
                 result = "".join(pieces)
                 logger.info(
@@ -475,7 +472,7 @@ class LLM_Interface:
 
             # Fallback: run blocking invoke in thread
             result = await asyncio.to_thread(self.chain.invoke, inputs)
-            result = External.extract_llm_output(result)
+            result = extract_llm_output(result)
             logger.info(
                 f"Generated async response (fallback invoke): {str(result)[:30]}..."
             )
@@ -506,7 +503,7 @@ class LLM_Interface:
             logger.info(f"Generating response for query: {query[:30]}...")
 
             async for chunk in self.chain.astream(inputs):
-                chunk = External.extract_llm_output(chunk)
+                chunk = extract_llm_output(chunk)
                 logger.info(f"Streaming chunk: {str(chunk)[:30]}...")
                 yield chunk
         except Exception as e:
@@ -525,7 +522,7 @@ class LLM_Interface:
         )
 
         result = await chain.arun(summaries)
-        result = External.extract_llm_output(result)
+        result = extract_llm_output(result)
         return result.strip()
 
     async def generate_suggested_queries(

@@ -1,5 +1,5 @@
 from .chat_manager import ChatManager
-from .external_service import External
+from .external import extract_llm_output, get_llm
 from .LLM_interface import LLM_Interface
 from .notebooks import create_notebook, list_notebooks
 from .pdf_processor import PDFProcessor
@@ -12,7 +12,8 @@ __all__ = [
     "Retriever",
     "create_notebook",
     "list_notebooks",
-    "External",
+    "extract_llm_output",
+    "get_llm",
 ]
 
 if __name__ == "__main__":
