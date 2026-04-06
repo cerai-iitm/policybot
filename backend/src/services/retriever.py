@@ -15,6 +15,7 @@ from src.core import cfg, logger
 from src.db.crud import get_summary_by_source_name
 from src.services.external.get_embedding_provider import get_embedding_provider
 from src.services.LLM_interface import LLM_Interface
+from src.services.external.get_reranker_provider import get_reranker
 
 # set HF logging verbosity once at module import
 hf_logging.set_verbosity_error()
@@ -33,6 +34,7 @@ class Retriever:
     ) -> None:
         self.top_k = top_k
         self.interface = interface
+        self.reranker = get_reranker()
 
     def _softmax_top_p_filter(self, scores, items, top_p, temperature):
         scores = np.array(scores)
@@ -76,38 +78,13 @@ class Retriever:
                 logger.warning("No chunks provided for reranking.")
                 return []
 
-            # Call TEI rerank endpoint using requests
-            import requests
+            # Use the configured reranker (FlagRerankerWrapper or TEIReranker)
+            reranked_chunks, scores = self.reranker.rerank(query, chunks)
 
-            headers = {"Content-Type": "application/json"}
-            if cfg.DEV_PROXY_API_KEY:
-                headers["X-API-Key"] = cfg.DEV_PROXY_API_KEY
-            response = requests.post(
-                f"{cfg.TEI_RERANKER_URL}/rerank",
-                json={"query": query, "texts": chunks},
-                headers=headers,
-            )
-            response.raise_for_status()
-            results = response.json()
-
-            # Parse response: [{"index": 0, "score": 0.95}, ...]
-            if not results or not isinstance(results, list):
-                logger.error(f"Invalid TEI response: {results}")
-                return chunks
-
-            # Extract scores in order of chunks using index
-            scores = [0.0] * len(chunks)
-            for item in results:
-                if "index" in item and "score" in item:
-                    idx = item["index"]
-                    if 0 <= idx < len(chunks):
-                        scores[idx] = item["score"]
-
-            scores = np.array(scores)
-
+            # Apply softmax top‑p filter (same as previous behavior)
             selected_chunks = self._softmax_top_p_filter(
                 scores=scores,
-                items=chunks,
+                items=reranked_chunks,
                 top_p=cfg.TOP_P,
                 temperature=cfg.RERANKER_TEMP,
             )

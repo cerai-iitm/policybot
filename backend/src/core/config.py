@@ -36,6 +36,7 @@ class Config:
     EMBEDDING_MODEL_NAME = "Alibaba-NLP/gte-multilingual-base"
     EMBEDDING_MODEL_KWARGS = {"trust_remote_code": True}
     EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "sentence-transformers")
+    RERANKER_PROVIDER = os.getenv("RERANKER_PROVIDER", "tei")
     ENCODE_KWARGS = {"normalize_embeddings": True}
     BREAKPOINT_THRESHOLD_TYPE = "standard_deviation"
     BREAKPOINT_THRESHOLD_AMOUNT = 1.0

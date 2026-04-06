@@ -42,7 +42,7 @@ services:
         - action: sync
           path: ./backend/src
           target: /app/src
-        - action: sync
+        - action: rebuild
           path: ./backend/migrations
           target: /app/migrations
         - action: sync

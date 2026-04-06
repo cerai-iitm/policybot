@@ -15,7 +15,7 @@ from openai import AsyncOpenAI
 from src.core import cfg, logger
 
 from .chat_manager import ChatManager
-from .external import External
+from .external_service import External
 
 
 class LLM_Interface:

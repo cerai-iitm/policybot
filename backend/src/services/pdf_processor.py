@@ -450,7 +450,10 @@ class PDFProcessor:
                     # Progress update per batch
                     processed = min(i + batch_size, total_docs)
                     current_time = asyncio.get_event_loop().time()
-                    if current_time - last_progress_time >= 5.0 or processed >= total_docs:
+                    if (
+                        current_time - last_progress_time >= 5.0
+                        or processed >= total_docs
+                    ):
                         progress_pct = int((processed / total_docs) * 100)
                         yield f"Embedding: {processed}/{total_docs} documents ({progress_pct}%)"
                         last_progress_time = current_time
@@ -473,21 +476,6 @@ class PDFProcessor:
         except Exception as e:
             logger.error(f"Error embedding documents: {e}")
             yield "Error: Failed to generate embeddings."
-            yield None
-                else:
-                    # Fallback to sync embedding (HuggingFace) – still provide progress updates
-                    all_embeddings = []
-                    for i, text in enumerate(texts):
-                        embedding = embedder.embed_documents([text])
-                        all_embeddings.extend(embedding)
-                        current_time = asyncio.get_event_loop().time()
-                        if current_time - last_progress_time >= 5.0 or i == len(texts) - 1:
-                            progress_pct = int(((i + 1) / total_docs) * 100)
-                            yield f"Embedding: {i + 1}/{total_docs} documents ({progress_pct}%)"
-                            last_progress_time = current_time
-
-                embeddings = np.array(all_embeddings, dtype=np.float32)
-                yield embeddings
 
         except Exception as e:
             logger.error(f"Error embedding documents: {e}")
