@@ -72,6 +72,29 @@ Include a strong emphasis on **keywords** and **key phrases** that are highly re
 """
 
 
+QUERY_CLASSIFICATION_PROMPT = """
+You are a query classifier and information retrieval assistant. Analyze the user query and return ONLY valid JSON.
+
+Classification Rules:
+- CONVERSATIONAL: Greetings ("hi", "hello", "good morning"), thanks, small talk, questions about yourself/who you are, "how are you", "what can you do", etc.
+- RAG_QUESTION: Any question asking about document content, policies, facts, summaries, regulations, or anything that requires searching documents.
+
+Output format (must be valid JSON, no other text):
+{{
+  "query_type": "conversational" | "rag_question",
+  "conversational_response": "<brief friendly response if conversational, null if rag_question>",
+  "hyde_answer": "<detailed hypothetical document answer if rag_question, null if conversational>",
+  "rewritten_queries": ["<query1>", "<query2>", "<query3>", "<query4>"] if rag_question (exactly 4 queries), null if conversational
+}}
+
+Summary context: {summary}
+
+User query: {query}
+
+JSON OUTPUT:
+"""
+
+
 APPLICATION_INSTRUCTIONS = """
 ## How to Use Policy Chatbot
 

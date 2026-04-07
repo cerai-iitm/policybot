@@ -112,6 +112,8 @@ class Retriever:
         pdfs: List[str],
         db: Optional[AsyncSession] = None,
         top_k: Optional[int] = None,
+        hyde_answer: Optional[str] = None,
+        rewritten_queries: Optional[List[str]] = None,
     ) -> Tuple[List[str], List[Dict[str, any]]]:
         if top_k is None:
             top_k = self.top_k
@@ -120,33 +122,54 @@ class Retriever:
             # Embedding handling is done inside `_generate_query_embeddings` via the factory.
             # No explicit model loading / device tracking is needed here.
 
-            if not cfg.VLLM_EMBEDDING_ENABLED:
-                logger.info("Embedding will be performed via factory (local model).")
-            else:
+            if cfg.EMBEDDING_PROVIDER == "vllm":
                 logger.info("Using vLLM for embeddings (no local model loading)")
-
-            logger.info("Generating rewritten queries for better retrieval")
-            # Fetch source summaries asynchronously if a DB session is provided.
-            if db is not None and pdfs:
-                coros = [
-                    get_summary_by_source_name(db, os.path.basename(pdf))
-                    for pdf in pdfs
-                ]
-                summaries = await asyncio.gather(*coros)
             else:
-                if pdfs:
-                    logger.warning("No DB session provided; skipping source summaries.")
-                summaries = []
+                logger.info(
+                    f"Embedding will be performed via factory ({cfg.EMBEDDING_PROVIDER} provider)."
+                )
 
-            summary = "\n\n".join(filter(None, summaries)) if summaries else ""
-            # Use batched query generation (2-in-1 for vLLM, sequential fallback for others)
-            rewritten_queries = await self.interface.generate_rewritten_queries_batched(
-                query=query, summary=summary
-            )
+            # Check if we already have pre-computed HYDE and rewritten queries from classification
+            if rewritten_queries is not None and hyde_answer is not None:
+                logger.info(
+                    "Using pre-computed HYDE and rewritten queries from classification"
+                )
+                # Combine hyde_answer with rewritten queries for embedding
+                all_queries = list(rewritten_queries)
+                if hyde_answer and hyde_answer.strip():
+                    all_queries.append(hyde_answer.strip())
+                query_for_embedding = all_queries
+            else:
+                # Fallback: generate queries as before (for backward compatibility)
+                logger.info("Generating rewritten queries for better retrieval")
+                # Fetch source summaries asynchronously if a DB session is provided.
+                if db is not None and pdfs:
+                    coros = [
+                        get_summary_by_source_name(db, os.path.basename(pdf))
+                        for pdf in pdfs
+                    ]
+                    summaries = await asyncio.gather(*coros)
+                else:
+                    if pdfs:
+                        logger.warning(
+                            "No DB session provided; skipping source summaries."
+                        )
+                    summaries = []
+
+                summary = "\n\n".join(filter(None, summaries)) if summaries else ""
+                # Use batched query generation (2-in-1 for vLLM, sequential fallback for others)
+                rewritten_queries = (
+                    await self.interface.generate_rewritten_queries_batched(
+                        query=query, summary=summary
+                    )
+                )
+                query_for_embedding = rewritten_queries
 
             logger.info("Generating query embeddings")
             # Generate embeddings - async vLLM or threaded local model via factory
-            query_embeddings = await self._generate_query_embeddings(rewritten_queries)
+            query_embeddings = await self._generate_query_embeddings(
+                query_for_embedding
+            )
 
             # No explicit free needed – the factory‑provided embedder is managed by Python GC.
 

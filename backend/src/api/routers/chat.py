@@ -1,3 +1,5 @@
+import asyncio
+import os
 from typing import List, Optional
 from difflib import SequenceMatcher
 from sqlalchemy import text
@@ -16,6 +18,7 @@ from src.db.crud import (
     get_overall_summary,
     get_pdf_by_filename_and_notebook,
     get_random_suggested_questions,
+    get_summary_by_source_name,
     insert_suggested_question,
 )
 from src.services import ChatManager, LLM_Interface, Retriever
@@ -103,9 +106,40 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
             detail="No valid PDFs found in the specified notebook.",
         )
 
+    # Fetch source summaries for classification (needed for HYDE generation)
+    summary = ""
+    if valid_pdfs and db:
+        coros = [
+            get_summary_by_source_name(db, os.path.basename(pdf)) for pdf in valid_pdfs
+        ]
+        summaries = await asyncio.gather(*coros)
+        summary = "\n\n".join(filter(None, summaries)) if summaries else ""
+
+    # Classify query first - determines if conversational or RAG question
+    logger.info("Classifying query type and generating HYDE")
+    classification = await llm_interface.classify_and_generate_hyde(
+        query=request.query, summary=summary
+    )
+
+    # If conversational, return immediately without RAG pipeline
+    if classification.query_type == "conversational":
+        logger.info(f"Conversational query detected, returning direct response")
+        return {
+            "response": classification.conversational_response,
+            "query_type": "conversational",
+            "context_chunks": [],
+        }
+
+    logger.info(f"RAG query detected, proceeding with retrieval pipeline")
+
     # Pass DB session into retriever so it can load source summaries when available.
+    # Pass pre-computed HYDE answer and rewritten queries from classification
     context_chunks, chunk_metadata = await retriever.retrieve(
-        query=request.query, pdfs=valid_pdfs, db=db
+        query=request.query,
+        pdfs=valid_pdfs,
+        db=db,
+        hyde_answer=classification.hyde_answer,
+        rewritten_queries=classification.rewritten_queries,
     )
     logger.info(f"Retrieved {len(context_chunks)} chunks for the query in chat.py")
     logger.info(f"Returning {len(context_chunks)} context chunks in response.")

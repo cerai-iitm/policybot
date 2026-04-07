@@ -1,3 +1,4 @@
+from .chat import QueryClassification
 from .notebooks import (
     ErrorResponse,
     NotebookCreateResponse,
@@ -14,6 +15,7 @@ from .pdf import (
 )
 
 __all__ = [
+    "QueryClassification",
     "NotebookCreateResponse",
     "NotebookListItem",
     "NotebookListResponse",

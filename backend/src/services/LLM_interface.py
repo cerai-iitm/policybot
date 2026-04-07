@@ -16,6 +16,7 @@ from src.core import cfg, logger
 
 from .chat_manager import ChatManager
 from .external import extract_llm_output, get_llm
+from src.api.schemas.chat import QueryClassification
 
 
 class LLM_Interface:
@@ -315,6 +316,27 @@ class LLM_Interface:
             # Fallback to sequential method
             logger.info("Falling back to sequential query generation")
             return await self.generate_rewritten_queries(query, summary)
+
+    async def classify_and_generate_hyde(
+        self, query: str, summary: str
+    ) -> QueryClassification:
+        classification_prompt = cfg.QUERY_CLASSIFICATION_PROMPT.format(
+            summary=summary, query=query
+        )
+        try:
+            structured_llm = self.llm.with_structured_output(QueryClassification)
+            result = await asyncio.to_thread(
+                structured_llm.invoke, classification_prompt
+            )
+            logger.info(f"Query classified as: {result.query_type}")
+            return result
+        except Exception as e:
+            logger.error(f"Classification failed: {e}, defaulting to rag_question")
+            return QueryClassification(
+                query_type="rag_question",
+                hyde_answer=None,
+                rewritten_queries=[query],
+            )
 
     def prepare_inputs(
         self,
