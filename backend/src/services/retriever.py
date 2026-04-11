@@ -14,8 +14,8 @@ from transformers import logging as hf_logging
 from src.core import cfg, logger
 from src.db.crud import get_summary_by_source_name
 from src.services.external.get_embedding_provider import get_embedding_provider
-from src.services.LLM_interface import LLM_Interface
 from src.services.external.get_reranker_provider import get_reranker
+from src.services.LLM_interface import LLM_Interface
 
 # set HF logging verbosity once at module import
 hf_logging.set_verbosity_error()

@@ -43,8 +43,20 @@ class Config:
     MAX_HISTORY_MESSAGES = 3
     # default model used by the backend for final generation
     MODEL_NAME: str = "gemma3n:e4b"
+    # Default models per provider (used for provider-aware model resolution)
+    DEFAULT_MODELS = {
+        "ollama": "gemma3n:e4b",
+        "vllm": "unsloth/gemma-3n-E4B-it",
+        "gemini": "gemini-2.5-flash",
+    }
     TEMPERATURE = 0.5
     MAX_CONTEXT_TOKENS = 32000
+
+    @staticmethod
+    def get_default_model_for_provider(provider: str) -> str:
+        """Get the default model name for a given provider."""
+        provider_lower = provider.lower()
+        return Config.DEFAULT_MODELS.get(provider_lower, Config.MODEL_NAME)
 
     RERANKING_MODEL_NAME = "BAAI/bge-reranker-base"
     TOP_K = 10
@@ -69,9 +81,11 @@ class Config:
     VLLM_EMBEDDING_IP = os.getenv("VLLM_EMBEDDING_IP", "localhost")
     VLLM_EMBEDDING_PORT = int(os.getenv("VLLM_EMBEDDING_PORT", "8081"))
     VLLM_EMBEDDING_PATH = os.getenv("VLLM_EMBEDDING_PATH", "")
-    VLLM_EMBEDDING_URL = (
-        f"http://{VLLM_EMBEDDING_IP}:{VLLM_EMBEDDING_PORT}{VLLM_EMBEDDING_PATH}/v1"
-    )
+    VLLM_EMBEDDING_URL = os.environ.get("VLLM_EMBEDDING_URL", "")
+    if not VLLM_EMBEDDING_URL:
+        VLLM_EMBEDDING_URL = (
+            f"http://{VLLM_EMBEDDING_IP}:{VLLM_EMBEDDING_PORT}{VLLM_EMBEDDING_PATH}/v1"
+        )
     VLLM_EMBEDDING_MODEL = os.getenv(
         "VLLM_EMBEDDING_MODEL", "google/embeddinggemma-300m"
     )
@@ -81,7 +95,11 @@ class Config:
     VLLM_LLM_IP = os.getenv("VLLM_LLM_IP", "localhost")
     VLLM_LLM_PORT = int(os.getenv("VLLM_LLM_PORT", "8080"))
     VLLM_LLM_PATH = os.getenv("VLLM_LLM_PATH", "")
-    VLLM_LLM_URL = f"http://{VLLM_LLM_IP}:{VLLM_LLM_PORT}{VLLM_LLM_PATH}"
+    VLLM_LLM_URL = os.environ.get("VLLM_LLM_URL", "")
+    if not VLLM_LLM_URL:
+        VLLM_LLM_URL = f"http://{VLLM_LLM_IP}:{VLLM_LLM_PORT}{VLLM_LLM_PATH}/v1"
+    elif VLLM_LLM_URL and not VLLM_LLM_URL.rstrip("/").endswith("/v1"):
+        VLLM_LLM_URL = VLLM_LLM_URL.rstrip("/") + "/v1"
     VLLM_LLM_MODEL = os.getenv("VLLM_LLM_MODEL", "unsloth/gemma-3n-E4B-it")
     VLLM_LLM_API_KEY = os.getenv("VLLM_LLM_API_KEY", "EMPTY")
     VLLM_LLM_TEMPERATURE = float(os.getenv("VLLM_LLM_TEMPERATURE", "0.7"))

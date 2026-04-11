@@ -1,3 +1,4 @@
+import httpx
 from langchain_core.language_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
@@ -40,12 +41,16 @@ def get_llm(
         )
 
     if provider == "vllm":
+        api_key = cfg.VLLM_LLM_API_KEY or cfg.DEV_PROXY_API_KEY
+        headers = {"X-API-Key": api_key} if api_key else None
+        http_client = httpx.Client(headers=headers) if headers else None
         return ChatOpenAI(
             model=model_name or cfg.VLLM_LLM_MODEL,
             api_key=SecretStr(cfg.VLLM_LLM_API_KEY) or SecretStr("no-key"),
             base_url=cfg.VLLM_LLM_URL,
             temperature=cfg.VLLM_LLM_TEMPERATURE,
             max_tokens=cfg.VLLM_LLM_MAX_TOKENS,
+            http_client=http_client,
         )
 
     raise ValueError(

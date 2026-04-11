@@ -22,7 +22,6 @@ from src.db.crud import (
     insert_suggested_question,
 )
 from src.services import ChatManager, LLM_Interface, Retriever
-from src.services.llm_utils import force_ollama_provider
 
 router = APIRouter()
 
@@ -43,12 +42,6 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
     - request.model_name omitted/None: Uses backend default cfg.MODEL_NAME (regular users)
     - request.model_name provided: Uses specified model (admin users)
     """
-    # Force Ollama provider for this endpoint (runtime override)
-    try:
-        force_ollama_provider()
-    except Exception:
-        logger.exception("Failed to force Ollama provider override")
-
     # Validate notebook exists
     notebook = await get_notebook_by_notebook_id(db, request.notebook_id.strip())
     if not notebook:
@@ -56,8 +49,9 @@ async def query_endpoint(request: QueryRequest, db: AsyncSession = Depends(get_d
             status_code=404, detail=f"Notebook '{request.notebook_id}' not found."
         )
 
-    # Resolve model: use provided model_name or default
-    resolved_model = request.model_name or cfg.MODEL_NAME
+    # Resolve model: use provided model_name or provider-specific default
+    provider = cfg.LLM_PROVIDER.lower()
+    resolved_model = request.model_name or cfg.get_default_model_for_provider(provider)
     logger.info(
         f"Query endpoint - notebook: {request.notebook_id}, session: {request.session_id[:8]}..., "
         f"model: {resolved_model}, "

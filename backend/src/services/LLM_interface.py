@@ -12,22 +12,23 @@ from langchain_core.prompts import (
 )
 from openai import AsyncOpenAI
 
+from src.api.schemas.chat import QueryClassification
 from src.core import cfg, logger
 
 from .chat_manager import ChatManager
 from .external import extract_llm_output, get_llm
-from src.api.schemas.chat import QueryClassification
 
 
 class LLM_Interface:
-    def __init__(self, model_name: str = cfg.MODEL_NAME) -> None:
+    def __init__(self, model_name: str = None) -> None:
         """
         Initialize LLM interface with optional model override.
 
         Args:
-            model_name: Model ID to use. If None, uses backend default (cfg.MODEL_NAME).
+            model_name: Model ID to use. If None, uses provider-specific default.
         """
-        effective_model = model_name or cfg.MODEL_NAME
+        provider = cfg.LLM_PROVIDER.lower()
+        effective_model = model_name or cfg.get_default_model_for_provider(provider)
         logger.info(f"Initializing LLM_Interface with model: {effective_model}")
 
         self.system_prompt = cfg.SYSTEM_PROMPT
@@ -118,6 +119,8 @@ class LLM_Interface:
         Returns the text if successful, otherwise None on timeout/error.
         """
         try:
+            # Use vLLM-specific model name for direct completions
+            llm_model = cfg.VLLM_LLM_MODEL
             client_kwargs = {
                 "api_key": cfg.VLLM_LLM_API_KEY,
                 "base_url": cfg.VLLM_LLM_URL,
@@ -126,9 +129,9 @@ class LLM_Interface:
                 client_kwargs["default_headers"] = {"X-API-Key": cfg.DEV_PROXY_API_KEY}
             client = AsyncOpenAI(**client_kwargs)
             logger.info(
-                f"LLM direct completion call to {self.model_name}",
+                f"LLM direct completion call to {llm_model}",
                 extra={
-                    "model": self.model_name,
+                    "model": llm_model,
                     "max_tokens": max_tokens,
                     "timeout": timeout,
                     "prompt_length": len(prompt),
@@ -139,7 +142,7 @@ class LLM_Interface:
 
             resp = await asyncio.wait_for(
                 client.completions.create(
-                    model=self.model_name,
+                    model=llm_model,
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=cfg.TEMPERATURE,
