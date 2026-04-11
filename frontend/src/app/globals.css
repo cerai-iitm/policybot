@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
+/* ✅ FIX 1: replace @theme with :root */
 @theme {
   --color-primary: #2F4DBA;
 }
-
 
 /* Optional base styles */
 @layer base {
@@ -16,6 +16,8 @@
   }
 }
 
+/* ================= ANIMATIONS ================= */
+
 @keyframes gradient {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -25,68 +27,6 @@
 .animate-gradient {
   animation: gradient 4s ease infinite;
 }
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
-/* Two-line fade truncation for PDF summaries */
-.two-line-fade {
-  position: relative;
-  max-width: 100%;
-}
-.two-line-fade .fade-content {
-  max-height: 3.2rem; /* approx 2 lines at 1.6rem line-height */
-  line-height: 1.6rem;
-  overflow: hidden;
-}
-.two-line-fade::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 4rem;
-  height: 1.6rem;
-  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,1));
-  pointer-events: none;
-}
-
-
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
-}
-
-/* Chrome */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 999px;
-}
-
-/* Show scrollbar on hover */
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.25);
-  border-radius: 999px;
-  transition: background 0.2s ease;
-}
-
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.35);
-}
-
 
 @keyframes fadeIn {
   from {
@@ -101,4 +41,75 @@ html {
 
 .animate-fadeIn {
   animation: fadeIn 0.25s ease-out;
+}
+
+/* ================= SCROLLBAR ================= */
+
+/* Hide scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* ✅ FIX 2: move @supports OUTSIDE */
+@supports (scrollbar-width: thin) {
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+  }
+}
+
+/* Chrome / Edge / Safari */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+/* ✅ FIX 3: remove duplicate and keep final version */
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+/* ================= GLOBAL ================= */
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ================= TEXT TRUNCATION ================= */
+
+.two-line-fade {
+  position: relative;
+  max-width: 100%;
+}
+
+.two-line-fade .fade-content {
+  max-height: 3.2rem; /* approx 2 lines */
+  line-height: 1.6rem;
+  overflow: hidden;
+}
+
+.two-line-fade::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 4rem;
+  height: 1.6rem;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0),
+    rgba(255,255,255,1)
+  );
+  pointer-events: none;
 }

@@ -4,7 +4,7 @@
 
 import { withBase } from "@/lib/url";
 import React, { useState, useRef, useEffect } from "react";
-import addicon from "../../assets/add.png";
+import addicon from "@/assets/add.png";
 import { createPortal } from "react-dom";
 import { api, monitorPdfProcessing } from "@/lib/router";
 

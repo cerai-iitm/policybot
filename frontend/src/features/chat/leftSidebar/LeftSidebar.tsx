@@ -5,11 +5,11 @@ import SourceItem from "./SourceItem";
 import FileUpload from "./FileUpload";
 import { withBase } from "@/lib/url";
 
-import sidebaricon from "../../assets/sidebar.png";
-import selectAllChecked from "../../assets/marked.png";
-import selectAllUnchecked from "../../assets/unmarked.png";
-import selectAllIndeterminate from "../../assets/partialmarked.png";
-import logo from "../../assets/logo.png";
+import sidebaricon from "@/assets/sidebar.png";
+import selectAllChecked from "@/assets/marked.png";
+import selectAllUnchecked from "@/assets/unmarked.png";
+import selectAllIndeterminate from "@/assets/partialmarked.png";
+import logo from "@/assets/logo.png";
 import { FiMenu, FiX } from "react-icons/fi";
 import { useNotebookId } from "@/hooks/useNotebookId";
 
