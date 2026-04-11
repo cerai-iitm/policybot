@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import MarkdownRenderer from "../common/Markdown";
+import MarkdownRenderer from "../../markdown/Markdown";
 import { FiFile, FiCopy } from "react-icons/fi";
 import { AiOutlineLike, AiOutlineDislike } from "react-icons/ai";
 import { FiCheck } from "react-icons/fi";

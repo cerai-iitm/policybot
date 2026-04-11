@@ -1,4 +1,4 @@
-import Card from "./Card"
+import Card from "./components/Card"
 import { NotebookListItem } from "@/lib/interfaces";
 import AiImg from "@/assets/notebookbg/ai.jpg";
 import EducationImg from "@/assets/notebookbg/education.jpg";

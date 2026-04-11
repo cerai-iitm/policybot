@@ -2,11 +2,11 @@
 import { useIsMobile } from "@/hooks/useIsMobile";
 import React, { useState, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { AdminProvider } from "./AdminContext";
-import LeftSidebar from "@/components/leftSidebar/LeftSidebar";
-import ChatSection from "@/components/chat/ChatSection";
+import { AdminProvider } from "../context/AdminContext";
+import LeftSidebar from "@/features/chat/leftSidebar/LeftSidebar";
+import ChatSection from "@/features/chat/components/ChatView";
 
-import { SidebarItem } from "@/components/leftSidebar/LeftSidebar";
+import { SidebarItem } from "@/features/chat/leftSidebar/LeftSidebar";
 
 interface MainLayoutProps {
   isAdmin?: boolean;
@@ -47,10 +47,10 @@ export default function MainLayout({ isAdmin: isAdminProp }: MainLayoutProps) {
 
     {/* LEFT SIDEBAR – DESKTOP ONLY */}
     {!isMobile && (
-      <div
-        className="h-full"
-        style={{ width: leftSidebarWidth, minWidth: leftSidebarWidth }}
-      >
+     <div
+  className="h-full"
+  style={{ width: leftSidebarWidth, minWidth: leftSidebarWidth }}
+>
         <LeftSidebar
           width={leftSidebarWidth}
           defaultWidth={sidebarWidth}
@@ -85,7 +85,7 @@ export default function MainLayout({ isAdmin: isAdminProp }: MainLayoutProps) {
         {/* Drawer */}
         <div
           className={`
-            fixed top-0 left-0 h-full w-[280px] bg-slate-50 z-50
+            fixed top-0 left-0 h-full w-70 bg-slate-50 z-50
             transform transition-transform duration-300 ease-in-out
             ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"}
           `}

@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import Navbar from "@/components/notebook/Navbar";
-import PolicyCollectionsSection from "@/components/notebook//PolicyCollectionsSection";
-import PolicyTopicsSection from "@/components/notebook/PolicyTopicsSection";
+import Navbar from "@/features/notebook/Navbar";
+import PolicyCollectionsSection from "@/features/notebook/PolicyCollectionsSection";
+import PolicyTopicsSection from "@/features/notebook/PolicyTopicsSection";
 
 import { listNotebooks, listPdfs } from "@/lib/router";
 import { NotebookListItem, FirstNotebookPDFItem } from "@/lib/interfaces";

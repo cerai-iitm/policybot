@@ -33,7 +33,7 @@ const Navbar = () => {
             className="relative text-gray-800 font-medium transition duration-300 hover:text-primary group"
           >
             Overview
-            <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-primary transition-all duration-300 group-hover:w-full"></span>
+            <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
           </Link>
 
           <Link
@@ -41,7 +41,7 @@ const Navbar = () => {
             className="relative text-gray-800 font-medium transition duration-300 hover:text-primary group"
           >
             Policy Notebooks
-            <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-primary transition-all duration-300 group-hover:w-full"></span>
+            <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
           </Link>
 
           <a
@@ -54,7 +54,7 @@ const Navbar = () => {
             <FaGithub className="text-xl text-gray-700 cursor-pointer transition duration-300 hover:scale-125 hover:text-primary" />
           </a>
 <div className="ml-2">
-  <div className="flex items-center justify-center gap-6 h-[43px] px-5 rounded-[10px] border border-black/20 bg-white">
+  <div className="flex items-center justify-center gap-6 h-10.75 px-5 rounded-[10px] border border-black/20 bg-white">
 
     <a
       href="https://cerai.iitm.ac.in/"

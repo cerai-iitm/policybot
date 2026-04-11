@@ -337,9 +337,9 @@ const handleUploadSuccess = (newSource: { name: string }) => {
    {typeof window !== "undefined" && window.innerWidth >= 768 && (
   <div
     ref={handleRef}
-    className="absolute top-0 right-0 h-full w-2 cursor-ew-resize z-20"
+    className="absolute top-0 right-0 h-full w-2 cursor-ew-resize z-20 select-none"
     onMouseDown={startResizing}
-    style={{ userSelect: "none" }}
+    
   />
 )}
     </aside>

@@ -1,16 +1,14 @@
-"use_client";
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { FaGithubSquare } from "react-icons/fa";
-import { MdDarkMode, MdLightMode } from "react-icons/md";
-import HumanMessage from "./HumanMessage";
-import AIMessage from "./AIMessage";
+"use client";
+import React, { useState, useRef, useEffect } from "react";
+import HumanMessage from "./messages/HumanMessage";
+import AIMessage from "./messages/AIMessage";
 import ChatInput from "./ChatInput";
 import { SidebarItem } from "../leftSidebar/LeftSidebar";
 import { useTheme } from "next-themes";
 import { v4 as uuidv4 } from "uuid";
 import { withBase } from "@/lib/url";
 import ModelSelector from "./ModelSelector";
-import { useAdmin } from "@/app/components/AdminContext";
+import { useAdmin } from "@/features/chat/context/AdminContext";
 import logo from '@/assets/logo.png'
 import Iconone from "@/assets/cerai.png";
 import Icontwo from "@/assets/iiit.png";

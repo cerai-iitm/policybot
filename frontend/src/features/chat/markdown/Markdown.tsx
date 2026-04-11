@@ -271,7 +271,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       text-[15px] sm:text-[16px]
       leading-7 sm:leading-8
       tracking-[0.01em]
-      break-words
+      wrap-break-words
       text-black
       `
     }

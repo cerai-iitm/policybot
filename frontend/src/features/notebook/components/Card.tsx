@@ -1,4 +1,4 @@
-import Arrowright from "../../assets/arrow.png"
+import Arrowright from "@/assets/arrow.png"
 
 type CardProps = {
   img: string
@@ -13,7 +13,7 @@ const Card = ({ img, title, desc, active = false, onClick }: CardProps) => {
     <div
       className={`
         relative overflow-hidden rounded-xl
-        aspect-[5/4] w-[22rem] max-w-full
+        aspect-5/4 w-88 max-w-full
         transition-all duration-300 ease-out
         ${active ? "scale-[1.04] -translate-y-2" : "scale-100"}
       `}
