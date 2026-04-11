@@ -49,7 +49,7 @@ class PDFProcessor:
         await db.commit()
 
         yield "Checking for existing embeddings..."
-        embeddings_exist = await self._check_existing_embeddings(pdf.original_filename)
+        embeddings_exist = await self._check_existing_embeddings(pdf.id)
 
         docs = None
         if embeddings_exist:
@@ -78,7 +78,7 @@ class PDFProcessor:
                 return
 
             yield "Storing embeddings..."
-            await self._store_embeddings(split_docs, embeddings, pdf.original_filename)
+            await self._store_embeddings(split_docs, embeddings, pdf.id)
 
         pdf.processing_status = "embeddings_complete"
         await db.commit()
@@ -156,7 +156,7 @@ class PDFProcessor:
             return None
 
     async def _store_embeddings(
-        self, docs: List[Document], embeddings: np.ndarray, source_name: str
+        self, docs: List[Document], embeddings: np.ndarray, pdf_id: int
     ) -> None:
         client = get_qdrant_client()
         try:
@@ -176,7 +176,7 @@ class PDFProcessor:
                     vector=embeddings[i].tolist(),
                     payload={
                         "text": docs[i].page_content,
-                        "source": source_name,
+                        "pdf_id": pdf_id,
                         "page_number": docs[i].metadata.get("page_number"),
                     },
                 )
@@ -189,11 +189,11 @@ class PDFProcessor:
         finally:
             await client.close()
 
-    async def _check_existing_embeddings(self, source_name: str) -> bool:
+    async def _check_existing_embeddings(self, pdf_id: int) -> bool:
         client = get_qdrant_client()
         try:
             filter_ = Filter(
-                must=[FieldCondition(key="source", match=MatchValue(value=source_name))]
+                must=[FieldCondition(key="pdf_id", match=MatchValue(value=pdf_id))]
             )
             result = await client.scroll(
                 collection_name=self.config.q_collection_name,
@@ -230,11 +230,11 @@ class PDFProcessor:
         except Exception:
             return None
 
-    async def delete_embeddings(self, source_name: str) -> bool:
+    async def delete_embeddings(self, pdf_id: int) -> bool:
         client = get_qdrant_client()
         try:
             filter_ = Filter(
-                must=[FieldCondition(key="source", match=MatchValue(value=source_name))]
+                must=[FieldCondition(key="pdf_id", match=MatchValue(value=pdf_id))]
             )
             from qdrant_client.http.models import FilterSelector
 
