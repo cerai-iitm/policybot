@@ -1,16 +1,18 @@
-import Arrowright from "../assets/arrow.png";
-import { Link, useNavigate } from "react-router-dom";
+import Arrowright from "@/assets/arrow.png";
 import { useEffect, useRef } from "react";
-import EducationImg from "../assets/notebookbg/education.jpg";
-import UnionBudgetImg from "../assets/notebookbg/unionbudget.png";
-import AiImg from "../assets/notebookbg/ai.jpg";
+import EducationImg from "@/assets/notebookbg/education.jpg";
+import UnionBudgetImg from "@/assets/notebookbg/unionbudget.png";
+import AiImg from "@/assets/notebookbg/ai.jpg";
+import Link from "next/link"
 
+
+import { useRouter } from "next/navigation";
 
 /* =========================
    MAIN SECTION
 ========================= */
 
-const PolicyCollections = (): JSX.Element => {
+const PolicyCollections = () => {
   const mobileCards = [
     {
       img: EducationImg,
@@ -41,13 +43,10 @@ const PolicyCollections = (): JSX.Element => {
      AUTO + SWIPE LOGIC
   ========================= */
 
-  const navigate = useNavigate();
+    const router = useRouter();
+  
 
-  const openNotebooksFor = (keyword?: string) => {
-    if (keyword) navigate(`/notebook?preferred=${encodeURIComponent(keyword)}`);
-    else navigate("/notebook");
-  };
-
+ 
   useEffect(() => {
     const container = rowRef.current;
     if (!container) return;
@@ -147,10 +146,10 @@ if (position <= -halfWidth) {
               <button
                 type="button"
                 aria-label={`Open notebooks for ${card.title}`}
-                onClick={() => openNotebooksFor(card.keyword)}
+               
                 className="p-0 m-0 border-0 bg-transparent"
               >
-                <Card img={card.img} title={card.title} desc={card.desc} />
+                <Card img={card.img.src} title={card.title} desc={card.desc} />
               </button>
             </div>
           ))}
@@ -158,11 +157,13 @@ if (position <= -halfWidth) {
 
         {/* BUTTON */}
         <div className="text-center mt-12 px-6">
-          <Link to="/notebook">
-            <button className="border border-gray-400 px-6 py-3 rounded-xl transition duration-300 hover:bg-primary hover:text-white hover:scale-105">
+         
+            <button 
+             onClick={() => router.push("/notebook")}
+             className="border border-gray-400 px-6 py-3 rounded-xl transition duration-300 hover:bg-primary hover:text-white hover:scale-105">
               Explore More
             </button>
-          </Link>
+         
         </div>
       </div>
 
@@ -173,11 +174,11 @@ if (position <= -halfWidth) {
             <button
               type="button"
               aria-label="Open notebooks for Digital Governance & IT"
-              onClick={() => openNotebooksFor("digital")}
+              
               className="p-0 m-0 border-0 bg-transparent"
             >
               <Card
-                img={AiImg}
+                img={AiImg.src}
                 title="Digital Governance & IT"
                 desc="Digital governance, cybersecurity, and e-government policies."
               />
@@ -185,11 +186,11 @@ if (position <= -halfWidth) {
             <button
               type="button"
               aria-label="Open notebooks for Education & Academic Policies"
-              onClick={() => openNotebooksFor("education")}
+             
               className="p-0 m-0 border-0 bg-transparent"
             >
               <Card
-                img={EducationImg}
+                img={EducationImg.src}
                 title="Education & Academic Policies"
                 desc="Policies related to education systems and learning frameworks."
               />
@@ -197,11 +198,11 @@ if (position <= -halfWidth) {
             <button
               type="button"
               aria-label="Open notebooks for Union Budget 2026-2027"
-              onClick={() => openNotebooksFor("budget")}
+             
               className="p-0 m-0 border-0 bg-transparent"
             >
               <Card
-                img={UnionBudgetImg}
+                img={UnionBudgetImg.src}
                 title="Union Budget 2026-2027"
                 desc="National budget allocations, fiscal strategies, and sector-wide policy reforms."
               />
@@ -212,11 +213,12 @@ if (position <= -halfWidth) {
        
 
         <div className="text-center mt-16">
-          <Link to="/notebook">
-            <button className="border border-gray-400 px-6 py-3 rounded-xl transition duration-300 hover:bg-primary hover:text-white hover:scale-105">
+          
+            <button  onClick={() => router.push("/notebook")}
+             className="border border-gray-400 px-6 py-2 rounded-xl transition duration-300 bg-primary text-white hover:scale-105">
               Explore More
             </button>
-          </Link>
+         
         </div>
       </div>
     </section>
@@ -233,7 +235,7 @@ type CardProps = {
   desc: string;
 };
 
-const Card = ({ img, title, desc }: CardProps): JSX.Element => {
+const Card = ({ img, title, desc }: CardProps)=> {
   return (
     <div className="w-96 h-80 relative cursor-pointer group overflow-hidden rounded-[10px] will-change-transform">
       <img
@@ -251,7 +253,7 @@ const Card = ({ img, title, desc }: CardProps): JSX.Element => {
         {desc}
       </p>
       <img
-        src={Arrowright}
+        src={Arrowright.src}
         alt="Arrow Right"
         className="absolute left-[28px] top-[246px] w-5 h-5"
       />

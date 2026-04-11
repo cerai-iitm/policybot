@@ -50,7 +50,7 @@ const Card = ({ img, title, desc, active = false, onClick }: CardProps) => {
           {desc}
         </p>
 
-        <img src={Arrowright} alt="" className="w-4 h-4 mt-1" />
+        <img src={Arrowright.src} alt="" className="w-4 h-4 mt-1" />
       </div>
     </div>
   )

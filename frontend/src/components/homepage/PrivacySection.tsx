@@ -1,6 +1,6 @@
-import privacy from '../assets/privacy.png'
+import privacy from '@/assets/privacy.png'
 
-const PrivacySection = (): JSX.Element => {
+const PrivacySection = () => {
   return (
     <section className="py-24 sm:py-44 px-6 bg-[#F8F8FA] text-center overflow-hidden">
 
@@ -19,7 +19,7 @@ const PrivacySection = (): JSX.Element => {
       {/* VISUAL CONTAINER */}
       <div className="flex items-center justify-center">
         <img 
-          src={privacy} 
+          src={privacy.src} 
           alt="Privacy Illustration" 
           className="w-72 sm:w-96 h-auto"
         />

@@ -1,4 +1,4 @@
-const Footer = (): JSX.Element => {
+const Footer = () => {
   return (
     <footer className="bg-[#1F3DB8] text-white pt-16 sm:pt-20">
 

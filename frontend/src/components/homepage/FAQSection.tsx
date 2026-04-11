@@ -34,7 +34,7 @@ const faqs: FAQ[] = [
   }
 ]
 
-const FAQSection = (): JSX.Element => {
+const FAQSection = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(0)
 
   return (

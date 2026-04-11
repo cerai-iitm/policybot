@@ -20,7 +20,7 @@ const TopicRow = ({ title, description, onExplore }: Props) => {
       {/* TEXT SECTION */}
       <div className="space-y-3 sm:space-y-2 max-w-3xl">
 
-        <h3 className="font-semibold text-lg sm:text-lg leading-snug">
+        <h3 className="font-semibold text-lg sm:text-lg leading-snug text-black">
           {title}
         </h3>
 

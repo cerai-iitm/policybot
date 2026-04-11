@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { FirstNotebookPDFItem } from "@/lib/interfaces"
 import TopicRow from "./TopicRow"
+import { useRouter } from "next/navigation";
 
 type Props = {
   pdfs: FirstNotebookPDFItem[]
@@ -10,6 +11,8 @@ type Props = {
 }
 
 const PolicyTopicsSection = ({ pdfs, loading, title, notebookId }: Props) => {
+
+const router = useRouter();
   const [search, setSearch] = useState("")
 
   const filteredPdfs = useMemo(() => {
@@ -22,7 +25,7 @@ const PolicyTopicsSection = ({ pdfs, loading, title, notebookId }: Props) => {
 
   const handleExplore = () => {
     if (notebookId) {
-      window.location.href = `/policybot/chat?notebookid=${notebookId}`
+     router.push(`/chat?notebookid=${notebookId}`);
     }
   }
 
@@ -32,7 +35,7 @@ const PolicyTopicsSection = ({ pdfs, loading, title, notebookId }: Props) => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
 
         <div>
-          <h2 className="text-xl sm:text-2xl font-semibold">
+          <h2 className="text-xl sm:text-2xl font-semibold text-black">
             {title || "Policies"}
           </h2>
           <p className="text-sm sm:text-base text-gray-500 mt-1">

@@ -1,4 +1,4 @@
-import chatUI from "../assets/ChatUI.png";
+import chatUI from "@/assets/ChatUI.png";
 
 
 
@@ -26,7 +26,7 @@ const WhatItDoes: React.FC = () => {
        <div className="relative pt-2 sm:pt-6 flex justify-center px-2 sm:px-0">
 
           <img
-            src={chatUI}
+            src={chatUI.src}
             alt="PolicyBot UI"
             className="w-full max-w-[1197px] h-auto rounded-lg"
           />

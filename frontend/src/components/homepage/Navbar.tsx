@@ -1,12 +1,13 @@
 import { useState } from "react"
 import { FaGithub, FaBars, FaTimes } from "react-icons/fa"
-import logo from "./../assets/logo.png"
-import { Link } from "react-router-dom"
-import cerailogo from "./../assets/logo/cerai.png"
-import iitmlogo from "./../assets/logo/iiit.png"
-import wsailogo from "./../assets/logo/wsai.png"
+import logo from "@/assets/logo/logo.png"
+import Link from "next/link"
+import cerailogo from "@/assets/logo/cerai.png"
+import iitmlogo from "@/assets/logo/iiit.png"
+import wsailogo from "@/assets/logo/wsai.png"
 
-const Navbar = (): JSX.Element => {
+
+const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -15,11 +16,11 @@ const Navbar = (): JSX.Element => {
 
         {/* Logo */}
         <Link
-            to="/"
+            href="/"
            
           >
         <img
-          src={logo}
+          src={logo.src}
           alt="PolicyBot"
           className="h-6 w-auto"
         />
@@ -28,7 +29,7 @@ const Navbar = (): JSX.Element => {
         <div className="hidden md:flex items-center gap-10">
 
           <Link
-            to="/"
+            href="/"
             className="relative text-gray-800 font-medium transition duration-300 hover:text-primary group"
           >
             Overview
@@ -36,7 +37,7 @@ const Navbar = (): JSX.Element => {
           </Link>
 
           <Link
-            to="/notebook"
+            href="/notebook"
             className="relative text-gray-800 font-medium transition duration-300 hover:text-primary group"
           >
             Policy Notebooks
@@ -63,7 +64,7 @@ const Navbar = (): JSX.Element => {
       title="CeRAI"
     >
       <img
-        src={cerailogo}
+        src={cerailogo.src}
         alt="CeRAI"
         className="h-5 w-auto object-contain cursor-pointer transition duration-300 hover:scale-110"
       />
@@ -77,7 +78,7 @@ const Navbar = (): JSX.Element => {
       title="IITM"
     >
       <img
-        src={iitmlogo}
+        src={iitmlogo.src}
         alt="IITM"
         className="h-5 w-auto object-contain cursor-pointer transition duration-300 hover:scale-110"
       />
@@ -91,7 +92,7 @@ const Navbar = (): JSX.Element => {
       title="WSAI"
     >
       <img
-        src={wsailogo}
+        src={wsailogo.src}
         alt="WSAI"
         className="h-5 w-auto object-contain cursor-pointer transition duration-300 hover:scale-110"
       />
@@ -102,8 +103,8 @@ const Navbar = (): JSX.Element => {
 
          
           
-          <Link to="/notebook">
-            <button className="border border-gray-400 px-6 py-2 rounded-xl transition duration-300 hover:bg-primary hover:text-white hover:scale-105">
+          <Link href="/notebook">
+            <button className="border border-gray-400 px-6 py-2 rounded-xl transition duration-300 bg-primary text-white hover:scale-105">
               Get Started
             </button>
           </Link>
@@ -128,7 +129,7 @@ const Navbar = (): JSX.Element => {
         }`}
       >
         <div className="flex justify-between items-center px-6 py-6 border-b">
-          <img src={logo} alt="PolicyBot" className="h-6 w-auto" />
+          <img src={logo.src} alt="PolicyBot" className="h-6 w-auto" />
           <button
           type="button"          aria-label="Close mobile menu"
             onClick={() => setIsOpen(false)}
@@ -141,7 +142,7 @@ const Navbar = (): JSX.Element => {
        <div className="flex flex-col gap-8 px-6 pt-12 text-left h-full">
 
   <Link
-    to="/"
+    href="/"
     onClick={() => setIsOpen(false)}
     className="text-xl font-medium text-gray-800"
   >
@@ -149,7 +150,7 @@ const Navbar = (): JSX.Element => {
   </Link>
 
   <Link
-    to="/notebook"
+    href="/notebook"
     onClick={() => setIsOpen(false)}
     className="text-xl font-medium text-gray-800"
   >
@@ -181,7 +182,7 @@ const Navbar = (): JSX.Element => {
         onClick={() => setIsOpen(false)}
       >
         <img
-          src={cerailogo}
+          src={cerailogo.src}
           alt="CeRAI"
           className="h-7 w-auto object-contain transition duration-300 hover:scale-110"
         />
@@ -194,7 +195,7 @@ const Navbar = (): JSX.Element => {
         onClick={() => setIsOpen(false)}
       >
         <img
-          src={iitmlogo}
+          src={iitmlogo.src}
           alt="IITM"
           className="h-7 w-auto object-contain transition duration-300 hover:scale-110"
         />
@@ -207,7 +208,7 @@ const Navbar = (): JSX.Element => {
         onClick={() => setIsOpen(false)}
       >
         <img
-          src={wsailogo}
+          src={wsailogo.src}
           alt="WSAI"
           className="h-7 w-auto object-contain transition duration-300 hover:scale-110"
         />
@@ -217,7 +218,7 @@ const Navbar = (): JSX.Element => {
   </div>
 
   <Link
-    to="/notebook"
+    href="/notebook"
     onClick={() => setIsOpen(false)}
   >
     <button className="mt-8 w-full border border-gray-400 px-6 py-3 rounded-xl transition duration-300 hover:bg-primary hover:text-white">
