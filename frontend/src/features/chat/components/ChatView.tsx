@@ -484,7 +484,7 @@ const fetchSuggestedQuestions = async (filename: string) => {
   {/* === New Figma Design Container === */}
   <div className="ml-2">
  
-  <div className="flex items-center justify-between w-[208px] h-[64px] px-4 rounded-[10px] border border-black/20">
+  <div className="flex items-center justify-between w-52 h-16 px-4 rounded-[10px] border border-black/20">
     
     {/* Logo */}
   <a
@@ -589,8 +589,8 @@ className={`flex-1 min-h-0 transition-all duration-500 ${
 
 
   {/* ⭐ Centered Chat Column */}
- <div
-  className={`w-full max-w-[760px] mx-auto flex flex-col ${
+<div
+  className={`w-full max-w-190 mx-auto flex flex-col ${
     !hasConversationStarted ? "flex-1 justify-center" : ""
   }`}
 >
@@ -599,7 +599,7 @@ className={`flex-1 min-h-0 transition-all duration-500 ${
     {!hasConversationStarted && (
       <div className="flex flex-col items-center gap-6 w-full transition-all duration-700 ease-in-out">
 
-      <div className="max-w-[547px] w-full text-center px-4">
+      <div className="max-w-2xl w-full text-center px-4">
   <div className="text-slate-900 font-semibold font-dm leading-tight
                   text-2xl sm:text-3xl">
     Welcome to PolicyBot

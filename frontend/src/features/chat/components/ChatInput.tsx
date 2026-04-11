@@ -53,7 +53,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
       
       {/* Main Input Container */}
      <div
-className="w-full max-w-[760px] rounded-[32px] border p-3 transition-all duration-200 bg-white border-slate-200 shadow-[0px_2px_8px_-2px_rgba(0,0,0,0.16)]"
+className="w-full max-w-190 rounded-4xl border p-3 transition-all duration-200 bg-white border-slate-200 shadow-[0px_2px_8px_-2px_rgba(0,0,0,0.16)]"
 
 >
 
