@@ -43,6 +43,9 @@ class Config(BaseSettings):
     ollama_proxy_url: str | None = None
     vllm_embedding_proxy_url: str | None = None
 
+    # File storage
+    upload_dir: str = "uploads"
+
     # Deployment environment name. Recommended env var: ENVIRONMENT
     # Allowed values: "development" or "production"
     # Validation is enforced via Pydantic Literal type.

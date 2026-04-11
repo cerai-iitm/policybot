@@ -17,3 +17,4 @@ class User(Base):
     notebooks = relationship(
         "Notebook", back_populates="user", cascade="all, delete-orphan"
     )
+    pdfs = relationship("PDF", back_populates="user", cascade="all, delete-orphan")
