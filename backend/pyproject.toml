@@ -11,8 +11,13 @@ dependencies = [
     "asyncpg>=0.31.0",
     "fastapi-users>=15.0.5",
     "fastapi[standard]>=0.135.3",
+    "langchain>=1.2.0",
+    "langchain-experimental>=0.4.1",
+    "langchain-text-splitters>=1.1.1",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+    "pymupdf>=1.27.2.2",
+    "qdrant-client>=1.17.1",
     "sqlalchemy[asyncio]>=2.0.49",
 ]
 

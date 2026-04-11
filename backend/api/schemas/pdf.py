@@ -22,6 +22,7 @@ class PDFResponse(BaseModel):
     stored_filename: str
     notebook_id: int
     processing_status: str
+    summary: str | None = None
     uploaded_at: datetime
 
     class Config:
