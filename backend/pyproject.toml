@@ -1,0 +1,25 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.135.3",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.13.1",
+]
+
+[tool.ruff]
+# Target your Python version
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F are the basic errors; I handles import sorting (isort style)
+select = ["E", "F", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

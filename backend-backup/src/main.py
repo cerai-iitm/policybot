@@ -1,9 +1,9 @@
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
-from fastapi import Path as FastApiPath
-import os
 
 from src.api.routers import chat_router, notebooks_router, pdf_router
 
