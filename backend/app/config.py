@@ -46,6 +46,15 @@ class Config(BaseSettings):
     # File storage
     upload_dir: str = "uploads"
 
+    # Qdrant Vector Database
+    qdrant_host: str = "localhost"
+    qdrant_port: int = 6333
+    q_collection_name: str = "pdf_embeddings"
+
+    # PDF Processing
+    breakpoint_threshold_type: str = "standard_deviation"
+    breakpoint_threshold_amount: float = 1.0
+
     # Deployment environment name. Recommended env var: ENVIRONMENT
     # Allowed values: "development" or "production"
     # Validation is enforced via Pydantic Literal type.

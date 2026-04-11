@@ -3,7 +3,16 @@ import uuid
 from pathlib import Path
 
 import aiofiles
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +28,8 @@ from app.config import get_config
 from db.models.notebook import Notebook
 from db.models.pdf import PDF
 from db.models.user import User
-from db.session import get_db
+from db.session import AsyncSessionLocal, get_db
+from services.pdf_processor import PDFProcessor
 
 router = APIRouter(prefix="/pdfs", tags=["PDFs"])
 config = get_config()
@@ -30,8 +40,19 @@ def get_upload_path(user_id: int, notebook_id: int) -> Path:
     return base / str(user_id) / str(notebook_id)
 
 
+async def process_pdf_background(pdf_id: int):
+    async with AsyncSessionLocal() as db:
+        processor = PDFProcessor()
+        try:
+            async for _ in processor.process_pdf(pdf_id, db):
+                pass
+        except Exception:
+            pass
+
+
 @router.post("/", response_model=PDFUploadResponse, status_code=201)
 async def upload_pdf(
+    background_tasks: BackgroundTasks,
     notebook_id: int = Form(...),
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
@@ -72,6 +93,8 @@ async def upload_pdf(
     await db.commit()
     await db.refresh(pdf)
 
+    background_tasks.add_task(process_pdf_background, pdf.id)
+
     return PDFUploadResponse(
         pdf_id=pdf.id,
         original_filename=pdf.original_filename,
@@ -109,6 +132,7 @@ async def list_pdfs(
                 notebook_id=pdf.notebook_id,
                 processing_status=pdf.processing_status,
                 uploaded_at=pdf.uploaded_at,
+                summary=pdf.summary,
             )
             for pdf in pdfs
         ],
@@ -135,6 +159,7 @@ async def get_pdf(
         notebook_id=pdf.notebook_id,
         processing_status=pdf.processing_status,
         uploaded_at=pdf.uploaded_at,
+        summary=pdf.summary,
     )
 
 
@@ -175,9 +200,6 @@ async def delete_pdf(
     if not pdf:
         raise HTTPException(status_code=404, detail="PDF not found")
 
-    # Resolve the full filesystem path of the PDF. We could also use
-    # get_upload_path(pdf.user_id, pdf.notebook_id) combined with the stored filename,
-    # but the relative path stored in the DB already points to the correct location.
     full_path = Path(config.upload_dir) / pdf.file_path
     file_deleted = False
     if full_path.exists():
@@ -187,8 +209,13 @@ async def delete_pdf(
         except Exception:
             pass
 
+    source_name = pdf.original_filename
+
     await db.delete(pdf)
     await db.commit()
+
+    processor = PDFProcessor()
+    await processor.delete_embeddings(source_name)
 
     return PDFDeleteResponse(
         message=f"PDF {pdf_id} deleted",

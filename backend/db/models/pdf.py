@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import relationship
 
 from db.base import Base
@@ -16,6 +16,7 @@ class PDF(Base):
     file_path = Column(String(500), nullable=False)
 
     processing_status = Column(String(50), default="uploaded")
+    summary = Column(Text, nullable=True)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
 
     notebook = relationship("Notebook", back_populates="pdfs")
