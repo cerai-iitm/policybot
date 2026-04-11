@@ -10,6 +10,10 @@ class Config(BaseSettings):
         "postgresql+asyncpg://postgres:postgres@localhost:5432/policybot"
     )
 
+    # JWT Settings
+    jwt_secret: str = "change-me-in-production"
+    jwt_access_expire_minutes: int = 30
+
     # Deployment environment name. Recommended env var: ENVIRONMENT
     # Allowed values: "development" or "production"
     # Validation is enforced via Pydantic Literal type.
