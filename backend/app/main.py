@@ -5,6 +5,7 @@ from .config import get_config
 from api.routes.auth import router as auth_router
 from api.routes.notebooks import router as notebooks_router
 from api.routes.pdfs import router as pdfs_router
+from api.routes.chat import router as chat_router
 
 
 def create_app():
@@ -32,6 +33,7 @@ def create_app():
     app.include_router(auth_router, prefix="/api")
     app.include_router(notebooks_router, prefix="/api")
     app.include_router(pdfs_router, prefix="/api")
+    app.include_router(chat_router, prefix="/api")
 
     @app.get("/health")
     async def health_check():

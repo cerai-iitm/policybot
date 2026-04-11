@@ -36,6 +36,10 @@ class Config(BaseSettings):
     reranker_provider: str = "tei"
     tei_reranker_url: str = "http://localhost:8081"
     flag_reranker_model: str | None = None
+    top_k: int = 10
+    top_p: float = 0.9
+    reranker_temp: float = 1.0
+    rrf_temp: float = 0.17
 
     # Dev Proxy Settings (used when DEV_PROXY_API_KEY is set)
     dev_proxy_api_key: str | None = None
@@ -54,6 +58,10 @@ class Config(BaseSettings):
     # PDF Processing
     breakpoint_threshold_type: str = "standard_deviation"
     breakpoint_threshold_amount: float = 1.0
+
+    # RAG Settings
+    num_rewritten_queries: int = 5
+    max_history_messages: int = 3
 
     # Deployment environment name. Recommended env var: ENVIRONMENT
     # Allowed values: "development" or "production"

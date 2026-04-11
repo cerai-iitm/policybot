@@ -209,13 +209,13 @@ async def delete_pdf(
         except Exception:
             pass
 
-    source_name = pdf.original_filename
+    pdf_id = pdf.id
 
     await db.delete(pdf)
     await db.commit()
 
     processor = PDFProcessor()
-    await processor.delete_embeddings(source_name)
+    await processor.delete_embeddings(pdf_id)
 
     return PDFDeleteResponse(
         message=f"PDF {pdf_id} deleted",

@@ -1,0 +1,257 @@
+# api/routes/chat.py
+import json
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.deps import get_current_user
+from api.schemas.chat import ChatHistoryResponse, ChatQueryRequest
+from app.config import get_config
+from db.models.chat_message import ChatMessage
+from db.models.notebook import Notebook
+from db.models.pdf import PDF
+from db.models.user import User
+from db.session import AsyncSessionLocal, get_db
+from providers.llm.factory import get_llm
+from services.rag import (
+    classify_query,
+    generate_hyde_and_queries,
+    get_chat_history,
+    get_pdf_summaries,
+    retrieve_chunks,
+)
+
+router = APIRouter(prefix="/chat", tags=["Chat"])
+
+config = get_config()
+
+
+async def get_notebook_pdfs(
+    notebook_id: int, user_id: int, pdf_ids: list[int] | None, db: AsyncSession
+) -> list[int]:
+    """Returns list of pdf_ids for the notebook."""
+    result = await db.execute(
+        select(Notebook).where(
+            and_(Notebook.id == notebook_id, Notebook.user_id == user_id)
+        )
+    )
+    notebook = result.scalar_one_or_none()
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+
+    query = select(PDF).where(
+        and_(PDF.notebook_id == notebook_id, PDF.processing_status == "complete")
+    )
+
+    if pdf_ids:
+        query = query.where(PDF.id.in_(pdf_ids))
+
+    result = await db.execute(query)
+    pdfs = result.scalars().all()
+
+    if pdf_ids and len(pdfs) != len(pdf_ids):
+        raise HTTPException(
+            status_code=400, detail="One or more PDFs not found or not complete"
+        )
+
+    return [pdf.id for pdf in pdfs]
+
+
+@router.post("/query")
+async def chat_query(
+    request: ChatQueryRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # 1. Get PDF ids for this notebook
+    pdf_ids = await get_notebook_pdfs(request.notebook_id, user.id, request.pdf_ids, db)
+
+    if not pdf_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="No completed PDFs found in the specified notebook",
+        )
+
+    # 2. Get PDF summaries for classification
+    pdf_summaries = await get_pdf_summaries(pdf_ids, db)
+
+    # 3. Classify query (conversational vs RAG)
+    classification = await classify_query(request.query, pdf_summaries)
+
+    # 4. If conversational, return direct response
+    if (
+        classification.query_type == "conversational"
+        and classification.conversational_response
+    ):
+        user_message = ChatMessage(
+            user_id=user.id,
+            notebook_id=request.notebook_id,
+            session_id=request.session_id,
+            role="user",
+            content=request.query,
+        )
+        db.add(user_message)
+
+        assistant_message = ChatMessage(
+            user_id=user.id,
+            notebook_id=request.notebook_id,
+            session_id=request.session_id,
+            role="assistant",
+            content=classification.conversational_response,
+        )
+        db.add(assistant_message)
+        await db.commit()
+
+        return {
+            "response": classification.conversational_response,
+            "query_type": "conversational",
+            "context_chunks": [],
+        }
+
+    # 5. If RAG, generate HYDE + rewritten queries
+    hyde_result = await generate_hyde_and_queries(request.query)
+
+    # 6. Retrieve chunks using RRF
+    context_chunks = await retrieve_chunks(
+        query=request.query,
+        pdf_ids=pdf_ids,
+        hyde_answer=hyde_result.hyde_answer,
+        rewritten_queries=hyde_result.rewritten_queries,
+        top_k=5,
+    )
+
+    if not context_chunks:
+        raise HTTPException(status_code=400, detail="No relevant context found")
+
+    # Build context text
+    context_text = "\n\n".join(
+        [
+            f"[Source PDF ID: {chunk.get('pdf_id', 'unknown')} (page {chunk['page_number']})]\n{chunk['text']}"
+            for chunk in context_chunks
+        ]
+    )
+
+    # Get chat history
+    history = await get_chat_history(
+        request.session_id, db, config.max_history_messages
+    )
+
+    # Save user message
+    user_message = ChatMessage(
+        user_id=user.id,
+        notebook_id=request.notebook_id,
+        session_id=request.session_id,
+        role="user",
+        content=request.query,
+    )
+    db.add(user_message)
+    await db.commit()
+
+    # Use LangChain prompt with history
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a helpful assistant. Use the conversation history and provided context to answer the user's question. Cite sources when possible.",
+            ),
+            MessagesPlaceholder(variable_name="history"),
+            (
+                "user",
+                "Context: {context}\n\nQuestion: {question}",
+            ),
+        ]
+    )
+
+    async def generate():
+        llm = get_llm()
+        chain = prompt | llm
+        full_response = ""
+
+        try:
+            async for chunk in chain.astream(
+                {
+                    "history": history,
+                    "context": context_text,
+                    "question": request.query,
+                }
+            ):
+                if chunk.content:
+                    full_response += chunk.content
+                    yield f"data: {json.dumps({'content': chunk.content})}\n\n"
+
+            async with AsyncSessionLocal() as session:
+                assistant_message = ChatMessage(
+                    user_id=user.id,
+                    notebook_id=request.notebook_id,
+                    session_id=request.session_id,
+                    role="assistant",
+                    content=full_response,
+                )
+                session.add(assistant_message)
+                await session.commit()
+
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+        yield 'data: {"done": true}\n\n'
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@router.get("/history", response_model=ChatHistoryResponse)
+async def get_chat_history_endpoint(
+    session_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ChatMessage)
+        .where(
+            and_(ChatMessage.session_id == session_id, ChatMessage.user_id == user.id)
+        )
+        .order_by(ChatMessage.created_at)
+    )
+    messages = result.scalars().all()
+
+    return ChatHistoryResponse(
+        session_id=session_id,
+        messages=[
+            {
+                "id": m.id,
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at,
+            }
+            for m in messages
+        ],
+    )
+
+
+@router.delete("/history")
+async def clear_chat_history(
+    session_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ChatMessage).where(
+            and_(ChatMessage.session_id == session_id, ChatMessage.user_id == user.id)
+        )
+    )
+    messages = result.scalars().all()
+
+    for message in messages:
+        await db.delete(message)
+
+    await db.commit()
+
+    return {"message": f"Cleared {len(messages)} messages"}
