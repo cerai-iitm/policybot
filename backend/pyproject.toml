@@ -27,6 +27,20 @@ llm-vllm = [
     "langchain-openai>=1.1.12",
     "openai>=2.31.0",
 ]
+embedding-vllm = [
+    "langchain-openai>=1.1.12",
+    "openai>=2.31.0",
+]
+embedding-sentence-transformers = [
+    "langchain-huggingface>=1.2.1",
+]
+reranker-tei = [
+    "numpy>=2.4.4",
+    "requests>=2.33.1",
+]
+reranker-flag = [
+    "sentence-transformers>=5.4.0",
+]
 
 [tool.ruff]
 # Target your Python version
