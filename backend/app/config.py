@@ -25,10 +25,23 @@ class Config(BaseSettings):
     vllm_llm_api_key: str | None = None
     ollama_api_key: str | None = None
 
+    # Embedding Settings
+    embedding_provider: str = "vllm"
+    vllm_embedding_url: str = "http://localhost:8080/v1"
+    vllm_embedding_model: str = "bge-base-en-v1.5"
+    vllm_embedding_api_key: str | None = None
+    sentence_transformers_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+
+    # Reranker Settings
+    reranker_provider: str = "tei"
+    tei_reranker_url: str = "http://localhost:8081"
+    flag_reranker_model: str | None = None
+
     # Dev Proxy Settings (used when DEV_PROXY_API_KEY is set)
     dev_proxy_api_key: str | None = None
     vllm_llm_proxy_url: str | None = None
     ollama_proxy_url: str | None = None
+    vllm_embedding_proxy_url: str | None = None
 
     # Deployment environment name. Recommended env var: ENVIRONMENT
     # Allowed values: "development" or "production"
