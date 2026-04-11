@@ -1,12 +1,11 @@
 # api/deps.py
-from typing import Annotated
 from fastapi import Depends
 from fastapi_users import FastAPIUsers
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.session import get_db
 from core.security import auth_backend
 from db.models.user import User
+from db.session import get_db
 
 
 # Database dependency
