@@ -2,9 +2,7 @@ import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export",
-  distDir: "dist",
-  basePath: "/policybot/chat",
+ 
   trailingSlash: true,
 
   webpack(config) {

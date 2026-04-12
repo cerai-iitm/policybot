@@ -7,7 +7,9 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
       - pdf_data:/var/www/pdf
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+    restart: on-failure
 
   backend:
     build:
@@ -20,10 +22,13 @@ services:
       - IN_DOCKER=${IN_DOCKER:-1}
       - OLLAMA_IP=${OLLAMA_IP:-host.docker.internal}
       - OLLAMA_PORT=${OLLAMA_PORT:-11434}
-      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
-      # Huggingface cache dir config
+      - LLM_PROVIDER=${LLM_PROVIDER:-vllm}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-vllm}
+      - RERANKER_PROVIDER=${RERANKER_PROVIDER:-tei}
+      - VLLM_LLM_PROXY_URL=${VLLM_LLM_PROXY_URL:-http://dev-proxy-nginx/vllm/}
+      - VLLM_EMBEDDING_PROXY_URL=${VLLM_EMBEDDING_PROXY_URL:-http://dev-proxy-nginx/embedding/}
+      - TEI_RERANKER_URL=${TEI_RERANKER_URL:-http://dev-proxy-nginx/reranker}
       - HF_HOME=${HF_HOME:-/app/cache/huggingface}
-      # Use POSTGRES_* vars as the single source of truth for DB connection.
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -44,20 +49,23 @@ services:
               capabilities: [gpu]
     runtime: nvidia
     depends_on:
+      # Ensure PostgreSQL is healthy before backend starts
       postgres:
         condition: service_healthy
+      # Qdrant only needs to be started, health check not required here
       qdrant:
         condition: service_started
 
   postgres:
     image: postgres:17-alpine
+    ports:
+      - "5432:5432"
     env_file:
       - backend/.env
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-policybot}
-      # - PGDATA=/var/lib/postgresql/18/docker
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -68,7 +76,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "4"
+          cpus: "2"
           memory: 4G
         reservations:
           cpus: "1"
@@ -103,10 +111,10 @@ services:
       - --model-id
       - BAAI/bge-reranker-base
       - --max-batch-tokens
-      - "16384" # Standard default, safe for your 2.4GB slice
+      - "16384"
       - --max-client-batch-size
-      - "32" # Allows you to send up to 32 paras at once
-      - --auto-truncate # Automatically cuts paras to 512 tokens to avoid errors
+      - "32"
+      - --auto-truncate
 
   gemma-embedding:
     image: vllm/vllm-openai:latest
@@ -133,8 +141,8 @@ services:
   gemma-llm:
     image: vllm/vllm-openai:latest
     container_name: vllm-gemma3n
-    profiles: ["prod"]
     restart: unless-stopped
+    profiles: ["prod"]
     ports:
       - "8080:8000"
     volumes:
