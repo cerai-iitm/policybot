@@ -31,6 +31,7 @@ import { withBase } from "@/lib/url";
 import {
   NotebookCreateResponse,
   NotebookListResponse,
+  NotebookResponse,
   PDFUploadResponse,
   PDFListResponse,
   PDFDeleteResponse,
@@ -41,6 +42,10 @@ import {
   OverallSummaryResponse,
   SuggestedQueriesResponse,
   DefaultModelResponse,
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  UserRead,
   ApiResult,
 } from "./interfaces";
 
@@ -63,7 +68,7 @@ export const api: AxiosInstance = axios.create({
  * Create a notebook using form POST.
  *
  * Backend route (exact):
- *   POST /notebooks/create
+ *   POST /notebooks
  *   backend file: backend/src/api/routers/notebooks.py (decorator: @router.post(\"/create\"))
  *
  * Returns NotebookCreateResponse.
@@ -77,7 +82,7 @@ export async function createNotebook(
   if (description != null) form.append("description", description);
 
   const resp: AxiosResponse<NotebookCreateResponse> = await api.post(
-    withBase("/api/notebooks/create"),
+    withBase("/api/notebooks"),
     form,
     {
       headers: {
@@ -92,12 +97,12 @@ export async function createNotebook(
  * List notebooks. Backend may include first_notebook_pdfs for quick initial load.
  *
  * Backend route (exact):
- *   GET /notebooks/list
+ *   GET /notebooks
  *   backend file: backend/src/api/routers/notebooks.py (decorator: @router.get(\"/list\"))
  */
 export async function listNotebooks(): ApiResult<NotebookListResponse> {
   const resp: AxiosResponse<NotebookListResponse> = await api.get(
-    withBase("/api/notebooks/list"),
+    withBase("/api/notebooks"),
   );
   return resp.data;
 }
@@ -105,6 +110,30 @@ export async function listNotebooks(): ApiResult<NotebookListResponse> {
 /* -----------------------
    PDF endpoints
    ----------------------- */
+
+/**
+ * Get a single notebook by its ID.
+ *
+ * Backend route (exact):
+ *   GET /notebooks/{notebook_id}
+ *   backend file: backend/src/api/routers/notebooks.py -> @router.get("/{notebook_id}")
+ */
+export async function getNotebook(notebookId: string): ApiResult<NotebookResponse> {
+  const resp = await api.get<any>(withBase(`/api/notebooks/${notebookId}`));
+  return resp.data;
+}
+
+/**
+ * Delete a notebook by its ID.
+ *
+ * Backend route (exact):
+ *   DELETE /notebooks/{notebook_id}
+ *   backend file: backend/src/api/routers/notebooks.py -> @router.delete("/{notebook_id}")
+ */
+export async function deleteNotebook(notebookId: string): ApiResult<void> {
+  await api.delete(withBase(`/api/notebooks/${notebookId}`));
+}
+
 
 /**
  * Upload a PDF to a notebook.
@@ -256,6 +285,52 @@ export function monitorPdfProcessing(
     // leave EventSource open for caller to decide
   };
   return es;
+}
+
+/* -----------------------
+   Auth endpoints
+   ----------------------- */
+
+/**
+ * Login a user.
+ *
+ * Backend route (exact):
+ *   POST /auth/login
+ *   backend file: backend/api/routes/auth.py -> fastapi_users.get_auth_router(...)
+ */
+export async function login(req: LoginRequest): ApiResult<LoginResponse> {
+  const resp = await api.post<LoginResponse>(withBase("/api/auth/login"), req);
+  // store token for subsequent calls (optional)
+  if (resp.data?.access_token) {
+    localStorage.setItem("jwt", resp.data.access_token);
+  }
+  return resp.data;
+}
+
+/**
+ * Register a new user.
+ *
+ * Backend route (exact):
+ *   POST /auth/register
+ *   backend file: backend/api/routes/auth.py -> fastapi_users.get_register_router(...)
+ */
+export async function register(req: RegisterRequest): ApiResult<UserRead> {
+  const resp = await api.post<UserRead>(withBase("/api/auth/register"), req);
+  return resp.data;
+}
+
+/**
+ * Logout the current user.
+ *
+ * Backend route (exact):
+ *   POST /auth/logout
+ *   backend file: backend/api/routes/auth.py -> custom logout endpoint
+ */
+export async function logout(): ApiResult<{ message: string }> {
+  const resp = await api.post<{ message: string }>(withBase("/api/auth/logout"));
+  // clear stored token (optional)
+  localStorage.removeItem("jwt");
+  return resp.data;
 }
 
 /* -----------------------
