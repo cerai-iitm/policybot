@@ -5,6 +5,8 @@ from pydantic_settings import BaseSettings
 
 
 class Config(BaseSettings):
+    model_config = {"env_file": ".env", "case_sensitive": False, "extra": "ignore"}
+
     # Database
     database_url: str = (
         "postgresql+asyncpg://postgres:postgres@localhost:5432/policybot"
@@ -50,6 +52,9 @@ class Config(BaseSettings):
     # File storage
     upload_dir: str = "uploads"
 
+    # PDF Processing
+    max_concurrent_processing: int = 2
+
     # Qdrant Vector Database
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
@@ -67,10 +72,6 @@ class Config(BaseSettings):
     # Allowed values: "development" or "production"
     # Validation is enforced via Pydantic Literal type.
     environment: Literal["development", "production"] = "production"
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
 
 
 @lru_cache()

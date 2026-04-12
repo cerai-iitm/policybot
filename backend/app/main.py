@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 
 from .config import get_config
 from api.routes.auth import router as auth_router
@@ -37,22 +38,63 @@ def create_app():
     app.include_router(pdfs_router, prefix="/policybot/api")
     app.include_router(chat_router, prefix="/policybot/api")
 
-    # Static file serving
+    # Mount _next static files at root (for HTML references)
+    app.mount(
+        "/_next/static",
+        StaticFiles(directory="/app/static/frontend/_next/static"),
+        name="next-static",
+    )
+
+    # Mount static files for assets
     app.mount(
         "/policybot/assets",
-        StaticFiles(directory="/app/static/homepage/assets"),
+        StaticFiles(directory="/app/static/frontend/_next/static"),
         name="assets",
     )
+
+    # Mount images
     app.mount(
         "/policybot/images",
-        StaticFiles(directory="/app/static/homepage/assets"),
+        StaticFiles(directory="/app/static/frontend/_next/static/media"),
         name="images",
     )
+
+    # Mount chat static files
     app.mount(
         "/policybot/chat",
-        StaticFiles(directory="/app/static/chat", html=True),
+        StaticFiles(directory="/app/static/frontend/chat", html=True),
         name="chat",
     )
+
+    # Serve homepage
+    @app.get("/policybot", response_class=HTMLResponse)
+    @app.get("/policybot/", response_class=HTMLResponse)
+    async def serve_homepage():
+        index_path = "/app/static/frontend/index.html"
+        if os.path.exists(index_path):
+            with open(index_path, "r") as f:
+                return HTMLResponse(content=f.read())
+        return HTMLResponse(content="<h1>PolicyBot</h1><p>Loading...</p>")
+
+    # Serve notebook page (different from homepage!)
+    @app.get("/policybot/notebook", response_class=HTMLResponse)
+    @app.get("/policybot/notebook/", response_class=HTMLResponse)
+    async def serve_notebook():
+        notebook_path = "/app/static/frontend/notebook/index.html"
+        if os.path.exists(notebook_path):
+            with open(notebook_path, "r") as f:
+                return HTMLResponse(content=f.read())
+        return HTMLResponse(content="<h1>Policy Notebooks</h1><p>Loading...</p>")
+
+    # Serve config page
+    @app.get("/policybot/config", response_class=HTMLResponse)
+    @app.get("/policybot/config/", response_class=HTMLResponse)
+    async def serve_config():
+        config_path = "/app/static/frontend/config/index.html"
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                return HTMLResponse(content=f.read())
+        return HTMLResponse(content="<h1>Config</h1><p>Loading...</p>")
 
     @app.get("/policybot/health", tags=["Health"], summary="Health check")
     async def health_check():
@@ -61,14 +103,6 @@ def create_app():
     @app.get("/health")
     async def root_health():
         return {"status": "ok"}
-
-    # SPA catch-all routes
-    @app.get("/policybot", response_class=HTMLResponse)
-    @app.get("/policybot/", response_class=HTMLResponse)
-    @app.get("/policybot/notebook", response_class=HTMLResponse)
-    @app.get("/policybot/notebook/", response_class=HTMLResponse)
-    async def serve_spa():
-        return FileResponse("/app/static/homepage/index.html")
 
     return app
 

@@ -1,12 +1,20 @@
 # api/deps.py
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_users import FastAPIUsers
+from fastapi_users.db.base import BaseUserDatabase
+from fastapi_users.manager import BaseUserManager
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import jwt
 
+from app.config import get_config
 from core.security import auth_backend
 from db.models.user import User
 from db.session import get_db
-from fastapi_users.db.base import BaseUserDatabase
+
+config = get_config()
+bearer_scheme = HTTPBearer(auto_error=True)
 
 
 class SQLAlchemyUserDatabase(BaseUserDatabase[User, int]):
@@ -17,70 +25,26 @@ class SQLAlchemyUserDatabase(BaseUserDatabase[User, int]):
         return await self.session.get(User, id)
 
     async def get_by_email(self, email: str) -> User | None:
-        from sqlalchemy import select
-
         result = await self.session.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none()
 
     async def get_by_oauth_account(self, oauth: str, account_id: str) -> User | None:
         return None
 
-    def _to_dict(self, data):
-        """Convert Pydantic model or dict to plain dict."""
-        if hasattr(data, "model_dump"):
-            return data.model_dump()
-        elif hasattr(data, "dict"):
-            return data.dict()
-        return dict(data)
-
-    async def create(
-        self, create_dict: dict, safe: bool = True, request: object = None
-    ) -> User:
-        # Convert to dict if it's a Pydantic model
-        data = self._to_dict(create_dict)
-
-        # Handle password -> hashed_password mapping
-        if "password" in data:
-            data["hashed_password"] = data.pop("password")
-
-        # Ensure full_name is always set (required field)
-        if "full_name" not in data or not data["full_name"]:
-            data["full_name"] = data.get("email", "User").split("@")[0]
-
-        # Ensure is_active is string
-        if "is_active" in data:
-            if isinstance(data["is_active"], bool):
-                data["is_active"] = "true" if data["is_active"] else "false"
-
-        # Build user dict with only valid fields
-        user_dict = {
-            "email": str(data.get("email", "")),
-            "hashed_password": str(data.get("hashed_password", "")),
-            "full_name": str(data.get("full_name", "User")),
-            "is_active": str(data.get("is_active", "true")),
-        }
-
-        user = User(**user_dict)
+    async def create(self, create_dict: dict) -> User:
+        user = User(**create_dict)
         self.session.add(user)
         await self.session.commit()
         await self.session.refresh(user)
         return user
 
-    async def update(
-        self, user: User, update_dict: dict, safe: bool = True, request: object = None
-    ) -> User:
-        # Convert to dict if it's a Pydantic model
-        data = self._to_dict(update_dict)
-
-        for key in ["email", "hashed_password", "full_name", "is_active"]:
-            if key in data:
-                value = data[key]
-                if key == "is_active" and isinstance(value, bool):
-                    value = "true" if value else "false"
-                if hasattr(user, key):
-                    setattr(user, key, value)
+    async def update(self, user: User, update_dict: dict) -> User:
+        for key, value in update_dict.items():
+            if hasattr(user, key):
+                setattr(user, key, value)
         self.session.add(user)
         await self.session.commit()
+        await self.session.refresh(user)
         return user
 
     async def delete(self, user: User) -> None:
@@ -96,20 +60,63 @@ class SQLAlchemyUserDatabase(BaseUserDatabase[User, int]):
         return user
 
 
-# Database dependency
+class UserManager(BaseUserManager[User, int]):
+    def parse_id(self, value: str) -> int:
+        return int(value)
+
+
 async def get_user_db(session: AsyncSession = Depends(get_db)):
     yield SQLAlchemyUserDatabase(session)
 
 
-# Create FastAPIUsers instance
-fastapi_users = FastAPIUsers[User, int](
-    get_user_db,
-    [auth_backend],
-)
+async def get_user_manager(user_db=Depends(get_user_db)):
+    yield UserManager(user_db)
 
 
-# Get current authenticated user
+fastapi_users = FastAPIUsers[User, int](get_user_manager, [auth_backend])
+
+
 async def get_current_user(
-    user: User = Depends(fastapi_users.current_user),
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+    session: AsyncSession = Depends(get_db),
 ) -> User:
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(
+            token,
+            config.jwt_secret,
+            algorithms=["HS256"],
+            audience="fastapi-users:auth",
+        )
+    except Exception as exc:
+        print("JWT_DECODE_ERROR", type(exc).__name__, str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        ) from exc
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+
+    try:
+        user = await session.get(User, int(user_id))
+    except Exception as exc:
+        print("USER_LOOKUP_ERROR", type(exc).__name__, str(exc))
+        raise
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+
+    if str(user.is_active).lower() not in {"true", "1", "yes"}:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        )
+
     return user
