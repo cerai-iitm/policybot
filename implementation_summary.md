@@ -42,7 +42,7 @@
 | Database | PostgreSQL (async with asyncpg) |
 | ORM | SQLAlchemy 2.0 (async) |
 | Vector Store | Qdrant |
-| Auth | JWT (python-jose), bcrypt (passlib) |
+| Auth | JWT (fastapi-users with Argon2) |
 | Validation | Pydantic v2 |
 | LLM Integration | LangChain (multiple providers) |
 | Logging | structlog |
@@ -576,50 +576,40 @@ CREATE TABLE chat_messages (
 
 ---
 
-## 7. Authentication Flow
+## 7. Authentication Flow (Using fastapi-users)
+
+**Note:** With fastapi-users, authentication is handled by the library. We configure it in `core/security.py` and `api/routes/auth.py`.
 
 ### 7.1 Registration
 ```
-1. Client sends POST /api/auth/register with email, password, full_name
-2. AuthService.register() checks if email exists
-3. If not, hash password with bcrypt
-4. Create user in database
-5. Return UserResponse (id, email, full_name, created_at)
+1. Client sends POST /api/auth/register with email, password
+2. fastapi-users validates email format and password
+3. Library hashes password with Argon2 automatically
+4. User created in database
+5. Returns user object
 ```
 
 ### 7.2 Login
 ```
 1. Client sends POST /api/auth/login with email, password
-2. AuthService.login() finds user by email
-3. Verify password with bcrypt
-4. Create JWT access_token (expires in 30 min) and refresh_token (expires in 7 days)
-5. Return TokenResponse (access_token, refresh_token, token_type)
+2. fastapi-users finds user by email
+3. Verifies password with Argon2
+4. Returns JWT access token (token_type: bearer)
 ```
 
 ### 7.3 Protected Endpoint Access
 ```
 1. Client includes Authorization: Bearer <access_token>
-2. api/deps.get_current_user() extracts token from header
-3. core/security.verify_token() decodes JWT
-4. Get user_id from token payload
-5. Fetch user from database
-6. Return User object to route handler
+2. fastapi-users dependency (get_current_user) validates token
+3. Returns User object to route handler automatically
 ```
 
 ### 7.4 JWT Token Structure
-```python
-# Access Token Payload
+```
+# Access Token Payload (handled by fastapi-users)
 {
     "sub": "1",           # user_id
     "exp": 1715432400,    # expiration timestamp
-    "type": "access"
-}
-
-# Refresh Token Payload
-{
-    "sub": "1",
-    "exp": 1716037200,
-    "type": "refresh"
 }
 ```
 
