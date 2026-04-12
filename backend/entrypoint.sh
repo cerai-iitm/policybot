@@ -3,21 +3,19 @@ set -e
 
 echo "Starting backend in ${APP_ENV:-production} mode"
 
-# Wait for database to be ready using POSTGRES_* environment variables
-DB_HOST="${POSTGRES_HOST:-postgres}"
-DB_PORT="${POSTGRES_PORT:-5432}"
+# NOTE: Docker Compose already ensures PostgreSQL is healthy before this container starts
+# The explicit nc‑based wait loop has been removed. The service will rely on the
+# `depends_on` healthcheck defined in docker‑compose.yml. Migrations will still
+# run once the container starts.
 
-echo "Waiting for database at $DB_HOST:$DB_PORT..."
-until nc -z "${DB_HOST}" "${DB_PORT}"; do
-  echo "Postgres is unavailable at ${DB_HOST}:${DB_PORT} - sleeping"
-  sleep 1
-done
-echo "Database is reachable"
 
 # ---- Run migrations ----
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
   echo "Running database migrations..."
-  cd /app/backend && PYTHONPATH=/app alembic upgrade head
+  # Alembic expects the `script_location` (migrations folder) relative to the cwd.
+  # The migrations directory is at /app/migrations, so we run Alembic from the project root
+  # and explicitly point it to the config file inside the backend package.
+  cd /app && PYTHONPATH=/app alembic -c backend/alembic.ini upgrade head
   echo "Migrations complete"
 else
   echo "Skipping migrations (RUN_MIGRATIONS != true)"
