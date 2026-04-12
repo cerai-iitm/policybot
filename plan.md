@@ -722,55 +722,58 @@ class ChatMessage(Base):
 
 ---
 
-## Phase 3: Security (JWT & Passwords)
+## Phase 3: Security (JWT & Passwords) - Using fastapi-users with Argon2
 
-### Step 3.1: Create core/security.py
+### Step 3.1: Install fastapi-users with Argon2
+
+Add to pyproject.toml:
+```toml
+# Add to [project.optional-dependencies]
+auth = [
+    "fastapi-users>=12.0.0",
+    "argon2-cffi>=23.1.0",
+]
+```
+
+**Why Argon2?** It won the Password Hashing Competition and is more resistant to GPU/ASIC attacks than bcrypt.
+
+### Step 3.2: Create core/security.py
+
+Using fastapi-users with **Argon2** for password hashing:
 
 ```python
 # core/security.py
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from app.config import get_settings
+from fastapi import FastAPI
+from fastapi_users import FastAPIUsers
+from fastapi_users.authentication import JWTAuthentication
+from fastapi_users.password import PasswordHelper
+from argon2 import PasswordHasher
 
-settings = get_settings()
+from app.config import get_config
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+config = get_config()
 
+# Argon2 password hasher (recommended over bcrypt)
+password_helper = PasswordHelper(argon2=PasswordHasher())
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+# JWT authentication configuration with Argon2
+jwt_authentication = JWTAuthentication(
+    secret=config.jwt_secret,
+    lifetime_seconds=config.jwt_access_expire_minutes * 60,
+    token_url="/api/auth/login",
+    password_helper=password_helper,  # Use Argon2
+)
 
-
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.jwt_access_expire_minutes)
-    to_encode.update({"exp": expire, "type": "access"})
-    return jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
-
-
-def create_refresh_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=settings.jwt_refresh_expire_days)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    return jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
-
-
-def verify_token(token: str) -> dict:
-    try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
-        return payload
-    except JWTError:
-        return None
+# FastAPIUsers instance - will be configured after User model
+fastapi_users = None  # Placeholder, configured in auth routes
 ```
+
+**Why fastapi-users with Argon2:**
+- ✅ Battle-tested, fewer bugs
+- ✅ Handles registration, login, JWT tokens automatically
+- ✅ Argon2 password hashing (modern, recommended)
+- ✅ Easy to extend for custom User model
+- ✅ Used by thousands of production apps
 
 ---
 
@@ -999,45 +1002,27 @@ class ChatRepository(BaseRepository[ChatMessage]):
 # api/deps.py
 from typing import Annotated
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends
+from fastapi_users import FastAPIUsers
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.session import get_db
-from core.security import verify_token
-from db.repositories.user_repo import UserRepository
+from core.security import fastapi_users, jwt_authentication
 from db.models.user import User
 
-security = HTTPBearer()
 
-
+# Get current user from fastapi-users (no manual token verification needed)
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-    db: Annotated[AsyncSession, Depends(get_db)]
+    user: User = Depends(fastapi_users.get_user),
 ) -> User:
-    token = credentials.credentials
-    payload = verify_token(token)
-    
-    if payload is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-    
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-    
-    user_repo = UserRepository(db)
-    user = await user_repo.get_by_id(int(user_id))
-    
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
+    return user
+
+
+# Optional: get optional current user (returns None if not authenticated)
+async def get_optional_current_user(
+    user: User | None = Depends(fastapi_users.get_user),
+) -> User | None:
+    return user
     
     return user
 
@@ -1189,58 +1174,18 @@ class SuggestedQueriesResponse(BaseModel):
 
 ## Phase 7: Services (Business Logic)
 
-### Step 7.1: Create services/auth_service.py
+### Step 7.1: Create services/auth_service.py (Not needed with fastapi-users!)
 
-```python
-# services/auth_service.py
-from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
+**With fastapi-users, you don't need a custom AuthService!** 
 
-from core.security import (
-    get_password_hash,
-    verify_password,
-    create_access_token,
-    create_refresh_token,
-)
-from db.repositories.user_repo import UserRepository
-from db.models.user import User
-from api.errors import AuthenticationError, UserAlreadyExistsError
+The library provides:
+- `/auth/register` endpoint - handles user registration
+- `/auth/login` endpoint - handles login and returns JWT tokens  
+- `/auth/logout` endpoint - handles logout
 
+The auth routes are configured in `api/routes/auth.py` directly using fastapi-users.
 
-class AuthService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.user_repo = UserRepository(db)
-    
-    async def register(self, email: str, password: str, full_name: Optional[str] = None) -> User:
-        existing = await self.user_repo.get_by_email(email)
-        if existing:
-            raise UserAlreadyExistsError(email)
-        
-        hashed_password = get_password_hash(password)
-        user = await self.user_repo.create_user(email, hashed_password, full_name)
-        return user
-    
-    async def login(self, email: str, password: str) -> dict:
-        user = await self.user_repo.get_by_email(email)
-        if not user:
-            raise AuthenticationError("Invalid email or password")
-        
-        if not verify_password(password, user.hashed_password):
-            raise AuthenticationError("Invalid email or password")
-        
-        access_token = create_access_token({"sub": str(user.id)})
-        refresh_token = create_refresh_token({"sub": str(user.id)})
-        
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "user": user
-        }
-    
-    async def get_user_by_id(self, user_id: int) -> Optional[User]:
-        return await self.user_repo.get_by_id(user_id)
-```
+---
 
 ### Step 7.2: Create services/notebook_service.py
 
@@ -1378,36 +1323,51 @@ class ChatService:
 
 ## Phase 8: API Routes
 
-### Step 8.1: Create api/routes/auth.py
+### Step 8.1: Create api/routes/auth.py (Using fastapi-users)
+
+With fastapi-users, auth routes are set up differently:
 
 ```python
 # api/routes/auth.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter
+from fastapi_users import FastAPIUsers
+from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.deps import DBSession
-from api.schemas.auth import RegisterRequest, LoginRequest, TokenResponse, UserResponse
-from services.auth_service import AuthService
+from db.session import get_db
+from db.models.user import User
+from core.security import jwt_authentication
 
+# Get database for fastapi-users
+async def get_user_db(session: AsyncSession = Depends(get_db)):
+    yield SQLAlchemyUserDatabase(session, User)
+
+# Create FastAPIUsers instance
+fastapi_users = FastAPIUsers[User, int](
+    get_user_db,
+    [jwt_authentication],
+)
+
+# Include auth routes
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(request: RegisterRequest, db: DBSession):
-    service = AuthService(db)
-    user = await service.register(request.email, request.password, request.full_name)
-    return user
-
-
-@router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, db: DBSession):
-    service = AuthService(db)
-    result = await service.login(request.email, request.password)
-    return TokenResponse(
-        access_token=result["access_token"],
-        refresh_token=result["refresh_token"]
-    )
+router.include_router(
+    fastapi_users.get_auth_router(jwt_authentication),
+    prefix="/login",
+    tags=["auth"],
+)
+router.include_router(
+    fastapi_users.get_register_router(),
+    prefix="/register",
+    tags=["auth"],
+)
 ```
+
+**Endpoints provided automatically:**
+- POST `/auth/login` - Login, returns JWT token
+- POST `/auth/register` - Register new user
+- POST `/auth/logout` - Logout
+
+---
 
 ### Step 8.2: Create api/routes/notebooks.py
 
@@ -1963,8 +1923,6 @@ dependencies = [
     "asyncpg>=0.29.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
-    "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
     "python-multipart>=0.0.6",
     "aiofiles>=23.0.0",
     "httpx>=0.26.0",
@@ -1975,6 +1933,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Authentication (fastapi-users with Argon2)
+auth = [
+    "fastapi-users>=12.0.0",
+    "argon2-cffi>=23.1.0",
+]
+
 # LLM Providers
 llm-ollama = [
     "langchain-ollama>=0.1.0",
@@ -2207,8 +2171,8 @@ RUN echo "Installing provider-specific dependencies:" && \
         asyncpg \
         pydantic \
         pydantic-settings \
-        python-jose[cryptography] \
-        passlib[bcrypt] \
+        fastapi-users \
+        argon2-cffi \
         python-multipart \
         aiofiles \
         httpx \

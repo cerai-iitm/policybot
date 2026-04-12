@@ -1,137 +1,153 @@
-# Multi-stage Dockerfile for PolicyBot (root level)
-FROM python:3.12.12-slim AS base
+# Multi-stage Dockerfile for PolicyBot
+FROM python:3.12-slim AS base
 
 # Create non-root user and group
 RUN groupadd --gid 1000 appuser && \
-	useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home appuser
+    useradd --uid 1000 --gid 1000 --shell /bin/bash --create-home appuser
 
-# Build stage for dependencies
+# ==============================================================================
+# BUILDER STAGE - Install dependencies based on .env config
+# ==============================================================================
 FROM base AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-	PYTHONUNBUFFERED=1 \
-	PIP_NO_CACHE_DIR=off \
-	PIP_DISABLE_PIP_VERSION_CHECK=on \
-	PIP_DEFAULT_TIMEOUT=100
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=off
 
-# Install build deps required for compiling some Python packages.
-RUN set -eux; \
-	apt-get update || true; \
-	for i in 1 2 3; do \
-	apt-get update && break || sleep 5; \
-	done; \
-	apt-get install -y --no-install-recommends \
-	build-essential \
-	libpq-dev \
-	curl \
-	; \
-	rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
 
-# Copy backend requirements and install
-COPY backend/requirements.txt ./backend/
-RUN pip install --no-cache-dir --upgrade pip && \
-	pip install --no-cache-dir -r backend/requirements.txt
+# Copy pyproject, lock, and .env
+COPY backend/pyproject.toml backend/uv.lock ./
+COPY backend/.env ./
 
+# Build uv sync command based on .env providers
+RUN set -e; \
+    LLM_PROV=$(grep '^llm_provider=' .env | cut -d= -f2 | tr -d '\r\n' || echo "vllm"); \
+    EMB_PROV=$(grep '^embedding_provider=' .env | cut -d= -f2 | tr -d '\r\n' || echo "vllm"); \
+    RERANK_PROV=$(grep '^reranker_provider=' .env | cut -d= -f2 | tr -d '\r\n' || echo "tei"); \
+    echo "Installing: llm-${LLM_PROV}, embedding-${EMB_PROV}, reranker-${RERANK_PROV}"; \
+    uv sync --no-install-project \
+    --extra "llm-${LLM_PROV}" \
+    --extra "embedding-${EMB_PROV}" \
+    --extra "reranker-${RERANK_PROV}"
+
+# ==============================================================================
 # Stage: Build Homepage
+# ==============================================================================
 FROM node:20-alpine AS homepage-builder
+
 WORKDIR /build
+
 COPY Homepage/package*.json ./
 RUN npm ci
+
 COPY Homepage/ .
 RUN npm run build
 
+# ==============================================================================
 # Stage: Build Chat Frontend
+# ==============================================================================
 FROM node:20-alpine AS chat-builder
+
 WORKDIR /build
+
 COPY frontend/package*.json ./
 RUN npm ci
+
 COPY frontend/ .
 RUN npm run build
 
+# ==============================================================================
 # Development stage
+# ==============================================================================
 FROM base AS development
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat && \
-	chown -R appuser:appuser /app && \
-	chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat
-
-# Install netcat for database connection check
-RUN apt-get update && apt-get install -y --no-install-recommends \
-	netcat-openbsd \
-	&& rm -rf /var/lib/apt/lists/*
+RUN mkdir -p /app/backend/logs /app/static/homepage /app/static/chat && \
+    chown -R appuser:appuser /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-	PYTHONUNBUFFERED=1 \
-	PYTHONPATH=/app/backend
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/backend
 
 WORKDIR /app
 
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy .venv from builder - no reinstall needed
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy built static files
+# Copy built static files (from backup working config)
 COPY --from=homepage-builder /build/dist ./static/homepage
 COPY --from=chat-builder /build/dist ./static/chat
 
-# Copy backend code
-COPY backend/alembic.ini backend/pyproject.toml backend/populate_db.py ./backend/
-COPY backend/migrations/ ./backend/migrations/
-COPY backend/pdfs/ ./backend/pdfs/
-COPY backend/src/ ./backend/src/
-
-# Copy entrypoint script
-COPY backend/entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Copy backend code (new structure)
+COPY backend/app/ ./backend/app/
+COPY backend/api/ ./backend/api/
+COPY backend/db/ ./backend/db/
+COPY backend/providers/ ./backend/providers/
+COPY backend/services/ ./backend/services/
+COPY backend/core/ ./backend/core/
+COPY backend/alembic.ini ./
+COPY backend/migrations/ ./migrations/
+COPY backend/.env ./backend/
 
 EXPOSE 8000
 USER appuser
 
-# Use entrypoint for automatic migrations
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Run migrations + start app with hot reload
+CMD ["sh", "-c", "if [ \"${RUN_MIGRATIONS:-false}\" = 'true' ]; then alembic upgrade head || true; fi && cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
 
-# Production runner
+# ==============================================================================
+# Production stage
+# ==============================================================================
 FROM base AS production
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat && \
-	chown -R appuser:appuser /app && \
-	chmod 755 /app/backend/data /app/backend/src/data /app/backend/logs /app/static/homepage /app/static/chat
+RUN mkdir -p /app/backend/logs /app/static/homepage /app/static/chat && \
+    chown -R appuser:appuser /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-	PYTHONUNBUFFERED=1 \
-	PYTHONPATH=/app/backend
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/backend
 
 WORKDIR /app
 
-# Copy site-packages and binaries from builder
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy .venv from builder - no reinstall needed
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy built static files
+# Copy built static files (from backup working config)
 COPY --from=homepage-builder /build/dist ./static/homepage
 COPY --from=chat-builder /build/dist ./static/chat
 
+# Install runtime deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	netcat-openbsd \
-	ca-certificates \
-	&& rm -rf /var/lib/apt/lists/*
+    netcat-openbsd \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy backend code
-COPY backend/alembic.ini backend/pyproject.toml ./backend/
-COPY backend/migrations/ ./backend/migrations/
-COPY backend/src/ ./backend/src/
-
-# Copy entrypoint script
-COPY backend/entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY backend/app/ ./backend/app/
+COPY backend/api/ ./backend/api/
+COPY backend/db/ ./backend/db/
+COPY backend/providers/ ./backend/providers/
+COPY backend/services/ ./backend/services/
+COPY backend/core/ ./backend/core/
+COPY backend/alembic.ini ./
+COPY backend/migrations/ ./migrations/
 
 EXPOSE 8000
 USER appuser
 
-# Use entrypoint for automatic migrations
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run migrations + start app
+CMD ["sh", "-c", "if [ \"${RUN_MIGRATIONS:-false}\" = 'true' ]; then alembic upgrade head || true; fi && cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

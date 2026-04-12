@@ -1,8 +1,7 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = "PolicyBot API"
 requires-python = ">=3.12"
 dependencies = [
     "aiofiles>=24.1.0",
@@ -14,6 +13,7 @@ dependencies = [
     "langchain>=1.2.0",
     "langchain-experimental>=0.4.1",
     "langchain-text-splitters>=1.1.1",
+    "psycopg2-binary>=2.9.11",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "pymupdf>=1.27.2.2",
@@ -22,38 +22,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-llm-ollama = [
-    "langchain-ollama>=1.1.0",
-]
-llm-gemini = [
-    "google-genai>=1.72.0",
-    "langchain-google-genai>=4.2.1",
-]
-llm-vllm = [
-    "langchain-openai>=1.1.12",
-    "openai>=2.31.0",
-]
-embedding-vllm = [
-    "langchain-openai>=1.1.12",
-    "openai>=2.31.0",
-]
-embedding-sentence-transformers = [
-    "langchain-huggingface>=1.2.1",
-]
-reranker-tei = [
-    "numpy>=2.4.4",
-    "requests>=2.33.1",
-]
-reranker-flag = [
-    "sentence-transformers>=5.4.0",
-]
+llm-ollama = ["langchain-ollama>=1.1.0"]
+llm-gemini = ["google-genai>=1.72.0", "langchain-google-genai>=4.2.1"]
+llm-vllm = ["langchain-openai>=1.1.12", "openai>=2.31.0"]
+embedding-vllm = ["langchain-openai>=1.1.12", "openai>=2.31.0"]
+embedding-sentence-transformers = ["langchain-huggingface>=1.2.1"]
+reranker-tei = ["numpy>=2.4.4", "requests>=2.33.1"]
+reranker-flag = ["sentence-transformers>=5.4.0"]
 
 [tool.ruff]
-# Target your Python version
 target-version = "py312"
 
 [tool.ruff.lint]
-# E/F are the basic errors; I handles import sorting (isort style)
 select = ["E", "F", "I"]
 
 [tool.ruff.format]
