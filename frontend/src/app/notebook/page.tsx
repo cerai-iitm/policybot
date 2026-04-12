@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import Navbar from "@/features/notebook/Navbar";
@@ -10,7 +10,7 @@ import PolicyTopicsSection from "@/features/notebook/PolicyTopicsSection";
 import { listNotebooks, listPdfs } from "@/lib/router";
 import { NotebookListItem, FirstNotebookPDFItem } from "@/lib/interfaces";
 
-export default function NotebookPage() {
+function NotebookContent() {
   const [notebooks, setNotebooks] = useState<NotebookListItem[]>([]);
   const [activeCollection, setActiveCollection] = useState<string>("");
   const [pdfs, setPdfs] = useState<FirstNotebookPDFItem[]>([]);
@@ -19,7 +19,6 @@ export default function NotebookPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // 🔹 Load notebooks
   useEffect(() => {
     const preferred = searchParams.get("preferred");
 
@@ -52,9 +51,8 @@ export default function NotebookPage() {
     };
 
     fetchNotebooks();
-  }, []);
+  }, [searchParams, router]);
 
-  // 🔹 Load PDFs
   useEffect(() => {
     if (!activeCollection) return;
 
@@ -94,5 +92,13 @@ export default function NotebookPage() {
         notebookId={activeCollection}
       />
     </div>
+  );
+}
+
+export default function NotebookPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <NotebookContent />
+    </Suspense>
   );
 }

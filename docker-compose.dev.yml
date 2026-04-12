@@ -9,18 +9,13 @@ services:
       - ./backend/.env
     environment:
       - IN_DOCKER=${IN_DOCKER:-1}
-      - OLLAMA_IP=${OLLAMA_IP:-dev-proxy-nginx}
-      - OLLAMA_PORT=${OLLAMA_PORT:-80}
-      - OLLAMA_PATH=${OLLAMA_PATH:-/ollama}
-      - VLLM_LLM_IP=${VLLM_LLM_IP:-dev-proxy-nginx}
-      - VLLM_LLM_PORT=${VLLM_LLM_PORT:-80}
-      - VLLM_LLM_PATH=${VLLM_LLM_PATH:-/vllm}
-      - VLLM_EMBEDDING_IP=${VLLM_EMBEDDING_IP:-dev-proxy-nginx}
-      - VLLM_EMBEDDING_PORT=${VLLM_EMBEDDING_PORT:-80}
-      - VLLM_EMBEDDING_PATH=${VLLM_EMBEDDING_PATH:-/embedding}
-      - TEI_RERANKER_IP=${TEI_RERANKER_IP:-dev-proxy-nginx}
-      - TEI_RERANKER_PORT=${TEI_RERANKER_PORT:-80}
-      - TEI_RERANKER_PATH=${TEI_RERANKER_PATH:-/reranker}
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/policybot
+      - LLM_PROVIDER=${LLM_PROVIDER:-vllm}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-vllm}
+      - RERANKER_PROVIDER=${RERANKER_PROVIDER:-tei}
+      - VLLM_LLM_PROXY_URL=${VLLM_LLM_PROXY_URL:-http://dev-proxy-nginx/vllm/}
+      - VLLM_EMBEDDING_PROXY_URL=${VLLM_EMBEDDING_PROXY_URL:-http://dev-proxy-nginx/embedding/}
+      - TEI_RERANKER_URL=${TEI_RERANKER_URL:-http://dev-proxy-nginx/reranker}
       - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -30,27 +25,70 @@ services:
     develop:
       watch:
         - action: sync
-          path: ./backend/src
-          target: /app/backend/src
+          path: ./backend/app
+          target: /app/backend/app
+        - action: sync
+          path: ./backend/api
+          target: /app/backend/api
+        - action: sync
+          path: ./backend/db
+          target: /app/backend/db
+        - action: sync
+          path: ./backend/providers
+          target: /app/backend/providers
+        - action: sync
+          path: ./backend/services
+          target: /app/backend/services
+        - action: sync
+          path: ./backend/core
+          target: /app/backend/core
         - action: sync
           path: ./backend/.env
           target: /app/backend/.env
         - action: rebuild
-          path: ./backend/migrations
-        - action: rebuild
-          path: ./backend/populate_db.py
-        - action: rebuild
-          path: ./Dockerfile
-        - action: rebuild
-          path: ./backend/requirements.txt
-        - action: rebuild
-          path: ./backend/entrypoint.sh
+          path: ./backend/pyproject.toml
         - action: rebuild
           path: ./backend/alembic.ini
         - action: rebuild
-          path: ./backend/pyproject.toml
+          path: ./Dockerfile
+        - action: rebuild
+          path: ./backend/api/deps.py
     depends_on:
       postgres:
         condition: service_healthy
       qdrant:
         condition: service_started
+
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "5432:5432"
+    env_file:
+      - backend/.env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-policybot}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__HTTP__PORT: 6333
+
+volumes:
+  postgres_data:
+    driver: local
+  qdrant_data:
+    driver: local
+
