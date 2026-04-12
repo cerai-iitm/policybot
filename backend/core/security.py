@@ -1,13 +1,11 @@
 # core/security.py
-from fastapi import FastAPI
-from fastapi_users import FastAPIUsers
+import pwdlib
 from fastapi_users.authentication import (
     AuthenticationBackend,
     BearerTransport,
     JWTStrategy,
 )
 from fastapi_users.password import PasswordHelper
-import pwdlib
 
 from app.config import get_config
 
@@ -17,7 +15,7 @@ config = get_config()
 password_helper = PasswordHelper(password_hash=pwdlib.PasswordHash.recommended())
 
 # JWT Transport (bearer token)
-bearer_transport = BearerTransport(tokenUrl="/api/auth/login/jwt")
+bearer_transport = BearerTransport(tokenUrl="/policybot/api/auth/login")
 
 # JWT Strategy
 jwt_strategy = JWTStrategy(
@@ -31,6 +29,3 @@ auth_backend = AuthenticationBackend(
     transport=bearer_transport,
     get_strategy=lambda: jwt_strategy,
 )
-
-# FastAPIUsers instance - configured in auth routes
-fastapi_users: FastAPIUsers = None

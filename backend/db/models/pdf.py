@@ -12,7 +12,7 @@ class PDF(Base):
     notebook_id = Column(Integer, ForeignKey("notebooks.id"), nullable=False)
 
     original_filename = Column(String(255), nullable=False)
-    stored_filename = Column(String(36), nullable=False, unique=True)
+    stored_filename = Column(String(44), nullable=False, unique=True)
     file_path = Column(String(500), nullable=False)
 
     processing_status = Column(String(50), default="uploaded")

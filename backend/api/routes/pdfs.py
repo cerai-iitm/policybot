@@ -1,4 +1,6 @@
 # api/routes/pdfs.py
+import asyncio
+import logging
 import uuid
 from pathlib import Path
 
@@ -31,23 +33,32 @@ from db.models.user import User
 from db.session import AsyncSessionLocal, get_db
 from services.pdf_processor import PDFProcessor
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/pdfs", tags=["PDFs"])
 config = get_config()
+
+_MAX_CONCURRENT = getattr(config, "max_concurrent_processing", 2)
+_PROCESS_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENT)
+
+
+async def process_pdf_background(pdf_id: int):
+    """Background processing for PDF RAG pipeline."""
+    async with AsyncSessionLocal() as bg_db:
+        processor = PDFProcessor()
+        try:
+            async for update in processor.process_pdf(pdf_id, bg_db):
+                logger.info(f"[bg:{pdf_id}] {update}")
+                if isinstance(update, str) and update.startswith("Error:"):
+                    logger.error(f"[bg:{pdf_id}] Error detected, stopping processing")
+                    break
+        except Exception as e:
+            logger.error(f"Background processing failed for pdf_id {pdf_id}: {e}")
 
 
 def get_upload_path(user_id: int, notebook_id: int) -> Path:
     base = Path(config.upload_dir)
     return base / str(user_id) / str(notebook_id)
-
-
-async def process_pdf_background(pdf_id: int):
-    async with AsyncSessionLocal() as db:
-        processor = PDFProcessor()
-        try:
-            async for _ in processor.process_pdf(pdf_id, db):
-                pass
-        except Exception:
-            pass
 
 
 @router.post("/", response_model=PDFUploadResponse, status_code=201)
@@ -70,16 +81,16 @@ async def upload_pdf(
     if not notebook:
         raise HTTPException(status_code=404, detail="Notebook not found")
 
-    stored_filename = str(uuid.uuid4()) + ".pdf"
+    stored_filename = str(uuid.uuid4())
     upload_path = get_upload_path(user.id, notebook_id)
     upload_path.mkdir(parents=True, exist_ok=True)
-    file_path = upload_path / stored_filename
+    file_path = upload_path / f"{stored_filename}.pdf"
 
     async with aiofiles.open(file_path, "wb") as f:
         content = await file.read()
         await f.write(content)
 
-    relative_path = f"{user.id}/{notebook_id}/{stored_filename}"
+    relative_path = f"{user.id}/{notebook_id}/{stored_filename}.pdf"
 
     pdf = PDF(
         user_id=user.id,

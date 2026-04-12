@@ -23,13 +23,23 @@ def get_embedding() -> Embeddings:
         )
         api_key = config.vllm_embedding_api_key or "EMPTY"
 
+        # Ensure URL ends with /v1 for OpenAI-compatible API
+        if not url.endswith("/v1"):
+            url = url.rstrip("/") + "/v1"
+
+        # Create both sync and async clients with proxy headers
         http_client = httpx.Client(headers=proxy_headers) if use_proxy else None
+        http_async_client = (
+            httpx.AsyncClient(headers=proxy_headers) if use_proxy else None
+        )
 
         return OpenAIEmbeddings(
             model=config.vllm_embedding_model,
             base_url=url,
             api_key=SecretStr(api_key),
             http_client=http_client,
+            http_async_client=http_async_client,
+            timeout=60.0,
         )
 
     if provider == "sentence-transformers":

@@ -32,9 +32,9 @@ COPY backend/.env ./
 
 # Build uv sync command based on .env providers
 RUN set -e; \
-    LLM_PROV=$(grep '^llm_provider=' .env | cut -d= -f2 | tr -d '\r\n' || echo "vllm"); \
-    EMB_PROV=$(grep '^embedding_provider=' .env | cut -d= -f2 | tr -d '\r\n' || echo "vllm"); \
-    RERANK_PROV=$(grep '^reranker_provider=' .env | cut -d= -f2 | tr -d '\r\n' || echo "tei"); \
+    LLM_PROV=$(grep '^LLM_PROVIDER=' .env | cut -d= -f2 | tr -d '\r\n' || echo "vllm"); \
+    EMB_PROV=$(grep '^EMBEDDING_PROVIDER=' .env | cut -d= -f2 | tr -d '\r\n' || echo "vllm"); \
+    RERANK_PROV=$(grep '^RERANKER_PROVIDER=' .env | cut -d= -f2 | tr -d '\r\n' || echo "tei"); \
     echo "Installing: llm-${LLM_PROV}, embedding-${EMB_PROV}, reranker-${RERANK_PROV}"; \
     uv sync --no-install-project \
     --extra "llm-${LLM_PROV}" \
@@ -42,22 +42,9 @@ RUN set -e; \
     --extra "reranker-${RERANK_PROV}"
 
 # ==============================================================================
-# Stage: Build Homepage
+# Stage: Build Frontend (static export)
 # ==============================================================================
-FROM node:20-alpine AS homepage-builder
-
-WORKDIR /build
-
-COPY Homepage/package*.json ./
-RUN npm ci
-
-COPY Homepage/ .
-RUN npm run build
-
-# ==============================================================================
-# Stage: Build Chat Frontend
-# ==============================================================================
-FROM node:20-alpine AS chat-builder
+FROM node:20-alpine AS frontend-builder
 
 WORKDIR /build
 
@@ -73,7 +60,7 @@ RUN npm run build
 FROM base AS development
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/logs /app/static/homepage /app/static/chat && \
+RUN mkdir -p /app/backend/logs /app/static/frontend && \
     chown -R appuser:appuser /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -86,9 +73,8 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy built static files (from backup working config)
-COPY --from=homepage-builder /build/dist ./static/homepage
-COPY --from=chat-builder /build/dist ./static/chat
+# Copy built frontend files (static export -> out folder)
+COPY --from=frontend-builder /build/out ./static/frontend
 
 # Copy backend code (new structure)
 COPY backend/app/ ./backend/app/
@@ -97,15 +83,17 @@ COPY backend/db/ ./backend/db/
 COPY backend/providers/ ./backend/providers/
 COPY backend/services/ ./backend/services/
 COPY backend/core/ ./backend/core/
-COPY backend/alembic.ini ./
+COPY backend/alembic.ini ./backend/
 COPY backend/migrations/ ./migrations/
 COPY backend/.env ./backend/
+COPY backend/entrypoint.sh ./
 
 EXPOSE 8000
 USER appuser
 
-# Run migrations + start app with hot reload
-CMD ["sh", "-c", "if [ \"${RUN_MIGRATIONS:-false}\" = 'true' ]; then alembic upgrade head || true; fi && cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+# Run app with hot reload
+ENTRYPOINT [ "./entrypoint.sh" ]
+CMD ["sh", "-c", "cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
 
 # ==============================================================================
 # Production stage
@@ -113,7 +101,7 @@ CMD ["sh", "-c", "if [ \"${RUN_MIGRATIONS:-false}\" = 'true' ]; then alembic upg
 FROM base AS production
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/logs /app/static/homepage /app/static/chat && \
+RUN mkdir -p /app/backend/logs /app/static/frontend && \
     chown -R appuser:appuser /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -126,9 +114,8 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy built static files (from backup working config)
-COPY --from=homepage-builder /build/dist ./static/homepage
-COPY --from=chat-builder /build/dist ./static/chat
+# Copy built frontend files (static export -> out folder)
+COPY --from=frontend-builder /build/out ./static/frontend
 
 # Install runtime deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -143,11 +130,11 @@ COPY backend/db/ ./backend/db/
 COPY backend/providers/ ./backend/providers/
 COPY backend/services/ ./backend/services/
 COPY backend/core/ ./backend/core/
-COPY backend/alembic.ini ./
+COPY backend/alembic.ini ./backend/
 COPY backend/migrations/ ./migrations/
 
 EXPOSE 8000
 USER appuser
 
-# Run migrations + start app
-CMD ["sh", "-c", "if [ \"${RUN_MIGRATIONS:-false}\" = 'true' ]; then alembic upgrade head || true; fi && cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Run app
+CMD ["sh", "-c", "cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

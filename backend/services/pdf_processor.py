@@ -96,7 +96,11 @@ class PDFProcessor:
         yield "done"
 
     def _extract_text_from_pdf(self, pdf: PDF) -> Optional[List[Document]]:
-        file_path = Path(self.config.upload_dir) / pdf.file_path
+        # Files are stored in backend/uploads/ relative to app root
+        import os
+
+        app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        file_path = Path(app_root) / "uploads" / pdf.file_path
         if not file_path.exists():
             return None
 
@@ -139,17 +143,29 @@ class PDFProcessor:
             embedder = get_embedding()
             texts = [doc.page_content for doc in docs]
 
+            # Prefer async embedding if available, but fall back to sync embedding
+            # if the async call fails (e.g. proxy/async client issues).
             if hasattr(embedder, "aembed_documents"):
+                try:
+                    all_embeddings = []
+                    for i in range(0, len(texts), 128):
+                        batch = texts[i : i + 128]
+                        batch_embeddings = await embedder.aembed_documents(batch)
+                        all_embeddings.extend(batch_embeddings)
+                    return np.array(all_embeddings, dtype=np.float32)
+                except Exception:
+                    # Async embedding failed — fall back to sync embed_documents
+                    all_embeddings = []
+                    for i in range(0, len(texts), 128):
+                        batch = texts[i : i + 128]
+                        emb = await asyncio.to_thread(embedder.embed_documents, batch)
+                        all_embeddings.extend(emb)
+                    return np.array(all_embeddings, dtype=np.float32)
+            else:
                 all_embeddings = []
                 for i in range(0, len(texts), 128):
                     batch = texts[i : i + 128]
-                    batch_embeddings = await embedder.aembed_documents(batch)
-                    all_embeddings.extend(batch_embeddings)
-                return np.array(all_embeddings, dtype=np.float32)
-            else:
-                all_embeddings = []
-                for text in texts:
-                    emb = embedder.embed_documents([text])
+                    emb = await asyncio.to_thread(embedder.embed_documents, batch)
                     all_embeddings.extend(emb)
                 return np.array(all_embeddings, dtype=np.float32)
         except Exception:
