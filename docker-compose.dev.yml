@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
       target: development
     image: backend:dev
+    ports:
+      - "8000:8000"
     env_file:
       - ./backend/.env
     environment:
@@ -53,6 +55,9 @@ services:
           path: ./Dockerfile
         - action: rebuild
           path: ./backend/api/deps.py
+        - action: sync
+          path: ./backend/migrations
+          target: /app/migrations
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,4 +96,3 @@ volumes:
     driver: local
   qdrant_data:
     driver: local
-

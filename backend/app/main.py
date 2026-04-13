@@ -1,14 +1,14 @@
-import os
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-# from fastapi.staticfiles import StaticFiles  # Frontend disabled
-# from fastapi.responses import HTMLResponse, FileResponse  # Frontend disabled
 
-from .config import get_config
 from api.routes.auth import router as auth_router
+from api.routes.chat import router as chat_router
 from api.routes.notebooks import router as notebooks_router
 from api.routes.pdfs import router as pdfs_router
-from api.routes.chat import router as chat_router
+
+# from fastapi.staticfiles import StaticFiles  # Frontend disabled
+# from fastapi.responses import HTMLResponse, FileResponse  # Frontend disabled
+from .config import get_config
 
 
 def create_app():
