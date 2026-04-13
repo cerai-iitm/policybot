@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import MainLayout from "../components/MainLayout";
+import MainLayout from "../../features/chat/layout/MainLayout";
 
 export default function ConfigPage() {
   return (

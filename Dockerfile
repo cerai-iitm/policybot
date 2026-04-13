@@ -42,17 +42,17 @@ RUN set -e; \
     --extra "reranker-${RERANK_PROV}"
 
 # ==============================================================================
-# Stage: Build Frontend (static export)
+# Stage: Build Frontend (static export) - COMMENTED OUT
 # ==============================================================================
-FROM node:20-alpine AS frontend-builder
-
-WORKDIR /build
-
-COPY frontend/package*.json ./
-RUN npm ci
-
-COPY frontend/ .
-RUN npm run build
+# FROM node:20-alpine AS frontend-builder
+#
+# WORKDIR /build
+#
+# COPY frontend/package*.json ./
+# RUN npm ci
+#
+# COPY frontend/ .
+# RUN npm run build
 
 # ==============================================================================
 # Development stage
@@ -73,8 +73,8 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy built frontend files (static export -> out folder)
-COPY --from=frontend-builder /build/out ./static/frontend
+# Copy built frontend files (static export -> out folder) - COMMENTED OUT
+# COPY --from=frontend-builder /build/out ./static/frontend
 
 # Copy backend code (new structure)
 COPY backend/app/ ./backend/app/
@@ -114,8 +114,8 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy built frontend files (static export -> out folder)
-COPY --from=frontend-builder /build/out ./static/frontend
+# Copy built frontend files (static export -> out folder) - COMMENTED OUT
+# COPY --from=frontend-builder /build/out ./static/frontend
 
 # Install runtime deps
 RUN apt-get update && apt-get install -y --no-install-recommends \

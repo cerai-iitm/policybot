@@ -59,6 +59,17 @@ export interface NotebookListItem {
   created_at: ISODateString;
 }
 
+/**
+ * Full notebook object returned from GET /notebooks/{notebook_id}
+ */
+export interface NotebookResponse {
+  id: number;
+  notebook_id: string;
+  title: string;
+  description?: string | null;
+  created_at: ISODateString;
+}
+
 /* First notebook PDF item includes optional base64 contents for fast initial load */
 export interface FirstNotebookPDFItem {
   filename: string;
@@ -141,6 +152,42 @@ export interface QueryResponse {
 export interface QueryErrorResponse {
   error: string;
   context_chunks: ContextChunk[];
+}
+
+/**
+ * Authentication request payload for login.
+ */
+export interface LoginRequest {
+  username: string; // usually the email
+  password: string;
+}
+
+/**
+ * Authentication response containing JWT.
+ */
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+}
+
+/**
+ * Registration payload.
+ */
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  full_name: string;
+}
+
+/**
+ * User object returned after registration or when reading.
+ */
+export interface UserRead {
+  id: number | string;
+  email: string;
+  is_active: boolean;
+  is_verified: boolean;
+  full_name?: string;
 }
 
 export interface OverallSummaryResponse {
