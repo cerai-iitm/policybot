@@ -6,30 +6,29 @@ from sqlalchemy import pool
 from alembic import context
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Use DATABASE_URL env if set, otherwise rely on alembic.ini
 database_url = os.getenv("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 
 Base = declarative_base()
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
-
 
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
+    username = Column(String(150), unique=True, index=True, nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=True)
     hashed_password = Column(String(255), nullable=False)
-    full_name = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default="now()")
-    is_active = Column(String, default="true")
+    is_active = Column(Boolean, default=True)
 
 
 class Notebook(Base):
