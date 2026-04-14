@@ -15,7 +15,7 @@ from fastapi import (
     Query,
     UploadFile,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,10 +50,12 @@ async def process_pdf_background(pdf_id: int):
             async for update in processor.process_pdf(pdf_id, bg_db):
                 logger.info(f"[bg:{pdf_id}] {update}")
                 if isinstance(update, str) and update.startswith("Error:"):
-                    logger.error(f"[bg:{pdf_id}] Error detected, stopping processing")
+                    logger.exception(
+                        f"[bg:{pdf_id}] Error detected, stopping processing"
+                    )
                     break
         except Exception as e:
-            logger.error(f"Background processing failed for pdf_id {pdf_id}: {e}")
+            logger.exception(f"Background processing failed for pdf_id {pdf_id}")
 
 
 def get_upload_path(user_id: int, notebook_id: int) -> Path:
@@ -64,7 +66,8 @@ def get_upload_path(user_id: int, notebook_id: int) -> Path:
 @router.post("/", response_model=PDFUploadResponse, status_code=201)
 async def upload_pdf(
     background_tasks: BackgroundTasks,
-    notebook_id: int = Form(...),
+    # External API accepts the public notebook_id string
+    notebook_id: str = Form(...),
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -74,15 +77,53 @@ async def upload_pdf(
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files allowed")
 
+    # Resolve the Notebook by the external notebook_id (string)
     result = await db.execute(
-        select(Notebook).where(Notebook.id == notebook_id, Notebook.user_id == user.id)
+        select(Notebook).where(
+            Notebook.notebook_id == notebook_id, Notebook.user_id == user.id
+        )
     )
     notebook = result.scalar_one_or_none()
     if not notebook:
         raise HTTPException(status_code=404, detail="Notebook not found")
 
+    # Reuse existing PDF if same notebook + original filename + user
+    existing_stmt = select(PDF).where(
+        PDF.notebook_id == notebook.id,
+        PDF.original_filename == file.filename,
+        PDF.user_id == user.id,
+    )
+    existing_res = await db.execute(existing_stmt)
+    existing_pdf = existing_res.scalar_one_or_none()
+
+    if existing_pdf:
+        # If it's already complete, just return it; otherwise re-enqueue processing
+        if existing_pdf.processing_status == "complete":
+            return PDFUploadResponse(
+                pdf_id=existing_pdf.id,
+                original_filename=existing_pdf.original_filename,
+                stored_filename=existing_pdf.stored_filename,
+                notebook_id=str(notebook.notebook_id),
+                file_path=existing_pdf.file_path,
+                processing_status=existing_pdf.processing_status,
+                uploaded_at=existing_pdf.uploaded_at,
+            )
+
+        # Reuse row for in-progress PDF: do not overwrite file on disk.
+        background_tasks.add_task(process_pdf_background, existing_pdf.id)
+        return PDFUploadResponse(
+            pdf_id=existing_pdf.id,
+            original_filename=existing_pdf.original_filename,
+            stored_filename=existing_pdf.stored_filename,
+            notebook_id=str(notebook.notebook_id),
+            file_path=existing_pdf.file_path,
+            processing_status=existing_pdf.processing_status,
+            uploaded_at=existing_pdf.uploaded_at,
+        )
+
+    # No existing PDF: create new record and save file
     stored_filename = str(uuid.uuid4())
-    upload_path = get_upload_path(user.id, notebook_id)
+    upload_path = get_upload_path(user.id, notebook.id)
     upload_path.mkdir(parents=True, exist_ok=True)
     file_path = upload_path / f"{stored_filename}.pdf"
 
@@ -90,11 +131,11 @@ async def upload_pdf(
         content = await file.read()
         await f.write(content)
 
-    relative_path = f"{user.id}/{notebook_id}/{stored_filename}.pdf"
+    relative_path = f"{user.id}/{notebook.id}/{stored_filename}.pdf"
 
     pdf = PDF(
         user_id=user.id,
-        notebook_id=notebook_id,
+        notebook_id=notebook.id,
         original_filename=file.filename,
         stored_filename=stored_filename,
         file_path=relative_path,
@@ -110,27 +151,120 @@ async def upload_pdf(
         pdf_id=pdf.id,
         original_filename=pdf.original_filename,
         stored_filename=pdf.stored_filename,
-        notebook_id=pdf.notebook_id,
+        notebook_id=str(notebook.notebook_id),
         file_path=pdf.file_path,
         processing_status=pdf.processing_status,
         uploaded_at=pdf.uploaded_at,
     )
 
 
+@router.get("/process")
+async def pdf_process_sse(
+    notebook_id: str = Query(...),
+    pdf_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    SSE endpoint to stream PDF processing status.
+
+    Query params:
+      - notebook_id: external notebook id string (e.g. nb_xxx)
+      - pdf_id: the PDF's stored_filename string identifier
+
+    Yields plain SSE events:
+      data: uploaded
+      data: embeddings_complete
+      data: complete
+      data: done
+    """
+    # Resolve notebook by external string identifier
+    res = await db.execute(
+        select(Notebook).where(
+            Notebook.notebook_id == notebook_id, Notebook.user_id == user.id
+        )
+    )
+    notebook = res.scalar_one_or_none()
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+
+    # Resolve PDF by stored_filename (pdf_id param) and notebook
+    res = await db.execute(
+        select(PDF).where(
+            PDF.stored_filename == pdf_id,
+            PDF.notebook_id == notebook.id,
+            PDF.user_id == user.id,
+        )
+    )
+    pdf = res.scalar_one_or_none()
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    pdf_internal_id = pdf.id
+
+    async def generate():
+        start_time = asyncio.get_event_loop().time()
+        max_duration = 15 * 60  # 15 minutes
+        try:
+            while True:
+                elapsed = asyncio.get_event_loop().time() - start_time
+                if elapsed > max_duration:
+                    logger.warning(f"Processing timeout for pdf_id={pdf_id}")
+                    yield "data: error\n\n"
+                    yield "data: done\n\n"
+                    break
+
+                # Refresh PDF status from DB
+                try:
+                    await db.refresh(pdf)
+                except Exception:
+                    # If refresh fails, re-fetch
+                    r = await db.execute(
+                        select(PDF).where(
+                            PDF.id == pdf_internal_id, PDF.user_id == user.id
+                        )
+                    )
+                    pdf_local = r.scalar_one_or_none()
+                    if pdf_local:
+                        pdf = pdf_local
+
+                status = pdf.processing_status or "uploaded"
+                yield f"data: {status}\n\n"
+
+                if status in ["complete", "error"]:
+                    yield "data: done\n\n"
+                    break
+
+                await asyncio.sleep(2)
+
+        except asyncio.CancelledError:
+            logger.info(f"SSE connection closed for pdf_id={pdf_id}")
+        except Exception as e:
+            logger.exception(f"Error in SSE stream for pdf_id={pdf_id}")
+            yield "data: error\n\n"
+            yield "data: done\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 @router.get("/", response_model=PDFListResponse)
 async def list_pdfs(
-    notebook_id: int = Query(...),
+    # Accept external notebook_id string
+    notebook_id: str = Query(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Notebook).where(Notebook.id == notebook_id, Notebook.user_id == user.id)
+        select(Notebook).where(
+            Notebook.notebook_id == notebook_id, Notebook.user_id == user.id
+        )
     )
     notebook = result.scalar_one_or_none()
     if not notebook:
         raise HTTPException(status_code=404, detail="Notebook not found")
 
-    result = await db.execute(select(PDF).where(PDF.notebook_id == notebook_id))
+    # Use numeric notebook.id for querying PDF FK
+    result = await db.execute(select(PDF).where(PDF.notebook_id == notebook.id))
     pdfs = result.scalars().all()
 
     return PDFListResponse(
@@ -140,7 +274,7 @@ async def list_pdfs(
                 id=pdf.id,
                 original_filename=pdf.original_filename,
                 stored_filename=pdf.stored_filename,
-                notebook_id=pdf.notebook_id,
+                notebook_id=str(notebook.notebook_id),
                 processing_status=pdf.processing_status,
                 uploaded_at=pdf.uploaded_at,
                 summary=pdf.summary,
@@ -163,11 +297,15 @@ async def get_pdf(
     if not pdf:
         raise HTTPException(status_code=404, detail="PDF not found")
 
+    # lookup notebook to get external notebook_id string
+    notebook = await db.get(Notebook, pdf.notebook_id)
+    notebook_id_str = str(notebook.notebook_id) if notebook else ""
+
     return PDFResponse(
         id=pdf.id,
         original_filename=pdf.original_filename,
         stored_filename=pdf.stored_filename,
-        notebook_id=pdf.notebook_id,
+        notebook_id=notebook_id_str,
         processing_status=pdf.processing_status,
         uploaded_at=pdf.uploaded_at,
         summary=pdf.summary,
@@ -233,3 +371,92 @@ async def delete_pdf(
         file_deleted=file_deleted,
         pdf_record_deleted=True,
     )
+
+
+@router.get("/process")
+async def pdf_process_sse(
+    notebook_id: str = Query(...),
+    pdf_id: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    SSE endpoint to stream PDF processing status.
+
+    Query params:
+      - notebook_id: external notebook id string (e.g. nb_xxx)
+      - pdf_id: the PDF's stored_filename string identifier
+
+    Yields plain SSE events:
+      data: uploaded
+      data: embeddings_complete
+      data: complete
+      data: done
+    """
+    # Resolve notebook by external string identifier
+    res = await db.execute(
+        select(Notebook).where(
+            Notebook.notebook_id == notebook_id, Notebook.user_id == user.id
+        )
+    )
+    notebook = res.scalar_one_or_none()
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+
+    # Resolve PDF by stored_filename (pdf_id param) and notebook
+    res = await db.execute(
+        select(PDF).where(
+            PDF.stored_filename == pdf_id,
+            PDF.notebook_id == notebook.id,
+            PDF.user_id == user.id,
+        )
+    )
+    pdf = res.scalar_one_or_none()
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    pdf_internal_id = pdf.id
+
+    async def generate():
+        start_time = asyncio.get_event_loop().time()
+        max_duration = 15 * 60  # 15 minutes
+        try:
+            while True:
+                elapsed = asyncio.get_event_loop().time() - start_time
+                if elapsed > max_duration:
+                    logger.warning(f"Processing timeout for pdf_id={pdf_id}")
+                    yield "data: error\n\n"
+                    yield "data: done\n\n"
+                    break
+
+                # Refresh PDF status from DB
+                try:
+                    await db.refresh(pdf)
+                except Exception:
+                    # If refresh fails, re-fetch
+                    r = await db.execute(
+                        select(PDF).where(
+                            PDF.id == pdf_internal_id, PDF.user_id == user.id
+                        )
+                    )
+                    pdf_local = r.scalar_one_or_none()
+                    if pdf_local:
+                        pdf = pdf_local
+
+                status = pdf.processing_status or "uploaded"
+                yield f"data: {status}\n\n"
+
+                if status in ["complete", "error"]:
+                    yield "data: done\n\n"
+                    break
+
+                await asyncio.sleep(2)
+
+        except asyncio.CancelledError:
+            logger.info(f"SSE connection closed for pdf_id={pdf_id}")
+        except Exception as e:
+            logger.exception(f"Error in SSE stream for pdf_id={pdf_id}")
+            yield "data: error\n\n"
+            yield "data: done\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")

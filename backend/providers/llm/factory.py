@@ -2,8 +2,10 @@
 import httpx
 
 from app.config import get_config
+from app.logger import get_logger
 
 config = get_config()
+logger = get_logger(__name__)
 
 
 def get_llm():
@@ -20,13 +22,16 @@ def get_llm():
         # Use proxy URL if set, otherwise direct URL
         url = config.ollama_proxy_url if use_proxy else config.ollama_url
 
-        # Build HTTP client with proxy headers if needed
-        http_client = httpx.Client(headers=proxy_headers) if use_proxy else None
+        # Build client_kwargs with headers if using proxy
+        client_kwargs = {"headers": proxy_headers} if use_proxy else None
 
+        logger.info(
+            f"Using Ollama LLM with {'proxy' if use_proxy else 'direct'} connection at {url}"
+        )
         return ChatOllama(
             model=config.default_model,
             base_url=url,
-            http_client=http_client,
+            client_kwargs=client_kwargs,
         )
 
     elif provider == "gemini":
@@ -34,6 +39,7 @@ def get_llm():
             raise ValueError("GEMINI_API_KEY not set in .env")
         from langchain_google_genai import ChatGoogleGenerativeAI
 
+        logger.info("Using Google Gemini LLM with direct connection")
         return ChatGoogleGenerativeAI(
             model=config.default_model,
             google_api_key=config.gemini_api_key,
@@ -54,6 +60,9 @@ def get_llm():
         # Build HTTP client with proxy headers if needed
         http_client = httpx.Client(headers=proxy_headers) if use_proxy else None
 
+        logger.info(
+            f"Using {'vLLM' if provider == 'vllm' else 'OpenAI'} LLM with {'proxy' if use_proxy else 'direct'} connection at {url}"
+        )
         return ChatOpenAI(
             model=config.default_model,
             base_url=url,

@@ -1,10 +1,13 @@
 # services/pdf_processor.py
 import asyncio
+import logging
 import os
 import uuid
 import warnings
 from pathlib import Path
 from typing import AsyncGenerator, List, Optional
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import pymupdf
@@ -38,60 +41,102 @@ class PDFProcessor:
     async def process_pdf(
         self, pdf_id: int, db: AsyncSession
     ) -> AsyncGenerator[str, None]:
+        # Load PDF record
         result = await db.execute(select(PDF).where(PDF.id == pdf_id))
         pdf = result.scalar_one_or_none()
         if not pdf:
             yield "Error: PDF not found"
             return
 
-        yield "Starting PDF processing..."
-        pdf.processing_status = "processing"
-        await db.commit()
+        # If already fully processed, nothing to do.
+        if pdf.processing_status == "complete":
+            yield "PDF already complete"
+            yield "done"
+            return
 
         yield "Checking for existing embeddings..."
         embeddings_exist = await self._check_existing_embeddings(pdf.id)
 
         docs = None
-        if embeddings_exist:
-            yield "Embeddings already exist. Extracting text for summary..."
+
+        # --- Embeddings stage (skip if already recorded in DB) ---
+        if pdf.processing_status != "embeddings_complete":
+            # If embeddings already exist in Qdrant, mark stage complete in DB
+            if embeddings_exist:
+                yield "Embeddings already exist in vector store. Marking embeddings_complete."
+                pdf.processing_status = "embeddings_complete"
+                db.add(pdf)
+                await db.commit()
+                # extract text for summary generation
+                docs = await asyncio.to_thread(self._extract_text_from_pdf, pdf)
+                if not docs:
+                    yield "Error: Failed to extract text"
+                    return
+            else:
+                # Perform full embedding pipeline and only mark embeddings_complete after success
+                yield "Extracting text from PDF..."
+                docs = await asyncio.to_thread(self._extract_text_from_pdf, pdf)
+                if not docs:
+                    yield "Error: Failed to extract text"
+                    return
+
+                yield "Creating chunks..."
+                split_docs = await asyncio.to_thread(self._run_splitter, docs)
+                if not split_docs:
+                    yield "Error: Failed to split documents"
+                    return
+
+                yield "Generating embeddings..."
+                embeddings = await self._embed_docs(split_docs)
+                if embeddings is None:
+                    yield "Error: Failed to generate embeddings"
+                    return
+
+                yield "Storing embeddings..."
+                try:
+                    await self._store_embeddings(split_docs, embeddings, pdf.id)
+                except Exception:
+                    logger.exception("Error storing embeddings for pdf_id %s", pdf.id)
+                    yield "Error: Failed to store embeddings"
+                    return
+
+                # Only mark embeddings_complete after successful upsert
+                pdf.processing_status = "embeddings_complete"
+                db.add(pdf)
+                await db.commit()
+
+        else:
+            # embeddings already marked complete in DB; ensure we have text for summary
+            yield "Embeddings already marked complete. Extracting text for summary..."
             docs = await asyncio.to_thread(self._extract_text_from_pdf, pdf)
             if not docs:
                 yield "Error: Failed to extract text"
                 return
-        else:
-            yield "Extracting text from PDF..."
-            docs = await asyncio.to_thread(self._extract_text_from_pdf, pdf)
-            if not docs:
-                yield "Error: Failed to extract text"
+
+        # --- Summary stage (skip if already complete) ---
+        if pdf.processing_status != "complete":
+            # If a summary already exists on the row, treat as complete
+            if pdf.summary:
+                pdf.processing_status = "complete"
+                db.add(pdf)
+                await db.commit()
+                yield "Summary already present; marked complete."
+                yield "done"
                 return
 
-            yield "Creating chunks..."
-            split_docs = await asyncio.to_thread(self._run_splitter, docs)
-            if not split_docs:
-                yield "Error: Failed to split documents"
+            yield "Generating summary..."
+            summary_text = await self._create_summary(docs, pdf.original_filename)
+
+            if summary_text:
+                pdf.summary = summary_text
+                pdf.processing_status = "complete"
+                db.add(pdf)
+                await db.commit()
+                yield "Summary created"
+            else:
+                # Summary failed; do not change processing_status so worker can retry
+                yield "Error: Failed to create summary"
                 return
-
-            yield "Generating embeddings..."
-            embeddings = await self._embed_docs(split_docs)
-            if embeddings is None:
-                yield "Error: Failed to generate embeddings"
-                return
-
-            yield "Storing embeddings..."
-            await self._store_embeddings(split_docs, embeddings, pdf.id)
-
-        pdf.processing_status = "embeddings_complete"
-        await db.commit()
-
-        yield "Generating summary..."
-        summary = await self._create_summary(docs, pdf.original_filename)
-        if summary:
-            pdf.summary = summary
-            pdf.processing_status = "complete"
-            await db.commit()
-            yield "Summary created"
-        else:
-            yield "Error: Failed to create summary"
 
         yield "done"
 
@@ -244,6 +289,7 @@ class PDFProcessor:
 
             return result["output_text"]
         except Exception:
+            logger.exception("Error creating summary")
             return None
 
     async def delete_embeddings(self, pdf_id: int) -> bool:
