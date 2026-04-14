@@ -29,20 +29,23 @@ config = get_config()
 
 
 async def get_notebook_pdfs(
-    notebook_id: int, user_id: int, pdf_ids: list[int] | None, db: AsyncSession
-) -> list[int]:
-    """Returns list of pdf_ids for the notebook."""
+    notebook_id: str, user_id: int, pdf_ids: list[int] | None, db: AsyncSession
+) -> tuple[list[int], Notebook]:
+    """Resolve notebook by external notebook_id (string) and return pdf ids and Notebook.
+    Returns (pdf_ids, notebook).
+    """
     result = await db.execute(
         select(Notebook).where(
-            and_(Notebook.id == notebook_id, Notebook.user_id == user_id)
+            and_(Notebook.notebook_id == notebook_id, Notebook.user_id == user_id)
         )
     )
     notebook = result.scalar_one_or_none()
     if not notebook:
         raise HTTPException(status_code=404, detail="Notebook not found")
 
+    # Query PDFs using numeric notebook.id FK
     query = select(PDF).where(
-        and_(PDF.notebook_id == notebook_id, PDF.processing_status == "complete")
+        and_(PDF.notebook_id == notebook.id, PDF.processing_status == "complete")
     )
 
     if pdf_ids:
@@ -56,7 +59,7 @@ async def get_notebook_pdfs(
             status_code=400, detail="One or more PDFs not found or not complete"
         )
 
-    return [pdf.id for pdf in pdfs]
+    return [pdf.id for pdf in pdfs], notebook
 
 
 @router.post("/query")
@@ -65,8 +68,10 @@ async def chat_query(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # 1. Get PDF ids for this notebook
-    pdf_ids = await get_notebook_pdfs(request.notebook_id, user.id, request.pdf_ids, db)
+    # 1. Get PDF ids for this notebook and the notebook object
+    pdf_ids, notebook = await get_notebook_pdfs(
+        request.notebook_id, user.id, request.pdf_ids, db
+    )
 
     if not pdf_ids:
         raise HTTPException(
@@ -87,7 +92,8 @@ async def chat_query(
     ):
         user_message = ChatMessage(
             user_id=user.id,
-            notebook_id=request.notebook_id,
+            # store numeric FK
+            notebook_id=notebook.id,
             session_id=request.session_id,
             role="user",
             content=request.query,
@@ -96,7 +102,7 @@ async def chat_query(
 
         assistant_message = ChatMessage(
             user_id=user.id,
-            notebook_id=request.notebook_id,
+            notebook_id=notebook.id,
             session_id=request.session_id,
             role="assistant",
             content=classification.conversational_response,
@@ -138,10 +144,10 @@ async def chat_query(
         request.session_id, db, config.max_history_messages
     )
 
-    # Save user message
+    # Persist user message using numeric notebook FK
     user_message = ChatMessage(
         user_id=user.id,
-        notebook_id=request.notebook_id,
+        notebook_id=notebook.id,
         session_id=request.session_id,
         role="user",
         content=request.query,
@@ -184,7 +190,7 @@ async def chat_query(
             async with AsyncSessionLocal() as session:
                 assistant_message = ChatMessage(
                     user_id=user.id,
-                    notebook_id=request.notebook_id,
+                    notebook_id=notebook.id,
                     session_id=request.session_id,
                     role="assistant",
                     content=full_response,
