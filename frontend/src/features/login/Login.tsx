@@ -1,12 +1,13 @@
 import { useState } from "react";
 import logo from "@/assets/logo.png";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
 
   // Signin state
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
   // Signup state
@@ -15,6 +16,34 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
 
   const router = useRouter();
+
+  const { login, register, loading } = useAuth();
+
+const handleLogin = async () => {
+  try {
+    await login(loginUsername, loginPassword);
+    router.push("/notebook");
+  } catch (err: any) {
+    alert(err?.detail || "Login failed");
+  }
+};
+
+const handleSignup = async () => {
+  try {
+    await register({
+      full_name: name,
+      email,
+      password,
+      username: email,
+    });
+
+    await login(email, password);
+
+    router.push("/notebook");
+  } catch (err: any) {
+    alert(err?.detail || "Signup failed");
+  }
+};
 
   return (
     <div className="h-screen w-screen bg-white flex flex-col">
@@ -65,12 +94,12 @@ export default function AuthPage() {
             <>
                   {/* EMAIL */}
               <div className="flex flex-col mb-4">
-                <label className="mb-1 text-sm text-[#434a54]">Email</label>
+                <label className="mb-1 text-sm text-[#434a54]">Username</label>
                 <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="Enter your email"
+                  type="text"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  placeholder="Enter your username"
                   className="px-4 py-3 rounded-xl border border-[#e5e8ec] focus:outline-none 
                     focus:border-[#1b78ff] focus:ring-4 focus:ring-blue-300/20 transition"
                 />
@@ -89,11 +118,13 @@ export default function AuthPage() {
                 />
               </div>
 
-              <button
-              onClick={() => router.push("/notebook")}
-               className="w-full h-12 bg-[#1b78ff] text-white rounded-xl font-medium hover:shadow-lg transition">
-                Sign In
-              </button>
+             <button
+  onClick={handleLogin}
+  disabled={loading}
+  className="w-full h-12 bg-[#1b78ff] text-white rounded-xl font-medium hover:shadow-lg transition"
+>
+  {loading ? "Signing in..." : "Sign In"}
+</button>
 
               <p className="text-center text-sm text-gray-500 mt-5">
                 Don’t have an account?{" "}
@@ -149,10 +180,13 @@ export default function AuthPage() {
                 />
               </div>
 
-              <button onClick={() => router.push("/notebook")}
-              className="w-full h-12 bg-[#1b78ff] text-white rounded-xl font-medium hover:shadow-lg transition">
-                Create Account
-              </button>
+            <button
+  onClick={handleSignup}
+  disabled={loading}
+  className="w-full h-12 bg-[#1b78ff] text-white rounded-xl font-medium hover:shadow-lg transition"
+>
+  {loading ? "Creating..." : "Create Account"}
+</button>
 
               <p className="text-center text-sm text-gray-500 mt-5">
                 Already have an account?{" "}

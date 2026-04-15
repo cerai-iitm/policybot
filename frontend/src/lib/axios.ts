@@ -12,10 +12,9 @@ const api = axios.create({
 // Request interceptor (attach token)
 api.interceptors.request.use((config) => {
   const token = getToken();
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+ if (token) {
+  (config.headers as any).Authorization = `Bearer ${token}`;
+}
   return config;
 });
 

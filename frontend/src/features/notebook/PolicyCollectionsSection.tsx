@@ -88,7 +88,7 @@ const PolicyCollectionsSection = ({ notebooks, active, onSelect }: Props) => {
 
       <div className="flex gap-6 overflow-x-auto no-scrollbar pb-6">
         {notebooks.map((nb) => (
-          <div key={nb.notebook_id} className="flex-shrink-0">
+          <div key={nb.notebook_id} className="shrink-0">
             <Card
               img={getNotebookImage(nb.title)}
               title={nb.title}

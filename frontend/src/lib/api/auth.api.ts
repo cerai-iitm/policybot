@@ -11,7 +11,7 @@ export const loginUser = async (data: LoginPayload) => {
   formData.append("username", data.username);
   formData.append("password", data.password);
 
-  const res = await api.post("/auth/login/", formData, {
+  const res = await api.post("/auth/login", formData, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
 
