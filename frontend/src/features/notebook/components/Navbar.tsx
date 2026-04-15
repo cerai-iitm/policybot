@@ -26,23 +26,9 @@ const Navbar = () => {
         />
 </Link>
         {/* Desktop Links */}
-        <div className="hidden md:flex items-center gap-10">
+        <div className="hidden md:flex items-center gap-4">
 
-          <Link
-            href="/"
-            className="relative text-gray-800 font-medium transition duration-300 hover:text-primary group"
-          >
-            Overview
-            <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
-          </Link>
-
-          <Link
-            href="/notebook"
-            className="relative text-gray-800 font-medium transition duration-300 hover:text-primary group"
-          >
-            Policy Notebooks
-            <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
-          </Link>
+         
 
           <a
             href="https://github.com/cerai-iitm/policybot.git"
@@ -103,11 +89,15 @@ const Navbar = () => {
 
          
           
-          <Link href="/notebook">
-            <button className="border border-gray-400 px-6 py-2 rounded-xl transition duration-300 bg-primary text-white hover:scale-105">
-              Get Started
-            </button>
-          </Link>
+      <div className="ml-2">
+  <button
+  
+    aria-label="User profile"
+    className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-700 hover:scale-105 transition"
+  >
+    R
+  </button>
+</div>
 
         </div>
 
