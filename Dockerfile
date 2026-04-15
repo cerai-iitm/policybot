@@ -93,7 +93,7 @@ USER appuser
 
 # Run app with hot reload
 ENTRYPOINT [ "./entrypoint.sh" ]
-CMD ["sh", "-c", "cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+CMD ["sh", "-c", "cd backend && ENVIRONMENT=development uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
 
 # ==============================================================================
 # Production stage

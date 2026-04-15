@@ -41,6 +41,7 @@ help:
 	@echo "  make db-history        Show migration history"
 	@echo "  make db-upgrade        Run pending migrations"
 	@echo "  make db-migrate        Create new migration (requires MESSAGE=)"
+	@echo "  make generate-migrations  Generate fresh migration based on current models"
 	@echo ""
 	@echo "INFORMATION:"
 	@echo "  make help              Show this message"
@@ -139,6 +140,15 @@ ifndef MESSAGE
 endif
 	@echo "Creating new migration: $(MESSAGE)..."
 	@docker exec -u root $(BACKEND_CONTAINER) alembic revision --autogenerate -m "$(MESSAGE)"
+	@echo "✅ Migration created inside container. Syncing to host..."
+	@docker cp $(BACKEND_CONTAINER):/app/migrations/versions/. backend/migrations/versions/
+	@echo "✅ Migration synced to host. Review it in backend/migrations/versions/"
+
+# Generate fresh migration based on current models - runs inside container and syncs to host
+.PHONY: generate-migrations
+generate-migrations: check-backend
+	@echo "Generating fresh migration based on current models..."
+	@docker exec -u root $(BACKEND_CONTAINER) alembic revision --autogenerate -m "auto_generated"
 	@echo "✅ Migration created inside container. Syncing to host..."
 	@docker cp $(BACKEND_CONTAINER):/app/migrations/versions/. backend/migrations/versions/
 	@echo "✅ Migration synced to host. Review it in backend/migrations/versions/"

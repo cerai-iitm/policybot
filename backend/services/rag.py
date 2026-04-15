@@ -186,7 +186,7 @@ async def retrieve_chunks(
             must=[
                 FieldCondition(
                     key="pdf_id",
-                    match=MatchAny(values=pdf_ids),
+                    match=MatchAny(any=pdf_ids),
                 )
             ]
         )

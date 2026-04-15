@@ -8,7 +8,8 @@ from pydantic import BaseModel
 class ChatQueryRequest(BaseModel):
     query: str
     session_id: str
-    notebook_id: int
+    # External API should pass notebook_id as the public string (eg "nb_xxx")
+    notebook_id: str
     pdf_ids: list[int] | None = None
 
 

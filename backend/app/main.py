@@ -1,14 +1,21 @@
-import os
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-# from fastapi.staticfiles import StaticFiles  # Frontend disabled
-# from fastapi.responses import HTMLResponse, FileResponse  # Frontend disabled
+from contextlib import asynccontextmanager
 
-from .config import get_config
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from api.routes.auth import router as auth_router
+from api.routes.chat import router as chat_router
 from api.routes.notebooks import router as notebooks_router
 from api.routes.pdfs import router as pdfs_router
-from api.routes.chat import router as chat_router
+
+from .config import get_config
+from .logger import configure_logging
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    configure_logging()
+    yield
 
 
 def create_app():
@@ -22,6 +29,7 @@ def create_app():
         redoc_url="/policybot/redoc"
         if get_config().environment == "development"
         else None,
+        lifespan=lifespan,
     )
 
     app.add_middleware(
