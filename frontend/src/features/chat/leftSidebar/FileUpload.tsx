@@ -2,11 +2,11 @@
    Imports
    ============================================================ */
 
-import { withBase } from "@/lib/url";
+import { withBase } from "@/api/core/url";
 import React, { useState, useRef, useEffect } from "react";
 import addicon from "@/assets/add.png";
 import { createPortal } from "react-dom";
-import { api, monitorPdfProcessing } from "@/lib/router";
+import { api, monitorPdfProcessing } from "@/api/router";
 
 
 import {

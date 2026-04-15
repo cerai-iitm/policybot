@@ -7,8 +7,8 @@ import Navbar from "@/features/notebook/Navbar";
 import PolicyCollectionsSection from "@/features/notebook/PolicyCollectionsSection";
 import PolicyTopicsSection from "@/features/notebook/PolicyTopicsSection";
 
-import { listNotebooks, listPdfs } from "@/lib/router";
-import { NotebookListItem, FirstNotebookPDFItem } from "@/lib/interfaces";
+import { listNotebooks, listPdfs } from "@/api/router";
+import { NotebookListItem, FirstNotebookPDFItem } from "@/api/interfaces";
 
 function NotebookContent() {
   const [notebooks, setNotebooks] = useState<NotebookListItem[]>([]);

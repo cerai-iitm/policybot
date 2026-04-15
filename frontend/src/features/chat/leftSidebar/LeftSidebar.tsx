@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import SourceItem from "./SourceItem";
 import FileUpload from "./FileUpload";
-import { withBase } from "@/lib/url";
+import { withBase } from "@/api/core/url";
 
 import sidebaricon from "@/assets/sidebar.png";
 import selectAllChecked from "@/assets/marked.png";
@@ -13,9 +13,9 @@ import logo from "@/assets/logo.png";
 import { FiMenu, FiX } from "react-icons/fi";
 import { useNotebookId } from "@/hooks/useNotebookId";
 
-import { listPdfs } from "@/lib/router";
-import type { PDFListItem } from "@/lib/interfaces";
-import type { UIPDFItem } from "@/lib/interfaces";
+import { listPdfs } from "@/api/router";
+import type { PDFListItem } from "@/api/interfaces";
+import type { UIPDFItem } from "@/api/interfaces";
 
 export type SidebarItem = UIPDFItem;
 

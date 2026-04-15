@@ -1,5 +1,5 @@
 import Card from "./components/Card"
-import { NotebookListItem } from "@/lib/interfaces";
+import { NotebookListItem } from "@/api/interfaces";
 import AiImg from "@/assets/notebookbg/ai.jpg";
 import EducationImg from "@/assets/notebookbg/education.jpg";
 import UnionBudgetImg from "@/assets/notebookbg/unionbudget.png";

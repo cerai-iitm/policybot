@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { FirstNotebookPDFItem } from "@/lib/interfaces"
+import { FirstNotebookPDFItem } from "@/api/interfaces"
 import TopicRow from "./TopicRow"
 import { useRouter } from "next/navigation";
 

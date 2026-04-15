@@ -4,7 +4,7 @@ import {
   FiTrash2,
 } from "react-icons/fi";
 import { SidebarItem } from "./LeftSidebar";
-import { withBase } from "@/lib/url";
+import { withBase } from "@/api/core/url";
 import docicon from "@/assets/doc.png";
 import uncheckedicon from "@/assets/unmarked.png";
 import checkedicon from "@/assets/marked.png";

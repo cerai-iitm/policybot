@@ -6,7 +6,7 @@ import ChatInput from "./ChatInput";
 import { SidebarItem } from "../leftSidebar/LeftSidebar";
 import { useTheme } from "next-themes";
 import { v4 as uuidv4 } from "uuid";
-import { withBase } from "@/lib/url";
+import { withBase } from "@/api/core/url";
 import ModelSelector from "./ModelSelector";
 import { useAdmin } from "@/features/chat/context/AdminContext";
 import logo from '@/assets/logo.png'
@@ -18,7 +18,7 @@ import SuggestedQuestions from "./SuggestedQuestions";
 
 import { FiMenu } from "react-icons/fi";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { getPdfSummary, queryChat, getSuggestedQueries } from "@/lib/router";
+import { getPdfSummary, queryChat, getSuggestedQueries } from "@/api/router";
 import { useNotebookId } from "@/hooks/useNotebookId";
 
 

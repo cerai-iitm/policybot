@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { resolveNotebookId } from "@/lib/notebook";
+import { resolveNotebookId } from "@/api/notebook";
 
 export function useNotebookId(): string {
   const searchParams = useSearchParams();
