@@ -38,7 +38,7 @@ export default function HomePage() {
 
   
    <button
-          onClick={() => router.push("/login")}
+          onClick={() => router.push("/notebook")}
           className="mt-12 bg-primary text-white px-8 py-4 rounded-xl hover:scale-105 transition"
         >
           Try PolicyBot

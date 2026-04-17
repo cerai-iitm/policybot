@@ -1,207 +1,256 @@
+"use client";
+
 import { useState } from "react";
 import logo from "@/assets/logo.png";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
+import Link from "next/link";
 
 export default function AuthPage() {
-  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
 
-  // Signin state
-  const [loginUsername, setLoginUsername] = useState("");
+  // Signin
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  // Signup state
+  // Signup
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const router = useRouter();
+  const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<any>({});
 
+  const router = useRouter();
   const { login, register, loading } = useAuth();
 
-const handleLogin = async () => {
-  try {
-    await login(loginUsername, loginPassword);
-    router.push("/notebook");
-  } catch (err: any) {
-    alert(err?.detail || "Login failed");
-  }
-};
+  // ✅ RESET WHEN SWITCHING
+  const switchMode = (newMode: "signin" | "signup") => {
+    setMode(newMode);
+    setError("");
+    setFieldErrors({});
+    setLoginEmail("");
+    setLoginPassword("");
+    setName("");
+    setEmail("");
+    setPassword("");
+  };
 
-const handleSignup = async () => {
-  try {
-    await register({
-      full_name: name,
-      email,
-      password,
-      username: email,
-    });
+  // ✅ VALIDATION
+  const validate = () => {
+    const errors: any = {};
 
-    await login(email, password);
+    if (mode === "signup" && !name.trim()) {
+      errors.name = "Full name is required";
+    }
 
-    router.push("/notebook");
-  } catch (err: any) {
-    alert(err?.detail || "Signup failed");
-  }
-};
+    const currentEmail = mode === "signin" ? loginEmail : email;
+
+    if (!currentEmail.trim()) {
+      errors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(currentEmail)) {
+      errors.email = "Enter a valid email";
+    }
+
+    const currentPassword = mode === "signin" ? loginPassword : password;
+
+    if (!currentPassword) {
+      errors.password = "Password is required";
+    } else if (currentPassword.length < 6) {
+      errors.password = "Minimum 6 characters";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // ✅ LOGIN
+  const handleLogin = async () => {
+    setError("");
+
+    if (!validate()) return;
+
+    try {
+      await login(loginEmail, loginPassword);
+      router.push("/notebook");
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.detail ||
+        err?.message ||
+        "Invalid credentials";
+
+      setError(message);
+    }
+  };
+
+  // ✅ SIGNUP
+  const handleSignup = async () => {
+    setError("");
+
+    if (!validate()) return;
+
+    try {
+      await register({
+        full_name: name,
+        email,
+        password,
+        username: email,
+      });
+
+      await login(email, password);
+      router.push("/notebook");
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.detail ||
+        err?.message ||
+        "Signup failed";
+
+      setError(message);
+    }
+  };
+
+  // ✅ FIX ENTER DOUBLE TRIGGER
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      mode === "signin" ? handleLogin() : handleSignup();
+    }
+  };
 
   return (
     <div className="h-screen w-screen bg-white flex flex-col">
 
-      {/* 🔹 TOP LEFT LOGO */}
-      <div className="absolute top-6 left-8">
-        <img src={logo.src} alt="Logo" className="w-24" />
+      {/* LOGO */}
+      <div className="absolute top-8 left-10">
+        <Link href="/">
+          <img
+            src={logo.src}
+            alt="Logo"
+            className="h-6 w-auto cursor-pointer opacity-90 hover:opacity-70 transition"
+          />
+        </Link>
       </div>
 
-      {/* 🔹 CENTER FORM */}
-      <div className="flex flex-1 items-center justify-center">
-        <div className="w-100 bg-white shadow-xl rounded-2xl p-10">
+      {/* CENTER */}
+      <div className="flex flex-1 items-center justify-center px-6">
+        <div className="w-full max-w-md">
 
-          {/* 🔹 HEADING */}
-          <h1 className="text-[26px] font-semibold font-poppins leading-tight  text-center mb-6">
-            {activeTab === "signin" ? "Welcome Back" : "Create Account"}
+          {/* TITLE */}
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">
+            {mode === "signin" ? "Sign in" : "Create your account"}
           </h1>
 
-          {/* 🔹 TAB SWITCH */}
-          <div className="relative flex bg-[#f1f3f6] rounded-full p-1 mb-8">
-            <div
-              className={`absolute top-1 bottom-1 w-1/2 rounded-full bg-[#1b78ff] transition-all duration-300 ${
-                activeTab === "signin" ? "translate-x-0" : "translate-x-full"
-              }`}
-            />
+          <p className="text-sm text-gray-500 mb-8">
+            {mode === "signin" ? "Welcome back" : "Start using PolicyBot"}
+          </p>
 
-            <div
-              onClick={() => setActiveTab("signin")}
-              className={`flex-1 text-center py-2 cursor-pointer relative z-10 font-medium ${
-                activeTab === "signin" ? "text-white" : "text-gray-600"
-              }`}
-            >
-              Sign In
-            </div>
+          {/* FORM */}
+          <div className="flex flex-col gap-4" onKeyDown={handleKeyDown}>
 
-            <div
-              onClick={() => setActiveTab("signup")}
-              className={`flex-1 text-center py-2 cursor-pointer relative z-10 font-medium ${
-                activeTab === "signup" ? "text-white" : "text-gray-600"
-              }`}
-            >
-              Sign Up
-            </div>
-          </div>
-
-          {/* 🔹 SIGN IN FORM */}
-          {activeTab === "signin" && (
-            <>
-                  {/* EMAIL */}
-              <div className="flex flex-col mb-4">
-                <label className="mb-1 text-sm text-[#434a54]">Username</label>
-                <input
-                  type="text"
-                  value={loginUsername}
-                  onChange={(e) => setLoginUsername(e.target.value)}
-                  placeholder="Enter your username"
-                  className="px-4 py-3 rounded-xl border border-[#e5e8ec] focus:outline-none 
-                    focus:border-[#1b78ff] focus:ring-4 focus:ring-blue-300/20 transition"
-                />
-              </div>
-
-              {/* PASSWORD */}
-              <div className="flex flex-col mb-6">
-                <label className="mb-1 text-sm text-[#434a54]">Password</label>
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="px-4 py-3 rounded-xl border border-[#e5e8ec] focus:outline-none 
-                    focus:border-[#1b78ff] focus:ring-4 focus:ring-blue-300/20 transition"
-                />
-              </div>
-
-             <button
-  onClick={handleLogin}
-  disabled={loading}
-  className="w-full h-12 bg-[#1b78ff] text-white rounded-xl font-medium hover:shadow-lg transition"
->
-  {loading ? "Signing in..." : "Sign In"}
-</button>
-
-              <p className="text-center text-sm text-gray-500 mt-5">
-                Don’t have an account?{" "}
-                <span
-                  onClick={() => setActiveTab("signup")}
-                  className="text-blue-600 cursor-pointer font-medium"
-                >
-                  Sign up
-                </span>
-              </p>
-            </>
-          )}
-
-          {/* 🔹 SIGN UP FORM */}
-          {activeTab === "signup" && (
-            <>
-               {/* NAME */}
-              <div className="flex flex-col mb-4">
-                <label className="mb-1 text-sm text-[#434a54]">Full Name</label>
+            {/* FULL NAME */}
+            {mode === "signup" && (
+              <div>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name"
-                  className="px-4 py-3 rounded-xl border border-[#e5e8ec] focus:outline-none 
-                    focus:border-[#1b78ff] focus:ring-4 focus:ring-blue-300/20 transition"
+                  placeholder="Full name"
+                  className={`h-11 w-full px-4 rounded-lg border bg-gray-50 
+                  focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 transition
+                  ${fieldErrors.name ? "border-red-400" : "border-gray-300"}`}
                 />
+                {fieldErrors.name && (
+                  <p className="text-xs text-red-500 mt-1">{fieldErrors.name}</p>
+                )}
               </div>
+            )}
 
-              {/* EMAIL */}
-              <div className="flex flex-col mb-4">
-                <label className="mb-1 text-sm text-[#434a54]">Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="px-4 py-3 rounded-xl border border-[#e5e8ec] focus:outline-none 
-                    focus:border-[#1b78ff] focus:ring-4 focus:ring-blue-300/20 transition"
-                />
+            {/* EMAIL */}
+            <div>
+              <input
+                type="email"
+                value={mode === "signin" ? loginEmail : email}
+                onChange={(e) =>
+                  mode === "signin"
+                    ? setLoginEmail(e.target.value)
+                    : setEmail(e.target.value)
+                }
+                placeholder="Email"
+                autoComplete="email"
+                className={`h-11 w-full px-4 rounded-lg border bg-gray-50 
+                focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 transition
+                ${fieldErrors.email ? "border-red-400" : "border-gray-300"}`}
+              />
+              {fieldErrors.email && (
+                <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>
+              )}
+            </div>
+
+            {/* PASSWORD */}
+            <div>
+              <input
+                type="password"
+                value={mode === "signin" ? loginPassword : password}
+                onChange={(e) =>
+                  mode === "signin"
+                    ? setLoginPassword(e.target.value)
+                    : setPassword(e.target.value)
+                }
+                placeholder="Password"
+                autoComplete="current-password"
+                className={`h-11 w-full px-4 rounded-lg border bg-gray-50 
+                focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 transition
+                ${fieldErrors.password ? "border-red-400" : "border-gray-300"}`}
+              />
+              {fieldErrors.password && (
+                <p className="text-xs text-red-500 mt-1">{fieldErrors.password}</p>
+              )}
+            </div>
+
+            {/* ✅ GLOBAL ERROR (IMPROVED UI) */}
+            {error && (
+              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                {error}
               </div>
+            )}
 
-              {/* PASSWORD */}
-              <div className="flex flex-col mb-6">
-                <label className="mb-1 text-sm text-[#434a54]">Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Create password"
-                  className="px-4 py-3 rounded-xl border border-[#e5e8ec] focus:outline-none 
-                    focus:border-[#1b78ff] focus:ring-4 focus:ring-blue-300/20 transition"
-                />
-              </div>
-
-            <button
-  onClick={handleSignup}
+            {/* BUTTON */}
+          <button
+  onClick={mode === "signin" ? handleLogin : handleSignup}
   disabled={loading}
-  className="w-full h-12 bg-[#1b78ff] text-white rounded-xl font-medium hover:shadow-lg transition"
+  className="h-11 rounded-lg bg-primary text-white font-medium 
+  hover:opacity-95 active:scale-[0.99] transition 
+  disabled:opacity-60 disabled:cursor-not-allowed 
+  flex items-center justify-center gap-2"
 >
-  {loading ? "Creating..." : "Create Account"}
+  {loading && (
+    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+  )}
+
+  {loading
+    ? mode === "signin"
+      ? "Signing in..."
+      : "Creating account..."
+    : mode === "signin"
+    ? "Sign in"
+    : "Create account"}
 </button>
+          </div>
 
-              <p className="text-center text-sm text-gray-500 mt-5">
-                Already have an account?{" "}
-                <span
-                  onClick={() => setActiveTab("signin")}
-                  className="text-blue-600 cursor-pointer font-medium"
-                >
-                  Sign in
-                </span>
-              </p>
-            </>
-          )}
-
-        
-
+          {/* SWITCH */}
+          <p className="text-sm text-gray-500 mt-6">
+            {mode === "signin"
+              ? "Don’t have an account?"
+              : "Already have an account?"}{" "}
+            <span
+              onClick={() =>
+                switchMode(mode === "signin" ? "signup" : "signin")
+              }
+              className="text-[#1e40af] cursor-pointer font-medium hover:underline"
+            >
+              {mode === "signin" ? "Sign up" : "Sign in"}
+            </span>
+          </p>
         </div>
       </div>
     </div>

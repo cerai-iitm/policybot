@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { loginUser, registerUser } from "@/lib/api/auth.api";
 import { LoginResponse, RegisterPayload } from "@/lib/types/auth";
+import Cookies from "js-cookie";
 
 export const useAuth = () => {
   const [loading, setLoading] = useState(false);
@@ -10,7 +11,12 @@ export const useAuth = () => {
     try {
       const data: LoginResponse = await loginUser({ username, password });
 
-      localStorage.setItem("token", data.access_token);
+      // ✅ Store token in cookie
+      Cookies.set("token", data.access_token, {
+        expires: 7, // days
+        path: "/",
+        sameSite: "lax",
+      });
 
       return data;
     } catch (err: any) {
@@ -33,7 +39,7 @@ export const useAuth = () => {
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
+    Cookies.remove("token");
     window.location.href = "/login";
   };
 
