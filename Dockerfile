@@ -60,8 +60,9 @@ RUN set -e; \
 FROM base AS development
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/logs /app/static/frontend && \
-    chown -R appuser:appuser /app
+RUN mkdir -p /app/backend/logs /app/backend/uploads /app/static/frontend && \
+    chown -R appuser:appuser /app && \
+    chmod 755 /app/backend/logs /app/backend/uploads
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -101,8 +102,9 @@ CMD ["sh", "-c", "cd backend && ENVIRONMENT=development uvicorn app.main:app --h
 FROM base AS production
 
 # Create directories with proper ownership
-RUN mkdir -p /app/backend/logs /app/static/frontend && \
-    chown -R appuser:appuser /app
+RUN mkdir -p /app/backend/logs /app/backend/uploads /app/static/frontend && \
+    chown -R appuser:appuser /app && \
+    chmod 755 /app/backend/logs /app/backend/uploads
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
