@@ -11,6 +11,7 @@ import wsailogo from "@/assets/logo/wsai.png";
 import { getMe } from "@/lib/api";
 import { User } from "@/lib/types/auth";
 import { useAuth } from "@/lib/hooks/useAuth";
+import ProfileDropdown from "./ProfileDropdown";
 
 
 
@@ -118,44 +119,7 @@ const Navbar = () => {
          
           
      {/* ✅ Profile */}
-        <div className="relative group ml-2">
-
-          {/* Avatar */}
-          <button className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-700 hover:scale-105 transition">
-            {user?.username?.charAt(0).toUpperCase() || "?"}
-          </button>
-
-          {/* ✅ Hover Dropdown */}
-          <div className="absolute right-0 mt-3 w-56 bg-white border border-gray-200 rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-
-            <div className="p-4">
-              {loadingUser ? (
-                <p className="text-sm text-gray-500">Loading...</p>
-              ) : user ? (
-                <>
-                  <p className="text-sm font-semibold text-gray-800">
-                    {user.full_name}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    @{user.username}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-red-500">Failed to load</p>
-              )}
-            </div>
-
-            <div className="border-t">
-              <button
-                onClick={logout}
-                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 rounded-b-xl"
-              >
-                Logout
-              </button>
-            </div>
-
-          </div>
-        </div>
+     <ProfileDropdown />
 
 
         </div>
