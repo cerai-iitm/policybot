@@ -1,6 +1,7 @@
 from .chat_message import ChatMessage
 from .notebook import Notebook
 from .pdf import PDF
+from .pdf_suggested_query import PDFSuggestedQuery
 from .user import User
 
-__all__ = ["User", "Notebook", "PDF", "ChatMessage"]
+__all__ = ["User", "Notebook", "PDF", "ChatMessage", "PDFSuggestedQuery"]

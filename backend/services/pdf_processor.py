@@ -27,9 +27,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_config
 from db.models.pdf import PDF
+from db.models.pdf_suggested_query import PDFSuggestedQuery
 from providers.embedding.factory import get_embedding
 from providers.llm.factory import get_llm
 from services.qdrant_client import get_qdrant_client
+from services.suggested_queries import generate_suggested_queries
 
 warnings.filterwarnings("ignore")
 
@@ -55,7 +57,14 @@ class PDFProcessor:
             return
 
         yield "Checking for existing embeddings..."
-        embeddings_exist = await self._check_existing_embeddings(pdf.id)
+        embeddings_exist = False
+        try:
+            embeddings_exist = await self._check_existing_embeddings(
+                pdf.stored_filename
+            )
+        except Exception:
+            logger.exception("Error checking existing embeddings, assuming none exist")
+            embeddings_exist = False
 
         docs = None
 
@@ -93,17 +102,22 @@ class PDFProcessor:
                     return
 
                 yield "Storing embeddings..."
-                try:
-                    await self._store_embeddings(split_docs, embeddings, pdf.id)
-                except Exception:
-                    logger.exception("Error storing embeddings for pdf_id %s", pdf.id)
-                    yield "Error: Failed to store embeddings"
-                    return
+            try:
+                await self._store_embeddings(
+                    split_docs, embeddings, pdf.stored_filename
+                )
+            except Exception:
+                logger.exception(
+                    "Error storing embeddings for stored_filename %s",
+                    pdf.stored_filename,
+                )
+                yield "Error: Failed to store embeddings"
+                return
 
-                # Only mark embeddings_complete after successful upsert
-                pdf.processing_status = "embeddings_complete"
-                db.add(pdf)
-                await db.commit()
+            # Only mark embeddings_complete after successful upsert
+            pdf.processing_status = "embeddings_complete"
+            db.add(pdf)
+            await db.commit()
 
         else:
             # embeddings already marked complete in DB; ensure we have text for summary
@@ -124,19 +138,29 @@ class PDFProcessor:
                 yield "done"
                 return
 
-            yield "Generating summary..."
-            summary_text = await self._create_summary(docs, pdf.original_filename)
+        yield "Generating summary..."
+        summary_text = await self._create_summary(docs, pdf.original_filename)
 
-            if summary_text:
-                pdf.summary = summary_text
-                pdf.processing_status = "complete"
-                db.add(pdf)
-                await db.commit()
-                yield "Summary created"
+        if summary_text:
+            pdf.summary = summary_text
+            pdf.processing_status = "complete"
+            db.add(pdf)
+            await db.commit()
+            yield "Summary created"
+
+            # --- Suggested Queries stage ---
+            yield "Generating suggested queries..."
+            queries_created = await self._generate_suggested_queries(
+                pdf.summary, pdf_id, db
+            )
+            if queries_created:
+                yield "Suggested queries created"
             else:
-                # Summary failed; do not change processing_status so worker can retry
-                yield "Error: Failed to create summary"
-                return
+                yield "No suggested queries generated"
+        else:
+            # Summary failed; do not change processing_status so worker can retry
+            yield "Error: Failed to create summary"
+            return
 
         yield "done"
 
@@ -217,7 +241,7 @@ class PDFProcessor:
             return None
 
     async def _store_embeddings(
-        self, docs: List[Document], embeddings: np.ndarray, pdf_id: int
+        self, docs: List[Document], embeddings: np.ndarray, stored_filename: str
     ) -> None:
         client = get_qdrant_client()
         try:
@@ -237,7 +261,7 @@ class PDFProcessor:
                     vector=embeddings[i].tolist(),
                     payload={
                         "text": docs[i].page_content,
-                        "pdf_id": pdf_id,
+                        "stored_filename": stored_filename,
                         "page_number": docs[i].metadata.get("page_number"),
                     },
                 )
@@ -250,11 +274,15 @@ class PDFProcessor:
         finally:
             await client.close()
 
-    async def _check_existing_embeddings(self, pdf_id: int) -> bool:
+    async def _check_existing_embeddings(self, stored_filename: str) -> bool:
         client = get_qdrant_client()
         try:
             filter_ = Filter(
-                must=[FieldCondition(key="pdf_id", match=MatchValue(value=pdf_id))]
+                must=[
+                    FieldCondition(
+                        key="stored_filename", match=MatchValue(value=stored_filename)
+                    )
+                ]
             )
             result = await client.scroll(
                 collection_name=self.config.q_collection_name,
@@ -292,11 +320,39 @@ class PDFProcessor:
             logger.exception("Error creating summary")
             return None
 
-    async def delete_embeddings(self, pdf_id: int) -> bool:
+    async def _generate_suggested_queries(
+        self, summary: str, pdf_id: int, db: AsyncSession
+    ) -> bool:
+        """Generate and store suggested queries for a PDF."""
+        try:
+            queries = await generate_suggested_queries(summary)
+            if not queries:
+                return False
+
+            # Store each query in database
+            for i, query_text in enumerate(queries):
+                suggested_query = PDFSuggestedQuery(
+                    pdf_id=pdf_id,
+                    query_text=query_text,
+                    order_index=i,
+                )
+                db.add(suggested_query)
+            await db.commit()
+            return True
+        except Exception:
+            logger.exception("Error in _generate_suggested_queries")
+            await db.rollback()
+            return False
+
+    async def delete_embeddings(self, stored_filename: str) -> bool:
         client = get_qdrant_client()
         try:
             filter_ = Filter(
-                must=[FieldCondition(key="pdf_id", match=MatchValue(value=pdf_id))]
+                must=[
+                    FieldCondition(
+                        key="stored_filename", match=MatchValue(value=stored_filename)
+                    )
+                ]
             )
             from qdrant_client.http.models import FilterSelector
 
