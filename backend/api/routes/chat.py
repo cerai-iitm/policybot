@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.deps import get_current_user
 from api.schemas.chat import ChatHistoryResponse, ChatQueryRequest
 from app.config import get_config
+from app.prompts import (
+    RAG_CHAT_SYSTEM_MESSAGE,
+    RAG_CHAT_USER_MESSAGE_TEMPLATE,
+)
 from db.models.chat_message import ChatMessage
 from db.models.notebook import Notebook
 from db.models.pdf import PDF
@@ -29,10 +33,10 @@ config = get_config()
 
 
 async def get_notebook_pdfs(
-    notebook_id: str, user_id: int, pdf_ids: list[int] | None, db: AsyncSession
-) -> tuple[list[int], Notebook]:
-    """Resolve notebook by external notebook_id (string) and return pdf ids and Notebook.
-    Returns (pdf_ids, notebook).
+    notebook_id: str, user_id: int, stored_filenames: list[str] | None, db: AsyncSession
+) -> tuple[list[str], Notebook]:
+    """Resolve notebook by external notebook_id (string) and return stored_filenames and Notebook.
+    Returns (stored_filenames, notebook).
     """
     result = await db.execute(
         select(Notebook).where(
@@ -48,18 +52,18 @@ async def get_notebook_pdfs(
         and_(PDF.notebook_id == notebook.id, PDF.processing_status == "complete")
     )
 
-    if pdf_ids:
-        query = query.where(PDF.id.in_(pdf_ids))
+    if stored_filenames:
+        query = query.where(PDF.stored_filename.in_(stored_filenames))
 
     result = await db.execute(query)
     pdfs = result.scalars().all()
 
-    if pdf_ids and len(pdfs) != len(pdf_ids):
+    if stored_filenames and len(pdfs) != len(stored_filenames):
         raise HTTPException(
             status_code=400, detail="One or more PDFs not found or not complete"
         )
 
-    return [pdf.id for pdf in pdfs], notebook
+    return [pdf.stored_filename for pdf in pdfs], notebook
 
 
 @router.post("/query")
@@ -68,19 +72,19 @@ async def chat_query(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # 1. Get PDF ids for this notebook and the notebook object
-    pdf_ids, notebook = await get_notebook_pdfs(
-        request.notebook_id, user.id, request.pdf_ids, db
+    # 1. Get PDF stored_filenames for this notebook and the notebook object
+    stored_filenames, notebook = await get_notebook_pdfs(
+        request.notebook_id, user.id, request.stored_filenames, db
     )
 
-    if not pdf_ids:
+    if not stored_filenames:
         raise HTTPException(
             status_code=400,
             detail="No completed PDFs found in the specified notebook",
         )
 
     # 2. Get PDF summaries for classification
-    pdf_summaries = await get_pdf_summaries(pdf_ids, db)
+    pdf_summaries = await get_pdf_summaries(stored_filenames, db)
 
     # 3. Classify query (conversational vs RAG)
     classification = await classify_query(request.query, pdf_summaries)
@@ -117,12 +121,12 @@ async def chat_query(
         }
 
     # 5. If RAG, generate HYDE + rewritten queries
-    hyde_result = await generate_hyde_and_queries(request.query)
+    hyde_result = await generate_hyde_and_queries(request.query, pdf_summaries)
 
     # 6. Retrieve chunks using RRF
     context_chunks = await retrieve_chunks(
         query=request.query,
-        pdf_ids=pdf_ids,
+        stored_filenames=stored_filenames,
         hyde_answer=hyde_result.hyde_answer,
         rewritten_queries=hyde_result.rewritten_queries,
         top_k=5,
@@ -134,7 +138,7 @@ async def chat_query(
     # Build context text
     context_text = "\n\n".join(
         [
-            f"[Source PDF ID: {chunk.get('pdf_id', 'unknown')} (page {chunk['page_number']})]\n{chunk['text']}"
+            f"[Source PDF: {chunk.get('stored_filename', 'unknown')} (page {chunk['page_number']})]\n{chunk['text']}"
             for chunk in context_chunks
         ]
     )
@@ -158,15 +162,9 @@ async def chat_query(
     # Use LangChain prompt with history
     prompt = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                "You are a helpful assistant. Use the conversation history and provided context to answer the user's question. Cite sources when possible.",
-            ),
+            RAG_CHAT_SYSTEM_MESSAGE,
             MessagesPlaceholder(variable_name="history"),
-            (
-                "user",
-                "Context: {context}\n\nQuestion: {question}",
-            ),
+            ("user", RAG_CHAT_USER_MESSAGE_TEMPLATE),
         ]
     )
 

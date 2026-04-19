@@ -17,6 +17,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_config
+from app.prompts import (
+    hyde_rewrite_system_prompt,
+    query_classifier_system_prompt,
+)
 from db.models.chat_message import ChatMessage
 from db.models.pdf import PDF
 from providers.embedding.factory import get_embedding
@@ -35,14 +39,14 @@ class HYDEQueries(BaseModel):
     rewritten_queries: List[str]
 
 
-async def get_pdf_summaries(pdf_ids: List[int], db: AsyncSession) -> str:
-    """Get combined summaries from PDF table using pdf_ids."""
-    if not pdf_ids:
+async def get_pdf_summaries(stored_filenames: List[str], db: AsyncSession) -> str:
+    """Get combined summaries from PDF table using stored_filenames."""
+    if not stored_filenames:
         return ""
 
     result = await db.execute(
         select(PDF.original_filename, PDF.summary).where(
-            PDF.id.in_(pdf_ids), PDF.summary.isnot(None)
+            PDF.stored_filename.in_(stored_filenames), PDF.summary.isnot(None)
         )
     )
     rows = result.all()
@@ -59,23 +63,7 @@ async def classify_query(query: str, pdf_summaries: str) -> QueryClassification:
     """Classify query as conversational or rag_question using LLM with structured output."""
     config = get_config()
     llm = get_llm()
-
-    system_prompt = f"""You are a query classifier. Given the user query and document summaries, determine if the query needs RAG retrieval or is a general conversational query.
-
-Document Summaries:
-{pdf_summaries if pdf_summaries else "No documents available."}
-
-User Query: {query}
-
-Classification rules:
-- If the query asks about specific information, explanations, or details from the documents → RAG question
-- If it's a greeting, general chat, or doesn't require document context → Conversational
-- If uncertain, classify as RAG question
-
-Return a JSON object with:
-- query_type: "conversational" or "rag_question"
-- conversational_response: If conversational, provide a direct response (string)
-"""
+    system_prompt = query_classifier_system_prompt(query, pdf_summaries)
 
     try:
         structured_llm = llm.with_structured_output(QueryClassification)
@@ -88,21 +76,13 @@ Return a JSON object with:
         )
 
 
-async def generate_hyde_and_queries(query: str, num_queries: int = 5) -> HYDEQueries:
+async def generate_hyde_and_queries(
+    query: str, pdf_summaries: str, num_queries: int = 5
+) -> HYDEQueries:
     """Generate HYDE answer + rewritten queries using LLM with structured output."""
     config = get_config()
     llm = get_llm()
-
-    system_prompt = f"""Given the user query, generate:
-1. A hypothetical document/answer that would answer this query
-2. {num_queries} different phrasings of this query for better semantic search
-
-Original Query: {query}
-
-Return a JSON object with:
-- hyde_answer: The hypothetical answer (2-3 sentences)
-- rewritten_queries: List of {num_queries} query variations attacking the question from different angles
-"""
+    system_prompt = hyde_rewrite_system_prompt(query, pdf_summaries, num_queries)
 
     try:
         structured_llm = llm.with_structured_output(HYDEQueries)
@@ -142,13 +122,13 @@ def _softmax_top_p_filter(scores, items, top_p=0.9, temperature=1.0):
 
 async def retrieve_chunks(
     query: str,
-    pdf_ids: List[int],
+    stored_filenames: List[str],
     hyde_answer: str | None = None,
     rewritten_queries: List[str] | None = None,
     top_k: int = 5,
 ) -> List[dict]:
     """Retrieve relevant chunks using RRF + reranking + top_p filtering."""
-    if not pdf_ids:
+    if not stored_filenames:
         return []
 
     config = get_config()
@@ -185,8 +165,8 @@ async def retrieve_chunks(
         filter_ = Filter(
             must=[
                 FieldCondition(
-                    key="pdf_id",
-                    match=MatchAny(any=pdf_ids),
+                    key="stored_filename",
+                    match=MatchAny(any=stored_filenames),
                 )
             ]
         )
@@ -219,7 +199,7 @@ async def retrieve_chunks(
             chunks_with_metadata.append(
                 {
                     "text": point.payload.get("text", ""),
-                    "pdf_id": point.payload.get("pdf_id", 0),
+                    "stored_filename": point.payload.get("stored_filename", ""),
                     "page_number": point.payload.get("page_number", 0),
                     "score": point.score,
                     "point_id": point.id,
@@ -250,7 +230,10 @@ async def retrieve_chunks(
 
         # Build final response with metadata for filtered chunks
         text_to_metadata = {
-            c["text"]: {"pdf_id": c["pdf_id"], "page_number": c["page_number"]}
+            c["text"]: {
+                "stored_filename": c["stored_filename"],
+                "page_number": c["page_number"],
+            }
             for c in chunks_with_metadata
         }
 
@@ -260,7 +243,7 @@ async def retrieve_chunks(
                 final_chunks.append(
                     {
                         "text": text,
-                        "pdf_id": text_to_metadata[text]["pdf_id"],
+                        "stored_filename": text_to_metadata[text]["stored_filename"],
                         "page_number": text_to_metadata[text]["page_number"],
                     }
                 )

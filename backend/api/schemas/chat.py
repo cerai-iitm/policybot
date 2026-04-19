@@ -10,7 +10,8 @@ class ChatQueryRequest(BaseModel):
     session_id: str
     # External API should pass notebook_id as the public string (eg "nb_xxx")
     notebook_id: str
-    pdf_ids: list[int] | None = None
+    # Use stored_filenames (UUID strings) instead of internal IDs
+    stored_filenames: list[str] | None = None
 
 
 class QueryClassification(BaseModel):

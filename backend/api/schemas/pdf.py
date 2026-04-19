@@ -1,12 +1,24 @@
 # api/schemas/pdf.py
-from pydantic import BaseModel
 from datetime import datetime
+
+from pydantic import BaseModel
+
+
+class SuggestedQueryResponse(BaseModel):
+    """Response model for a single suggested query."""
+
+    query_text: str
+    order_index: int
+
+    class Config:
+        from_attributes = True
 
 
 class PDFUploadResponse(BaseModel):
-    pdf_id: int
-    original_filename: str
+    """PDF upload response - uses stored_filename as identifier."""
+
     stored_filename: str
+    original_filename: str
     # External API should expose notebook_id as the public string (eg "nb_xxx")
     notebook_id: str
     file_path: str
@@ -18,14 +30,16 @@ class PDFUploadResponse(BaseModel):
 
 
 class PDFResponse(BaseModel):
-    id: int
-    original_filename: str
+    """PDF response with suggested queries - uses stored_filename as identifier."""
+
     stored_filename: str
+    original_filename: str
     # Return the external notebook_id string
     notebook_id: str
     processing_status: str
     summary: str | None = None
     uploaded_at: datetime
+    suggested_queries: list[SuggestedQueryResponse] = []
 
     class Config:
         from_attributes = True

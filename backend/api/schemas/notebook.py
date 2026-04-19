@@ -21,3 +21,8 @@ class NotebookResponse(BaseModel):
 
 class NotebookListResponse(BaseModel):
     notebooks: list[NotebookResponse]
+
+
+class NotebookUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
