@@ -7,7 +7,12 @@ import secrets
 from api.deps import get_current_user
 from db.session import get_db
 from db.models import User, Notebook
-from api.schemas.notebook import NotebookCreate, NotebookResponse, NotebookListResponse
+from api.schemas.notebook import (
+    NotebookCreate,
+    NotebookResponse,
+    NotebookListResponse,
+    NotebookUpdate,
+)
 
 router = APIRouter(prefix="/notebooks", tags=["notebooks"])
 
@@ -75,3 +80,29 @@ async def delete_notebook(
         raise HTTPException(status_code=404, detail="Notebook not found")
     await db.delete(notebook)
     await db.commit()
+
+
+@router.post("/update", response_model=NotebookResponse)
+async def update_notebook(
+    notebook_id: str,
+    notebook_data: NotebookUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Notebook).where(
+            Notebook.notebook_id == notebook_id, Notebook.user_id == current_user.id
+        )
+    )
+    notebook = result.scalar_one_or_none()
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+
+    if notebook_data.title is not None:
+        notebook.title = notebook_data.title
+    if notebook_data.description is not None:
+        notebook.description = notebook_data.description
+
+    await db.commit()
+    await db.refresh(notebook)
+    return notebook
