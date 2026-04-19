@@ -52,7 +52,7 @@ const PolicyCollectionsSection = ({ notebooks, active, onSelect }: Props) => {
           </button>
 
           <span className="text-gray-700 text-sm">
-            Featured notebooks
+            Featured Workspaces
           </span>
         </div>
 
@@ -67,14 +67,14 @@ const PolicyCollectionsSection = ({ notebooks, active, onSelect }: Props) => {
           {/* CREATE */}
           <button className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-full text-sm font-medium">
             <Plus size={16} />
-            Create new
+            Create Workspace
           </button>
         </div>
       </div>
 
       {/* 🔥 RECENT */}
       <h2 className="text-xl font-semibold mb-6">
-        Recent notebooks
+        Recent Workspaces
       </h2>
 
       <div className="flex gap-6 mb-12">
@@ -83,7 +83,7 @@ const PolicyCollectionsSection = ({ notebooks, active, onSelect }: Props) => {
 
       {/* 🔥 FEATURED */}
       <h2 className="text-xl font-semibold mb-6">
-        Featured notebooks
+        Featured Workspaces
       </h2>
 
       <div className="flex gap-6 overflow-x-auto no-scrollbar pb-6">

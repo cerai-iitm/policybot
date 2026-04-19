@@ -22,7 +22,7 @@ const Createcard = ({ onClick }: CardProps) => {
       </div>
 
       <p className="text-gray-800 font-medium text-base">
-        Create new notebook
+        Create a new workspace
       </p>
     </div>
   );

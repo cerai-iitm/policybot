@@ -16,16 +16,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
-
-    command: >
-      sh -c "
-      echo 'Waiting for postgres...';
-      while ! nc -z postgres 5432; do
-        sleep 1;
-      done;
-      echo 'Postgres started';
-      python -m backend.app.main
-      "  
     env_file:
       - ./backend/.env
     environment:
