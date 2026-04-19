@@ -17,6 +17,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_config
+from app.prompts import (
+    hyde_rewrite_system_prompt,
+    query_classifier_system_prompt,
+)
 from db.models.chat_message import ChatMessage
 from db.models.pdf import PDF
 from providers.embedding.factory import get_embedding
@@ -59,23 +63,7 @@ async def classify_query(query: str, pdf_summaries: str) -> QueryClassification:
     """Classify query as conversational or rag_question using LLM with structured output."""
     config = get_config()
     llm = get_llm()
-
-    system_prompt = f"""You are a query classifier. Given the user query and document summaries, determine if the query needs RAG retrieval or is a general conversational query.
-
-Document Summaries:
-{pdf_summaries if pdf_summaries else "No documents available."}
-
-User Query: {query}
-
-Classification rules:
-- If the query asks about specific information, explanations, or details from the documents → RAG question
-- If it's a greeting, general chat, or doesn't require document context → Conversational
-- If uncertain, classify as RAG question
-
-Return a JSON object with:
-- query_type: "conversational" or "rag_question"
-- conversational_response: If conversational, provide a direct response (string)
-"""
+    system_prompt = query_classifier_system_prompt(query, pdf_summaries)
 
     try:
         structured_llm = llm.with_structured_output(QueryClassification)
@@ -88,21 +76,13 @@ Return a JSON object with:
         )
 
 
-async def generate_hyde_and_queries(query: str, num_queries: int = 5) -> HYDEQueries:
+async def generate_hyde_and_queries(
+    query: str, pdf_summaries: str, num_queries: int = 5
+) -> HYDEQueries:
     """Generate HYDE answer + rewritten queries using LLM with structured output."""
     config = get_config()
     llm = get_llm()
-
-    system_prompt = f"""Given the user query, generate:
-1. A hypothetical document/answer that would answer this query
-2. {num_queries} different phrasings of this query for better semantic search
-
-Original Query: {query}
-
-Return a JSON object with:
-- hyde_answer: The hypothetical answer (2-3 sentences)
-- rewritten_queries: List of {num_queries} query variations attacking the question from different angles
-"""
+    system_prompt = hyde_rewrite_system_prompt(query, pdf_summaries, num_queries)
 
     try:
         structured_llm = llm.with_structured_output(HYDEQueries)
