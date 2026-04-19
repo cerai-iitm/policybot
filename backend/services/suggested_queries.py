@@ -4,6 +4,10 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.logger import get_logger
+from app.prompts import (
+    FALLBACK_SUGGESTED_QUERIES,
+    suggested_queries_system_prompt,
+)
 from providers.llm.factory import get_llm
 
 logger = get_logger(__name__)
@@ -30,19 +34,7 @@ async def generate_suggested_queries(summary: str) -> Optional[List[str]]:
         List of 5 query strings or None on failure
     """
     llm = get_llm()
-
-    system_prompt = f"""Based on the following document summary, generate 5 diverse suggested queries that a user might ask to retrieve information from this document.
-
-The queries should:
-- Be specific questions that would require RAG retrieval to answer
-- Cover different aspects: overview, details, relationships, implications
-- Be natural questions someone would type
-- Require the actual document content to answer (not general knowledge)
-
-Document Summary:
-{summary}
-
-Return exactly 5 queries in the JSON format specified."""
+    system_prompt = suggested_queries_system_prompt(summary)
 
     try:
         # Use structured output - passes JSON schema to model, gets validated response
@@ -53,15 +45,8 @@ Return exactly 5 queries in the JSON format specified."""
         queries = result.queries[:5]
 
         # Pad with generic queries if needed
-        fallback_queries = [
-            "What are the main points discussed in this document?",
-            "What are the key findings or conclusions?",
-            "What specific data or evidence is presented?",
-            "What are the implications of this document?",
-            "What questions does this document answer?",
-        ]
         while len(queries) < 5:
-            queries.append(fallback_queries[len(queries)])
+            queries.append(FALLBACK_SUGGESTED_QUERIES[len(queries)])
 
         return queries
     except Exception as e:

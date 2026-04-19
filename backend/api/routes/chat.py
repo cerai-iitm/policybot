@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.deps import get_current_user
 from api.schemas.chat import ChatHistoryResponse, ChatQueryRequest
 from app.config import get_config
+from app.prompts import (
+    RAG_CHAT_SYSTEM_MESSAGE,
+    RAG_CHAT_USER_MESSAGE_TEMPLATE,
+)
 from db.models.chat_message import ChatMessage
 from db.models.notebook import Notebook
 from db.models.pdf import PDF
@@ -117,7 +121,7 @@ async def chat_query(
         }
 
     # 5. If RAG, generate HYDE + rewritten queries
-    hyde_result = await generate_hyde_and_queries(request.query)
+    hyde_result = await generate_hyde_and_queries(request.query, pdf_summaries)
 
     # 6. Retrieve chunks using RRF
     context_chunks = await retrieve_chunks(
@@ -158,15 +162,9 @@ async def chat_query(
     # Use LangChain prompt with history
     prompt = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                "You are a helpful assistant. Use the conversation history and provided context to answer the user's question. Cite sources when possible.",
-            ),
+            RAG_CHAT_SYSTEM_MESSAGE,
             MessagesPlaceholder(variable_name="history"),
-            (
-                "user",
-                "Context: {context}\n\nQuestion: {question}",
-            ),
+            ("user", RAG_CHAT_USER_MESSAGE_TEMPLATE),
         ]
     )
 
