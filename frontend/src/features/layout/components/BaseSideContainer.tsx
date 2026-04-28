@@ -46,7 +46,7 @@ const BaseSideContainer: React.FC<BaseSideContainerProps> = ({
           <button
             aria-label={`${title} toggle`}
             onClick={onToggle}
-            className="hover:opacity-80 transition"
+            className="hover:opacity-80 transition cursor-pointer"
           >
             <Image
               src={icon}
@@ -61,11 +61,11 @@ const BaseSideContainer: React.FC<BaseSideContainerProps> = ({
       </div>
 
       {/* BODY */}
-      {!collapsed && (
+     
         <div className="flex-1 overflow-hidden">
           {children}
         </div>
-      )}
+    
     </section>
   );
 };

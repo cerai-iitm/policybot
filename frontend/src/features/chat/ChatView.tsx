@@ -2,7 +2,7 @@
 
 
 import ChatBody from "./components/ChatBody";
-import ChatInputWrapper from "./components/ChatInputWrapper";
+import ChatInput from "../chat/components/chatinput/ChatInput"
 import ChatFooter from "./components/ChatFooter";
 import BaseSideContainer from "@/features/layout/components/BaseSideContainer";
 import { useChatUI } from "./hooks/useChatUI";
@@ -35,11 +35,13 @@ const ChatView = () => {
 
       <ChatBody messages={messages} />
 
-      <ChatInputWrapper
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onSend={handleSend}
-      />
+      <ChatInput
+  value={input}
+  onChange={(e) => setInput(e.target.value)}
+  onSend={handleSend}
+  disabled={false}
+  selectedCount={0}
+/>
 
       <ChatFooter />
 

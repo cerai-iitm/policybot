@@ -14,6 +14,7 @@ import BaseSideContainer from "@/features/layout/components/BaseSideContainer";
 import FileUpload from "./components/FileUpload";
 import SourceItem from "./components/SourceItem";
 import SelectAllRow from "./components/SelectAllRow";
+import Title from "./components/Title";
 
 import { SidebarProps } from "./types";
 
@@ -46,41 +47,47 @@ const LeftSidebar: React.FC<SidebarProps> = ({
     : selectAllIndeterminate.src;
 
   return (
-   <BaseSideContainer
+  <BaseSideContainer
   title="Policies"
   icon={sidebaricon}
   collapsed={collapsed}
   onToggle={onToggleCollapse}
 >
-      <div className="h-full flex flex-col bg-white">
+  <div className="h-full flex flex-col bg-white">
 
-        <div className="px-6 pt-8">
-          <FileUpload />
-        </div>
+    {/* SECTION TITLE */}
+   {!collapsed && <Title title="Education & Academic Policies" />}
 
-        {sources.length > 0 && (
-          <SelectAllRow
-            iconSrc={selectAllIconSrc}
-            onToggle={onSelectAll}
-          />
-        )}
+    {/* UPLOAD BLOCK */}
+    <div className="px-6 pt-2 ">
+     <FileUpload collapsed={collapsed} />
+    </div>
 
-        <div className="flex-1 overflow-y-auto pt-2 space-y-1 px-2 pb-4">
-          {sources.map((item) => (
-            <SourceItem
-              key={item.pdf_id}
-              item={item}
-              checked={checkedPdfs.includes(item.filename)}
-              onToggle={onTogglePdf}
-              onClick={() => onSelectPdf(item.filename)}
-              onDelete={onDeletePdf}
-              isCollapsedSidebar={false}
-            />
-          ))}
-        </div>
+    {/* SELECT ALL */}
+    {!collapsed && sources.length > 0 && (
+  <SelectAllRow
+    iconSrc={selectAllIconSrc}
+    onToggle={onSelectAll}
+  />
+)}
 
-      </div>
-    </BaseSideContainer>
+    {/* LIST */}
+    <div className="flex-1 overflow-y-auto pt-2 space-y-1 px-2 pb-4">
+      {sources.map((item) => (
+       <SourceItem
+  key={item.pdf_id}
+  item={item}
+  checked={checkedPdfs.includes(item.filename)}
+  onToggle={onTogglePdf}
+  onClick={() => onSelectPdf(item.filename)}
+  onDelete={onDeletePdf}
+  isCollapsedSidebar={collapsed}   // ✅ FIX HERE
+/>
+      ))}
+    </div>
+
+  </div>
+</BaseSideContainer>
   );
 };
 

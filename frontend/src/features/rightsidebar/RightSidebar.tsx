@@ -1,11 +1,11 @@
-// FILE: D:\buddi\Policybot\frontend\src\features\rightsidebar\RightSidebar.tsx
-
 "use client";
 
 import React from "react";
 import sidebaricon from "@/assets/sidebar.png";
 
 import BaseSideContainer from "@/features/layout/components/BaseSideContainer";
+import CitationCard from "./components/CitationCard";
+import { mockCitations } from "./data/mockCitations";
 
 interface Props {
   collapsed: boolean;
@@ -24,12 +24,18 @@ const RightSidebar: React.FC<Props> = ({
       onToggle={onToggleCollapse}
     >
       {!collapsed && (
-        <div className="h-full p-5 overflow-y-auto">
-          <div className="h-full rounded-2xl bg-[#F4F6F8] border border-[#E7EBF0] flex items-center justify-center">
-            <p className="text-sm text-[#94A3B8]">
-              Citation container placeholder
-            </p>
-          </div>
+        <div className="h-full p-4 overflow-y-auto space-y-4">
+          
+          {mockCitations.map((item) => (
+            <CitationCard
+              key={item.id}
+              title={item.title}
+              subtitle={item.subtitle}
+              pageNo={item.pageNo}
+              content={item.content}
+            />
+          ))}
+
         </div>
       )}
     </BaseSideContainer>

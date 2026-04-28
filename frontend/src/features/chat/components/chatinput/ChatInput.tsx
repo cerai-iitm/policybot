@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import ChatInputUI from "./components/ChatInputUI";
 
 interface ChatInputProps {
   value: string;
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onSend: () => void;
-
   disabled: boolean;
   placeholder?: string;
   selectedCount: number;
@@ -15,7 +14,7 @@ interface ChatInputProps {
   onAttach?: () => void;
 }
 
-const MAX_HEIGHT = 144;
+const MAX_HEIGHT = 140;
 
 const ChatInput: React.FC<ChatInputProps> = ({
   value,
@@ -28,23 +27,22 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onAttach,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isMultiline, setIsMultiline] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onChange(e);
-
+  useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
     textarea.style.height = "auto";
 
-    if (textarea.scrollHeight > MAX_HEIGHT) {
-      textarea.style.height = `${MAX_HEIGHT}px`;
-      textarea.style.overflowY = "auto";
-    } else {
-      textarea.style.height = `${textarea.scrollHeight}px`;
-      textarea.style.overflowY = "hidden";
-    }
-  };
+    const scrollHeight = textarea.scrollHeight;
+    const newHeight = Math.min(scrollHeight, MAX_HEIGHT);
+
+    textarea.style.height = `${newHeight}px`;
+    textarea.style.overflowY = scrollHeight > MAX_HEIGHT ? "auto" : "hidden";
+
+    setIsMultiline(scrollHeight > 42); // slightly safer threshold
+  }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -57,7 +55,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     <ChatInputUI
       value={value}
       textareaRef={textareaRef}
-      onChange={handleChange}
+      onChange={onChange}
       onKeyDown={handleKeyDown}
       onSend={onSend}
       onAttach={onAttach}
@@ -65,6 +63,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
       disabled={disabled}
       placeholder={placeholder}
       selectedCount={selectedCount}
+      isMultiline={isMultiline}
     />
   );
 };

@@ -8,7 +8,7 @@ const CreateWorkspaceCard = ({ onClick }: Props) => {
   return (
     <div
       onClick={onClick}
-      className="w-80 h-52 rounded-xl border border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition"
+      className="min-w-80 h-56 rounded-xl border border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition"
     >
       <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center mb-4">
         <Plus className="text-blue-600" size={24} />

@@ -28,18 +28,28 @@ const SourceItem: React.FC<Props> = ({
   const [isHovered, setIsHovered] = useState(false);
 
   /* ---------------- COLLAPSED ---------------- */
-  if (isCollapsedSidebar) {
-    return (
-      <div className="flex justify-center items-center p-2">
-        <Image
-          src={docicon}          // ✅ FIX: no .src
-          alt="document"
-          width={20}             // ✅ REQUIRED
-          height={20}            // ✅ REQUIRED
-        />
+ if (isCollapsedSidebar) {
+  return (
+    <div
+      className="flex justify-center items-center p-2"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-200 cursor-pointer">
+        {isHovered ? (
+          <FiMoreVertical size={16} />
+        ) : (
+          <Image
+            src={docicon}
+            alt="document"
+            width={18}
+            height={18}
+          />
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   /* ---------------- NORMAL ---------------- */
   return (
