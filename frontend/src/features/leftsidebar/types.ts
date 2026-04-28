@@ -1,20 +1,16 @@
-export type SidebarItem = {
-  filename: string;
-  pdf_id: string;
-  processing_status: string;
-  uploaded_at: string;
-};
+
+import { PdfItem } from "@/lib/types/pdf";
 
 export interface SidebarProps {
-  sources: SidebarItem[];
+  sources: PdfItem[];
   checkedPdfs: string[];
 
-  onTogglePdf: (filename: string) => void;
-  onSelectPdf: (filename: string) => void;
-  onDeletePdf: (pdfId: string, filename: string) => void;
+  onTogglePdf: (pdfId: string) => void;
+  onSelectPdf: (pdfId: string) => void;
+  onDeletePdf: (pdfId: string) => void;
   onSelectAll: () => void;
 
-  // ✅ NEW
   collapsed: boolean;
   onToggleCollapse: () => void;
+  onUploadPdf: (file: File) => void;
 }

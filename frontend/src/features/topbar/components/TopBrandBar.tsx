@@ -9,7 +9,7 @@ import Iconthree from "@/assets/wsai.png";
 
 const TopBrandBar = () => {
   return (
-   <div className="ml-2">
+   <div >
   <div className="flex items-center justify-evenly w-44 h-12  ">
 
     <a

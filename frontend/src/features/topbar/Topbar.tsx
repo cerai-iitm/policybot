@@ -17,7 +17,7 @@ export default function Topbar() {
         w-full 
         bg-[#F1F5F9]
         flex items-center justify-between
-        px-6
+        px-12 py-2
       "
     >
       {/* Left side - Logo / Brand */}

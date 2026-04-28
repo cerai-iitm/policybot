@@ -18,14 +18,31 @@ export const useChatUI = () => {
     setMessages((prev) => [...prev, msg]);
   };
 
-  const addAIMessage = (text: string) => {
+  // 🔥 ADD LOADING AI MESSAGE
+  const addAILoadingMessage = () => {
+    const id = uuidv4();
+
     const msg: Message = {
-      id: uuidv4(),
+      id,
       type: "ai",
-      content: text,
+      content: "",
+      loading: true,
     };
 
     setMessages((prev) => [...prev, msg]);
+
+    return id; // return ID to update later
+  };
+
+  // 🔥 UPDATE AI MESSAGE
+  const updateAIMessage = (id: string, text: string) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === id
+          ? { ...msg, content: text, loading: false }
+          : msg
+      )
+    );
   };
 
   const clearChat = () => setMessages([]);
@@ -35,7 +52,8 @@ export const useChatUI = () => {
     input,
     setInput,
     addUserMessage,
-    addAIMessage,
+    addAILoadingMessage,
+    updateAIMessage,
     clearChat,
   };
 };

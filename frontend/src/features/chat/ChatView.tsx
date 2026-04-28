@@ -8,25 +8,55 @@ import BaseSideContainer from "@/features/layout/components/BaseSideContainer";
 import { useChatUI } from "./hooks/useChatUI";
 
 const ChatView = () => {
+
+  const getMockResponse = (input: string) => {
+  const text = input.toLowerCase();
+
+  if (text.includes("hello")) {
+    return "Hey 👋 How can I help you today?";
+  }
+
+  if (text.includes("policy")) {
+    return "This is a mock policy explanation. Real API will replace this.";
+  }
+
+  if (text.includes("price")) {
+    return "Pricing depends on your plan. This is just a mock response.";
+  }
+
+  return "This is a mock AI response for testing UI flow.";
+};
+
+
   const {
-    messages,
-    input,
-    setInput,
-    addUserMessage,
-  } = useChatUI();
+  messages,
+  input,
+  setInput,
+  addUserMessage,
+  addAILoadingMessage,
+  updateAIMessage,
+} = useChatUI();
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+const handleSend = () => {
+  if (!input.trim()) return;
 
-    addUserMessage(input);
+  const userText = input;
 
-    // 🔥 TEMP MOCK (REMOVE LATER)
-    setTimeout(() => {
-      console.log("Connect API here");
-    }, 500);
+  // 1️⃣ Add user message
+  addUserMessage(userText);
 
-    setInput("");
-  };
+  // 2️⃣ Add AI loading
+  const aiMessageId = addAILoadingMessage();
+
+  setInput("");
+
+  // 3️⃣ Mock AI response
+  setTimeout(() => {
+    const mockResponse = getMockResponse(userText);
+
+    updateAIMessage(aiMessageId, mockResponse);
+  }, 1200);
+};
 
  return (
   <BaseSideContainer title="Chat">

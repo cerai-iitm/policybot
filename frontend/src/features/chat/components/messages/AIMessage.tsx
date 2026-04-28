@@ -7,7 +7,7 @@ import MessageError from "./components/MessageError";
 import MessageContent from "./components/MessageContent";
 import MessageActions from "./components/MessageActions";
 import SourcesButton from "./components/SourcesButton";
-import SourcePanel from "./components/SourcePanel";
+
 
 interface SourceChunk {
   text: string;
@@ -34,7 +34,7 @@ const AIMessage: React.FC<Props> = ({
   const sourceRef = useRef<HTMLDivElement>(null);
 
   const isError = content?.startsWith("Error:");
-  const isGenerating = loadingType === "thinking";
+  const isGenerating = !content;
   const showActions = content && !isError && !isGenerating;
 
   useEffect(() => {
@@ -54,7 +54,7 @@ const shouldShowChunks = showChunks && !isGenerating;
   return (
     <div className="w-full max-w-3xl px-3 my-4">
 
-      {!content && <MessageLoader type={loadingType} />}
+      {!content && <MessageLoader type="thinking" />}
 
       {content && isError && <MessageError content={content} />}
 
@@ -91,9 +91,7 @@ const shouldShowChunks = showChunks && !isGenerating;
         </>
       )}
 
-      {shouldShowChunks && sourceChunks && showActions && (
-  <SourcePanel ref={sourceRef} chunks={sourceChunks} />
-)}
+     
     </div>
   );
 };

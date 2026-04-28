@@ -1,12 +1,14 @@
 "use client";
-
+import Image from "next/image";
 import React from "react";
+import citation from "@/assets/citation.png";
 
 interface Props {
   title: string;
   subtitle?: string;
   pageNo: string;
   content: string;
+  collapsed?: boolean; // ✅ include here
 }
 
 const CitationCard: React.FC<Props> = ({
@@ -14,7 +16,23 @@ const CitationCard: React.FC<Props> = ({
   subtitle,
   pageNo,
   content,
+  collapsed,
 }) => {
+
+
+
+
+ if (collapsed) {
+  return (
+    <div className="flex justify-center items-center">
+      <div className="w-10 h-10 min-w-10 min-h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition shrink-0 cursor-pointer">
+        <Image src={citation} alt="citation" width={14} height={14} />
+      </div>
+    </div>
+  );
+}
+
+
   return (
     <div className="w-full bg-[#F4F6F8] border border-[#E7EBF0] rounded-xl overflow-hidden">
       

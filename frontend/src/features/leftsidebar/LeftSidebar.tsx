@@ -28,17 +28,19 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   onDeletePdf,
   onSelectAll,
   collapsed,
-  onToggleCollapse
+  onToggleCollapse,
+  onUploadPdf
+  
 }) => {
-  const allNames = sources.map((s) => s.filename);
+ const allIds = sources.map((s) => s.pdf_id);
 
   const areAllSelected =
-    allNames.length > 0 &&
-    allNames.every((n) => checkedPdfs.includes(n));
+  allIds.length > 0 &&
+  allIds.every((id) => checkedPdfs.includes(id));
 
-  const areNoneSelected = allNames.every(
-    (n) => !checkedPdfs.includes(n)
-  );
+const areNoneSelected = allIds.every(
+  (id) => !checkedPdfs.includes(id)
+);
 
   const selectAllIconSrc = areAllSelected
     ? selectAllChecked.src
@@ -60,7 +62,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
 
     {/* UPLOAD BLOCK */}
     <div className="px-6 pt-2 ">
-     <FileUpload collapsed={collapsed} />
+     <FileUpload  onFileSelect={onUploadPdf} collapsed={collapsed} />
     </div>
 
     {/* SELECT ALL */}
@@ -72,14 +74,14 @@ const LeftSidebar: React.FC<SidebarProps> = ({
 )}
 
     {/* LIST */}
-    <div className="flex-1 overflow-y-auto pt-2 space-y-1 px-2 pb-4">
+    <div className="flex-1 overflow-y-auto overflow-x-visible pt-2 space-y-1 px-2 pb-4 custom-scrollbar">
       {sources.map((item) => (
        <SourceItem
   key={item.pdf_id}
   item={item}
-  checked={checkedPdfs.includes(item.filename)}
-  onToggle={onTogglePdf}
-  onClick={() => onSelectPdf(item.filename)}
+  checked={checkedPdfs.includes(item.pdf_id)}
+onToggle={onTogglePdf}
+onClick={() => onSelectPdf(item.pdf_id)}
   onDelete={onDeletePdf}
   isCollapsedSidebar={collapsed}   // ✅ FIX HERE
 />

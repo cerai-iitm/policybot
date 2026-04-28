@@ -9,8 +9,11 @@ import ChatView from "@/features/chat/ChatView";
 import RightSidebar from "@/features/rightsidebar/RightSidebar";
 
 import { AdminProvider } from "../chat/context/AdminContext";
-import { SidebarItem } from "@/features/leftsidebar/types";
-import { mockPdfs } from "@/features/leftsidebar/data/mockData";
+import { useEffect } from "react";
+import { listPdfs } from "@/lib/api/pdf.api";
+import { PdfItem } from "@/lib/types/pdf";
+import { useSearchParams } from "next/navigation";
+import { uploadPdf } from "@/lib/api/pdf.api";
 
 interface MainLayoutProps {
   isAdmin?: boolean;
@@ -34,37 +37,95 @@ export default function MainLayout({
   const [selectedFilename, setSelectedFilename] =
     useState<string | null>(null);
 
-  const [sources] = useState<SidebarItem[]>(mockPdfs);
+  const [sources, setSources] = useState<PdfItem[]>([]);
+const [loadingPdfs, setLoadingPdfs] = useState(false);
+
+const searchParams = useSearchParams();
+const notebookId = searchParams.get("notebook_id");
+
+useEffect(() => {
+  if (!notebookId) return;
+
+  const fetchPdfs = async () => {
+    setLoadingPdfs(true);
+    try {
+      const data = await listPdfs(notebookId);
+
+      const mapped: PdfItem[] = data.pdfs.map((pdf: any) => ({
+        pdf_id: pdf.stored_filename,
+        filename: pdf.original_filename,
+        notebook_id: pdf.notebook_id,
+        processing_status: pdf.processing_status,
+        summary: pdf.summary,
+        uploaded_at: pdf.uploaded_at,
+        suggested_queries: pdf.suggested_queries || [],
+      }));
+
+      setSources(mapped);
+    } catch (err) {
+      console.error("Failed to fetch PDFs", err);
+    } finally {
+      setLoadingPdfs(false);
+    }
+  };
+
+  fetchPdfs();
+}, [notebookId]);
 
   /* ---------------- HANDLERS ---------------- */
 
-  const handleTogglePdf = (filename: string) => {
-    setCheckedPdfs((prev) =>
-      prev.includes(filename)
-        ? prev.filter((f) => f !== filename)
-        : [...prev, filename]
-    );
-  };
+  const handleUploadPdf = async (file: File) => {
+  if (!notebookId) return;
 
+  try {
+    const res = await uploadPdf(notebookId, file);
+
+    const newPdf: PdfItem = {
+      pdf_id: res.stored_filename,
+      filename: res.original_filename,
+      notebook_id: res.notebook_id,
+      processing_status: res.processing_status,
+      summary: "",
+      uploaded_at: res.uploaded_at,
+      suggested_queries: [],
+    };
+
+    // ✅ optimistic UI update
+    setSources((prev) => [newPdf, ...prev]);
+
+  } catch (err) {
+    console.error("Upload failed", err);
+  }
+};
+
+
+
+  const handleTogglePdf = (pdfId: string) => {
+  setCheckedPdfs((prev) =>
+    prev.includes(pdfId)
+      ? prev.filter((id) => id !== pdfId)
+      : [...prev, pdfId]
+  );
+};
   const handleSelectPdf = (filename: string) => {
     setSelectedFilename(filename);
   };
 
-  const handleDeletePdf = (_id: string, filename: string) => {
-    setCheckedPdfs((prev) =>
-      prev.filter((f) => f !== filename)
-    );
-  };
+ const handleDeletePdf = (pdfId: string) => {
+  setCheckedPdfs((prev) =>
+    prev.filter((id) => id !== pdfId)
+  );
+};
 
-  const handleSelectAll = () => {
-    const all = sources.map((s) => s.filename);
+const handleSelectAll = () => {
+  const all = sources.map((s) => s.pdf_id);
 
-    const areAllSelected = all.every((file) =>
-      checkedPdfs.includes(file)
-    );
+  const areAllSelected = all.every((id) =>
+    checkedPdfs.includes(id)
+  );
 
-    setCheckedPdfs(areAllSelected ? [] : all);
-  };
+  setCheckedPdfs(areAllSelected ? [] : all);
+};
 
   /* ---------------- GRID WIDTH LOGIC ---------------- */
 
@@ -88,18 +149,17 @@ export default function MainLayout({
           >
 
             {/* LEFT */}
-            <LeftSidebar
-              collapsed={leftCollapsed}
-              onToggleCollapse={() =>
-                setLeftCollapsed((prev) => !prev)
-              }
-              sources={sources}
-              checkedPdfs={checkedPdfs}
-              onTogglePdf={handleTogglePdf}
-              onSelectPdf={handleSelectPdf}
-              onDeletePdf={handleDeletePdf}
-              onSelectAll={handleSelectAll}
-            />
+           <LeftSidebar
+  collapsed={leftCollapsed}
+  onToggleCollapse={() => setLeftCollapsed((prev) => !prev)}
+  sources={sources}
+  checkedPdfs={checkedPdfs}
+  onTogglePdf={handleTogglePdf}
+  onSelectPdf={(pdfId) => setSelectedFilename(pdfId)}
+  onDeletePdf={handleDeletePdf}
+  onSelectAll={handleSelectAll}
+  onUploadPdf={handleUploadPdf}
+/>
 
             {/* CENTER */}
             <ChatView />

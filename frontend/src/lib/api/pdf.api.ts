@@ -13,7 +13,7 @@ export const uploadPdf = async (notebookId: string, file: File) => {
 };
 
 export const listPdfs = async (notebookId: string) => {
-  const res = await api.post(`/pdfs/?notebook_id=${notebookId}`);
+  const res = await api.get(`/pdfs/?notebook_id=${notebookId}`);
   return res.data;
 };
 

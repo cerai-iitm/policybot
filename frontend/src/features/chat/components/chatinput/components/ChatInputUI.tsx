@@ -58,7 +58,7 @@ const ChatInputUI: React.FC<Props> = ({
                 placeholder:text-slate-400
                 custom-scrollbar
                 overflow-y-auto
-                max-h-[140px]
+                max-h-35
               "
             />
           </div>

@@ -27,11 +27,11 @@ const HumanMessageUI: React.FC<Props> = ({
         rounded-[10px]
         px-4 sm:px-5
         py-2.5 sm:py-3
-        transition-all duration-200
-        sm:hover:shadow-md
+        
+        
       "
       >
-        <p className="text-slate-800 text-[15px] sm:text-base leading-5 sm:leading-6 wrap-break-words">
+        <p className="text-sm text-[#334155] leading-6 wrap-break-words">
           {content}
         </p>
       </div>
