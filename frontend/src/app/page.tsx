@@ -2,14 +2,14 @@
 
 
 import { useRouter } from "next/navigation";
-import Navbar from "@/features/homepage/Navbar"
-import WhatItDoes from "@/features/homepage/WhatItDoes"
-import PolicyCollections from "@/features/homepage/PolicyCollections"
-import BringYourOwn from "@/features/homepage/BringYourOwn"
-import PrivacySection from "@/features/homepage/PrivacySection"
-import FAQSection from "@/features/homepage/FAQSection"
-import Footer from "@/features/homepage/Footer"
-import Reveal from "@/features/homepage/Reveal"
+import Navbar from "@/modules/homepage/Navbar"
+import WhatItDoes from "@/modules/homepage/WhatItDoes"
+import PolicyCollections from "@/modules/homepage/PolicyCollections"
+import BringYourOwn from "@/modules/homepage/BringYourOwn"
+import PrivacySection from "@/modules/homepage/PrivacySection"
+import FAQSection from "@/modules/homepage/FAQSection"
+import Footer from "@/modules/homepage/Footer"
+import Reveal from "@/modules/homepage/Reveal"
 
 
 export default function HomePage() {

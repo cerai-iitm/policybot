@@ -39,7 +39,7 @@ export default function ModelSelector({
           value={selected}
           onChange={handleChange}
           disabled={models.length === 0}
-          className="h-5 text-text bg-bg-light border border-border-muted rounded-md shadow-sm hover:shadow-md focus:ring-2 focus:ring-offset-2 focus:ring-primary outline-none px-3 text-sm min-w-30 mr-4 appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+          className="h-5 text-text bg-bg-light  rounded-md shadow-sm hover:shadow-md focus:ring-2 focus:ring-offset-2 focus:ring-primary outline-none px-3 text-sm min-w-30 mr-4 appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Model selector"
         >
           {displayModels.map((model) => (

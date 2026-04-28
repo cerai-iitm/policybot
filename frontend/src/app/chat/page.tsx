@@ -1,10 +1,14 @@
 "use client";
 
 import { Suspense } from "react";
-import MainLayout from "../../features/chat/layout/MainLayout";
+import { useSearchParams } from "next/navigation";
+import MainLayout from "../../features/layout/MainLayout";
 
 function ChatContent() {
-  return <MainLayout />;
+  const searchParams = useSearchParams();
+  const notebookId = searchParams.get("notebook_id");
+
+  return <MainLayout notebookId={notebookId} />;
 }
 
 export default function ChatPage() {

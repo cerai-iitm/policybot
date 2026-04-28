@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Navbar from "@/features/notebook/components/layout/Navbar";
-import PolicyCollectionsSection from "@/features/notebook/PolicyCollectionsSection";
+import Navbar from "@/modules/notebook/components/layout/Navbar";
+import PolicyCollectionsSection from "@/modules/notebook/PolicyCollectionsSection";
 import { NotebookListItem } from "@/lib/types/notebook";
 import { getNotebooks } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 function NotebookContent() {
+
+  const router = useRouter();
+
+ 
+
+
   // ✅ STATIC FEATURED NOTEBOOKS
   const featuredNotebooks: NotebookListItem[] = [
     {
@@ -62,13 +69,19 @@ function NotebookContent() {
     fetchRecent();
   }, []);
 
-  const handleSelect = (id: string) => {
-    setActive(id);
-  };
+ 
 
   if (loading) {
     return <div className="p-10">Loading workspaces...</div>;
   }
+
+
+   const handleSelect = (id: string) => {
+  setActive(id);
+
+  // ✅ redirect with notebook_id
+  router.push(`/chat?notebook_id=${id}`);
+};
 
   return (
     <div className="min-h-screen bg-white">
