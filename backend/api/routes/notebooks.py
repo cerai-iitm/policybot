@@ -37,12 +37,14 @@ async def create_notebook(
 
 @router.get("", response_model=NotebookListResponse)
 async def list_notebooks(
+    notebook_id: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Notebook).where(Notebook.user_id == current_user.id)
-    )
+    query = select(Notebook).where(Notebook.user_id == current_user.id)
+    if notebook_id:
+        query = query.where(Notebook.notebook_id == notebook_id)
+    result = await db.execute(query)
     notebooks = result.scalars().all()
     return {"notebooks": notebooks}
 
