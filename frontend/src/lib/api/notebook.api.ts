@@ -1,14 +1,16 @@
 import api from "@/lib/axios";
-import { CreateNotebookPayload } from "@/lib/types/notebook";
+import { CreateNotebookPayload,NotebookListItem  } from "@/lib/types/notebook";
 
 export const createNotebook = async (data: CreateNotebookPayload) => {
   const res = await api.post("/notebooks", data);
   return res.data;
 };
 
-export const getNotebooks = async () => {
+export const getNotebooks = async (): Promise<NotebookListItem[]> => {
   const res = await api.get("/notebooks");
-  return res.data;
+
+  // ✅ normalize API response here (VERY IMPORTANT)
+  return res.data.notebooks;
 };
 
 export const getNotebook = async (notebookId: string) => {
