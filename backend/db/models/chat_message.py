@@ -10,10 +10,11 @@ class ChatMessage(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     notebook_id = Column(Integer, ForeignKey("notebooks.id"), nullable=False)
-    session_id = Column(String(100), index=True, nullable=False)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=False)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="chat_messages")
     notebook = relationship("Notebook")
+    chat_session = relationship("ChatSession", back_populates="chat_messages")

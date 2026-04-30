@@ -1,5 +1,6 @@
 # api/routes/chat.py
 import json
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -14,6 +15,7 @@ from app.prompts import (
     RAG_CHAT_USER_MESSAGE_TEMPLATE,
 )
 from db.models.chat_message import ChatMessage
+from db.models.chat_session import ChatSession
 from db.models.notebook import Notebook
 from db.models.pdf import PDF
 from db.models.user import User
@@ -30,6 +32,57 @@ from services.rag import (
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 config = get_config()
+
+
+async def get_or_create_active_session(
+    notebook_id: str, user_id: int, db: AsyncSession, session_id: str | None = None
+) -> tuple[ChatSession, str]:
+    result = await db.execute(
+        select(Notebook).where(
+            and_(Notebook.notebook_id == notebook_id, Notebook.user_id == user_id)
+        )
+    )
+    notebook = result.scalar_one_or_none()
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+
+    if session_id:
+        result = await db.execute(
+            select(ChatSession).where(
+                and_(
+                    ChatSession.session_id == session_id,
+                    ChatSession.user_id == user_id,
+                    ChatSession.notebook_id == notebook.id,
+                )
+            )
+        )
+        session = result.scalar_one_or_none()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return session, notebook.notebook_id
+
+    result = await db.execute(
+        select(ChatSession).where(
+            and_(
+                ChatSession.notebook_id == notebook.id,
+                ChatSession.is_active == True,
+            )
+        )
+    )
+    session = result.scalar_one_or_none()
+
+    if not session:
+        session = ChatSession(
+            session_id=f"session_{secrets.token_hex(8)}",
+            notebook_id=notebook.id,
+            user_id=user_id,
+            is_active=True,
+        )
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+
+    return session, notebook.notebook_id
 
 
 async def get_notebook_pdfs(
@@ -72,7 +125,10 @@ async def chat_query(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # 1. Get PDF stored_filenames for this notebook and the notebook object
+    session, notebook_id = await get_or_create_active_session(
+        request.notebook_id, user.id, db, request.session_id
+    )
+
     stored_filenames, notebook = await get_notebook_pdfs(
         request.notebook_id, user.id, request.stored_filenames, db
     )
@@ -96,9 +152,8 @@ async def chat_query(
     ):
         user_message = ChatMessage(
             user_id=user.id,
-            # store numeric FK
             notebook_id=notebook.id,
-            session_id=request.session_id,
+            session_id=session.id,
             role="user",
             content=request.query,
         )
@@ -107,7 +162,7 @@ async def chat_query(
         assistant_message = ChatMessage(
             user_id=user.id,
             notebook_id=notebook.id,
-            session_id=request.session_id,
+            session_id=session.id,
             role="assistant",
             content=classification.conversational_response,
         )
@@ -144,15 +199,13 @@ async def chat_query(
     )
 
     # Get chat history
-    history = await get_chat_history(
-        request.session_id, db, config.max_history_messages
-    )
+    history = await get_chat_history(session.id, db, config.max_history_messages)
 
     # Persist user message using numeric notebook FK
     user_message = ChatMessage(
         user_id=user.id,
         notebook_id=notebook.id,
-        session_id=request.session_id,
+        session_id=session.id,
         role="user",
         content=request.query,
     )
@@ -185,16 +238,16 @@ async def chat_query(
                     full_response += chunk.content
                     yield f"data: {json.dumps({'content': chunk.content})}\n\n"
 
-            async with AsyncSessionLocal() as session:
+            async with AsyncSessionLocal() as db_session:
                 assistant_message = ChatMessage(
                     user_id=user.id,
                     notebook_id=notebook.id,
-                    session_id=request.session_id,
+                    session_id=session.id,
                     role="assistant",
                     content=full_response,
                 )
-                session.add(assistant_message)
-                await session.commit()
+                db_session.add(assistant_message)
+                await db_session.commit()
 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -217,10 +270,19 @@ async def get_chat_history_endpoint(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    session_result = await db.execute(
+        select(ChatSession).where(
+            and_(ChatSession.session_id == session_id, ChatSession.user_id == user.id)
+        )
+    )
+    session = session_result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
     result = await db.execute(
         select(ChatMessage)
         .where(
-            and_(ChatMessage.session_id == session_id, ChatMessage.user_id == user.id)
+            and_(ChatMessage.session_id == session.id, ChatMessage.user_id == user.id)
         )
         .order_by(ChatMessage.created_at)
     )
@@ -246,9 +308,18 @@ async def clear_chat_history(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    session_result = await db.execute(
+        select(ChatSession).where(
+            and_(ChatSession.session_id == session_id, ChatSession.user_id == user.id)
+        )
+    )
+    session = session_result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
     result = await db.execute(
         select(ChatMessage).where(
-            and_(ChatMessage.session_id == session_id, ChatMessage.user_id == user.id)
+            and_(ChatMessage.session_id == session.id, ChatMessage.user_id == user.id)
         )
     )
     messages = result.scalars().all()
