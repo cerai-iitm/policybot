@@ -12,7 +12,7 @@ import sidebaricon from "@/assets/sidebar.png";
 import BaseSideContainer from "@/features/layout/components/BaseSideContainer";
 
 import FileUpload from "./components/FileUpload";
-import SourceItem from "./components/SourceItem";
+import SourceItem from "./components/SourceItem/SourceItem";
 import SelectAllRow from "./components/SelectAllRow";
 import Title from "./components/Title";
 
@@ -74,7 +74,7 @@ const areNoneSelected = allIds.every(
 )}
 
     {/* LIST */}
-    <div className="flex-1 overflow-y-auto overflow-x-visible pt-2 space-y-1 px-2 pb-4 custom-scrollbar">
+    <div className="flex-1 overflow-y-auto overflow-hidden pt-2 space-y-1 px-2 pb-4 custom-scrollbar">
       {sources.map((item) => (
        <SourceItem
   key={item.pdf_id}

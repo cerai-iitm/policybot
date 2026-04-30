@@ -27,7 +27,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onAttach,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [isMultiline, setIsMultiline] = useState(false);
+
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -41,7 +41,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     textarea.style.height = `${newHeight}px`;
     textarea.style.overflowY = scrollHeight > MAX_HEIGHT ? "auto" : "hidden";
 
-    setIsMultiline(scrollHeight > 42); // slightly safer threshold
+   
   }, [value]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -63,7 +63,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
       disabled={disabled}
       placeholder={placeholder}
       selectedCount={selectedCount}
-      isMultiline={isMultiline}
+      
     />
   );
 };

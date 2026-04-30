@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import AttachButton from "./AttachButton";
+
 import SendButton from "./SendButton";
 import SourceCount from "./SourceCount";
 
@@ -16,7 +16,6 @@ interface Props {
   disabled: boolean;
   placeholder: string;
   selectedCount: number;
-  isMultiline: boolean;
 }
 
 const ChatInputUI: React.FC<Props> = ({
@@ -30,15 +29,14 @@ const ChatInputUI: React.FC<Props> = ({
   disabled,
   placeholder,
   selectedCount,
-  isMultiline,
 }) => {
   return (
     <div className="w-full flex justify-center px-4 pb-4">
       <div className="w-full md:w-[90%] max-w-4xl">
-        <div className="rounded-3xl border border-slate-200 bg-white px-3 py-2 transition-all duration-200">
+        <div className="rounded-3xl border border-slate-200 bg-white px-3 py-2 transition-all duration-200 flex flex-col">
 
-          {/* 🔥 TEXTAREA (always full width in multiline) */}
-          <div className={`${isMultiline ? "mb-2" : ""}`}>
+          {/* 🔥 ROW 1 → TEXTAREA */}
+          <div className="mb-2">
             <textarea
               ref={textareaRef}
               value={value}
@@ -47,8 +45,8 @@ const ChatInputUI: React.FC<Props> = ({
               placeholder={placeholder}
               rows={1}
               className="
-              p-2
                 w-full
+                p-2
                 resize-none
                 bg-transparent
                 outline-none
@@ -63,44 +61,19 @@ const ChatInputUI: React.FC<Props> = ({
             />
           </div>
 
-          {/* 🔥 CONTROLS */}
-          {!isMultiline ? (
-            // SINGLE LINE → inline layout
-            <div className="flex items-center gap-2">
-              <AttachButton onClick={onAttach} />
+          {/* 🔥 ROW 2 → CONTROLS (ALWAYS FIXED POSITION) */}
+          <div className="flex items-center justify-between">
+            <SourceCount
+              count={selectedCount}
+              onClick={() => {
+                if (onOpenSidebar && window.innerWidth < 768) {
+                  onOpenSidebar();
+                }
+              }}
+            />
 
-              <div className="flex-1" />
-
-              <SourceCount
-                count={selectedCount}
-                onClick={() => {
-                  if (onOpenSidebar && window.innerWidth < 768) {
-                    onOpenSidebar();
-                  }
-                }}
-              />
-
-              <SendButton onClick={onSend} disabled={disabled} />
-            </div>
-          ) : (
-            // MULTILINE → bottom row
-            <div className="flex items-center justify-between">
-              <AttachButton onClick={onAttach} />
-
-              <div className="flex items-center gap-3">
-                <SourceCount
-                  count={selectedCount}
-                  onClick={() => {
-                    if (onOpenSidebar && window.innerWidth < 768) {
-                      onOpenSidebar();
-                    }
-                  }}
-                />
-
-                <SendButton onClick={onSend} disabled={disabled} />
-              </div>
-            </div>
-          )}
+            <SendButton onClick={onSend} disabled={disabled} />
+          </div>
 
         </div>
       </div>
