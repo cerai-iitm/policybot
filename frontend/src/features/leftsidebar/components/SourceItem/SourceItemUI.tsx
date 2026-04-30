@@ -50,26 +50,24 @@ const SourceItemUI: React.FC<UIProps> = (props) => {
   } = props;
 
   /* COLLAPSED */
-  if (isCollapsedSidebar) {
-    return (
-      <div
-        className="flex justify-center items-center p-2"
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={() => {
-  // only close hover, NOT menu
-  onMouseLeave();
-}}
-      >
-        <div className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-200 cursor-pointer">
-          {isHovered ? (
-            <FiMoreVertical size={16} />
-          ) : (
-            <Image src={docicon} alt="document" width={18} height={18} />
-          )}
-        </div>
-      </div>
-    );
-  }
+if (isCollapsedSidebar) {
+  return (
+    <div
+      className="flex justify-center items-center p-2"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onClick={onMainClick}
+    >
+      <SourceItemIcon
+        isHovered={isHovered}
+        showMenu={showMenu}
+        onMenuToggle={onMenuToggle}
+        onDeleteClick={onDeleteClick}
+        onMenuClose={onMenuClose}
+      />
+    </div>
+  );
+}
 
   return (
     <>

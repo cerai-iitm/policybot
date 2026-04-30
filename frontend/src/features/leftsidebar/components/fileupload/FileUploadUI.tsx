@@ -1,60 +1,44 @@
 "use client";
 
+import React from "react";
 import Image from "next/image";
-import { useRef } from "react";
+
 import fileicon from "@/assets/file.png";
 import addicon from "@/assets/add.png";
 
 interface Props {
   collapsed?: boolean;
-  onFileSelect: (file: File) => void;
+  onClick: () => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-const FileUpload: React.FC<Props> = ({ collapsed, onFileSelect }) => {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // ✅ Allow only PDF
-    if (file.type !== "application/pdf") {
-      alert("Only PDF files are allowed");
-      return;
-    }
-
-    onFileSelect(file);
-
-    // reset input so same file can be selected again
-    e.target.value = "";
-  };
-
+const FileUploadUI: React.FC<Props> = ({
+  collapsed,
+  onClick,
+  inputRef,
+  onChange,
+}) => {
   /* ---------------- COLLAPSED ---------------- */
   if (collapsed) {
     return (
       <>
         <div
-          onClick={handleClick}
+          onClick={onClick}
           className="flex justify-center items-center py-4 cursor-pointer"
         >
-          <div className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition">
+          <div className="w-10 h-10 min-w-10 min-h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition shrink-0 cursor-pointer">
             <Image src={addicon} alt="add" width={12} height={12} />
           </div>
         </div>
 
         <input
-        aria-label="file"
-          ref={fileInputRef}
+          aria-label="file"
+          ref={inputRef}
           type="file"
           accept="application/pdf"
           className="hidden"
-          onChange={handleFileChange}
+          onChange={onChange}
         />
       </>
     );
@@ -64,7 +48,7 @@ const FileUpload: React.FC<Props> = ({ collapsed, onFileSelect }) => {
   return (
     <>
       <button
-        onClick={handleClick}
+        onClick={onClick}
         className="w-full h-28 rounded-xl bg-slate-100 hover:bg-slate-200 transition flex flex-col items-center justify-center gap-2"
       >
         <div className="w-10 h-10 flex items-center justify-center">
@@ -77,15 +61,15 @@ const FileUpload: React.FC<Props> = ({ collapsed, onFileSelect }) => {
       </button>
 
       <input
-      aria-label="file"
-        ref={fileInputRef}
+        aria-label="file"
+        ref={inputRef}
         type="file"
         accept="application/pdf"
         className="hidden"
-        onChange={handleFileChange}
+        onChange={onChange}
       />
     </>
   );
 };
 
-export default FileUpload;
+export default FileUploadUI;
