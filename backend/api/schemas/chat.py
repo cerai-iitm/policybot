@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 class ChatQueryRequest(BaseModel):
     query: str
-    session_id: str
+    # Optional: if provided, use specific session; otherwise use active session
+    session_id: str | None = None
     # External API should pass notebook_id as the public string (eg "nb_xxx")
     notebook_id: str
     # Use stored_filenames (UUID strings) instead of internal IDs

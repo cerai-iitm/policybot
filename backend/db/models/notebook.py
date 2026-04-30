@@ -16,3 +16,6 @@ class Notebook(Base):
 
     user = relationship("User", back_populates="notebooks")
     pdfs = relationship("PDF", back_populates="notebook", cascade="all, delete-orphan")
+    chat_sessions = relationship(
+        "ChatSession", back_populates="notebook", cascade="all, delete-orphan"
+    )
