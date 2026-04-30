@@ -73,11 +73,10 @@ const SourceItem: React.FC<Props> = ({
 
       onMenuClose={() => setShowMenu(false)}
 
-      onDeleteClick={(e) => {
-        e.stopPropagation();
-        setShowMenu(false);
-        onDelete?.(item.pdf_id);
-      }}
+      onDeleteClick={() => {
+  setShowMenu(false);
+  onDelete?.(item.pdf_id);
+}}
     />
   );
 };

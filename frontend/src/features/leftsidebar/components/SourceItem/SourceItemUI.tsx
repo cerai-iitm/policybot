@@ -27,7 +27,7 @@ interface UIProps {
   onToggle: () => void;
 
   onMenuToggle: (e: React.MouseEvent) => void;
-  onDeleteClick: (e: React.MouseEvent) => void;
+  onDeleteClick: () => void;
   onMenuClose: () => void;
 }
 

@@ -12,7 +12,7 @@ interface Props {
   isHovered: boolean;
   showMenu: boolean;
   onMenuToggle: (e: React.MouseEvent) => void;
-  onDeleteClick: (e: React.MouseEvent) => void;
+  onDeleteClick: () => void;
   onMenuClose: () => void;
 }
 
@@ -28,7 +28,7 @@ const menuItems: DropdownItem[] = [
   {
     label: "Delete",
     icon: <FiTrash2 size={16} />, // ✅ icon added
-    onClick: () => onDeleteClick({} as any),
+    onClick: onDeleteClick,
     className: "text-red-600 hover:bg-red-50",
   },
 

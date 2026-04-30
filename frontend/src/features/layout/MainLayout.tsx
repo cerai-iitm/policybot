@@ -14,6 +14,8 @@ import { listPdfs } from "@/lib/api/pdf.api";
 import { PdfItem } from "@/lib/types/pdf";
 import { useSearchParams } from "next/navigation";
 import { uploadPdf } from "@/lib/api/pdf.api";
+import { deletePdf } from "@/lib/api/pdf.api";
+
 
 interface MainLayoutProps {
   isAdmin?: boolean;
@@ -43,32 +45,34 @@ const [loadingPdfs, setLoadingPdfs] = useState(false);
 const searchParams = useSearchParams();
 const notebookId = searchParams.get("notebook_id");
 
-useEffect(() => {
+
+const fetchPdfs = async () => {
   if (!notebookId) return;
 
-  const fetchPdfs = async () => {
-    setLoadingPdfs(true);
-    try {
-      const data = await listPdfs(notebookId);
+  setLoadingPdfs(true);
+  try {
+    const data = await listPdfs(notebookId);
 
-      const mapped: PdfItem[] = data.pdfs.map((pdf: any) => ({
-        pdf_id: pdf.stored_filename,
-        filename: pdf.original_filename,
-        notebook_id: pdf.notebook_id,
-        processing_status: pdf.processing_status,
-        summary: pdf.summary,
-        uploaded_at: pdf.uploaded_at,
-        suggested_queries: pdf.suggested_queries || [],
-      }));
+    const mapped: PdfItem[] = data.pdfs.map((pdf: any) => ({
+      pdf_id: pdf.stored_filename,
+      filename: pdf.original_filename,
+      notebook_id: pdf.notebook_id,
+      processing_status: pdf.processing_status,
+      summary: pdf.summary,
+      uploaded_at: pdf.uploaded_at,
+      suggested_queries: pdf.suggested_queries || [],
+    }));
 
-      setSources(mapped);
-    } catch (err) {
-      console.error("Failed to fetch PDFs", err);
-    } finally {
-      setLoadingPdfs(false);
-    }
-  };
+    setSources(mapped);
+  } catch (err) {
+    console.error("Failed to fetch PDFs", err);
+  } finally {
+    setLoadingPdfs(false);
+  }
+};
 
+
+useEffect(() => {
   fetchPdfs();
 }, [notebookId]);
 
@@ -111,10 +115,25 @@ useEffect(() => {
     setSelectedFilename(filename);
   };
 
- const handleDeletePdf = (pdfId: string) => {
-  setCheckedPdfs((prev) =>
-    prev.filter((id) => id !== pdfId)
-  );
+const handleDeletePdf = async (pdfId: string) => {
+  if (!notebookId) return;
+
+  // ✅ Optimistic UI update
+  setSources((prev) => prev.filter((s) => s.pdf_id !== pdfId));
+  setCheckedPdfs((prev) => prev.filter((id) => id !== pdfId));
+
+  try {
+    await deletePdf(pdfId);
+
+    // ✅ Re-sync with backend (important)
+    await fetchPdfs();
+
+  } catch (err) {
+    console.error("Delete failed", err);
+
+    // ❗ Rollback (optional but professional)
+    await fetchPdfs();
+  }
 };
 
 const handleSelectAll = () => {
