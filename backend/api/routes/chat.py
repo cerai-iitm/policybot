@@ -249,6 +249,30 @@ async def chat_query(
                 db_session.add(assistant_message)
                 await db_session.commit()
 
+                stored_filenames = list(
+                    set(c["stored_filename"] for c in context_chunks)
+                )
+                filename_map = {}
+                if stored_filenames:
+                    pdf_result = await db_session.execute(
+                        select(PDF.stored_filename, PDF.original_filename).where(
+                            PDF.stored_filename.in_(stored_filenames)
+                        )
+                    )
+                    filename_map = dict(pdf_result.all())
+
+                context_for_client = [
+                    {
+                        "original_filename": filename_map.get(
+                            c["stored_filename"], c["stored_filename"]
+                        ),
+                        "page_number": c["page_number"],
+                        "text": c["text"],
+                    }
+                    for c in context_chunks
+                ]
+                yield f"data: {json.dumps({'context_chunks': context_for_client})}\n\n"
+
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
