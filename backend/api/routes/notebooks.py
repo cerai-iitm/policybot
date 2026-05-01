@@ -6,12 +6,16 @@ import secrets
 
 from api.deps import get_current_user
 from db.session import get_db
-from db.models import User, Notebook
+from db.models import User, Notebook, PDF
+from sqlalchemy.orm import selectinload
 from api.schemas.notebook import (
     NotebookCreate,
     NotebookResponse,
     NotebookListResponse,
     NotebookUpdate,
+    PDFDetailsRequest,
+    PDFDetailsResponse,
+    PDFDetailItem,
 )
 
 router = APIRouter(prefix="/notebooks", tags=["notebooks"])
@@ -108,3 +112,46 @@ async def update_notebook(
     await db.commit()
     await db.refresh(notebook)
     return notebook
+
+
+@router.post("/pdf-details", response_model=PDFDetailsResponse)
+async def get_pdf_details(
+    request: PDFDetailsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Notebook).where(
+            Notebook.notebook_id == request.notebook_id,
+            Notebook.user_id == current_user.id,
+        )
+    )
+    notebook = result.scalar_one_or_none()
+    if not notebook:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+
+    query = (
+        select(PDF)
+        .options(selectinload(PDF.suggested_queries))
+        .where(PDF.notebook_id == notebook.id, PDF.user_id == current_user.id)
+    )
+
+    if request.pdf_ids:
+        query = query.where(PDF.stored_filename.in_(request.pdf_ids))
+
+    result = await db.execute(query)
+    pdfs = result.scalars().all()
+
+    return PDFDetailsResponse(
+        pdfs=[
+            PDFDetailItem(
+                pdf_id=pdf.stored_filename,
+                filename=pdf.original_filename,
+                summary=pdf.summary,
+                suggested_queries=[
+                    sq.query_text for sq in (pdf.suggested_queries or [])
+                ],
+            )
+            for pdf in pdfs
+        ]
+    )
