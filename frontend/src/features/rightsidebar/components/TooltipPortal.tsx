@@ -37,7 +37,7 @@ export default function TooltipPortal({
         left: pos.left,
         transform: "translate(-100%, -50%)",
       }}
-      className="z-[9999]"
+      className="z-9999"
     >
       {children}
     </div>,

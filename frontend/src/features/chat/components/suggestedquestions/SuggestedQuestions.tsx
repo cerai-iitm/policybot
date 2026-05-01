@@ -27,8 +27,8 @@ const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
               px-4 py-3
 
               /* 🔥 CHAT-BUBBLE STYLE */
-              rounded-[12px]
-              rounded-tl-[4px]   /* 👈 remove top-left curve */
+              rounded-xl
+              rounded-tl-sm   /* 👈 remove top-left curve */
 
               /* 🔥 AI LOOK */
               bg-slate-100
