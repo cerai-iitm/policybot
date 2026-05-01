@@ -10,7 +10,6 @@ import { NotebookListItem } from "@/lib/types/notebook";
 import { updateNotebook, deleteNotebook } from "@/lib/api/notebook.api";
 import { createNotebook } from "@/lib/api/notebook.api";
 import { DEFAULT_NOTEBOOK } from "@/lib/constants/notebook";
-import { useRouter } from "next/navigation";
 
 type Props = {
   recentNotebooks?: NotebookListItem[];
@@ -18,8 +17,6 @@ type Props = {
 };
 
 const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
-  const router = useRouter();
-
 
   const [modalType, setModalType] = useState<"rename" | "delete" | null>(null);
   const [selectedNotebook, setSelectedNotebook] =
@@ -29,30 +26,27 @@ const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
 
   const [localNotebooks, setLocalNotebooks] = useState<NotebookListItem[]>([]);
 
-
+  // ✅ CREATE ONLY NOTEBOOK HERE
   const handleCreateWorkspace = async () => {
-  if (loading) return;
+    if (loading) return;
 
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const res = await createNotebook(DEFAULT_NOTEBOOK);
+      const res = await createNotebook(DEFAULT_NOTEBOOK);
+      const notebookId = res.notebook_id;
 
-    const notebookId = res.notebook_id;
+      if (!notebookId) throw new Error("Notebook ID missing");
 
-    if (!notebookId) throw new Error("Notebook ID missing");
+      // ✅ delegate session + routing to page
+      onSelect(notebookId);
 
-    // 🚀 redirect to chat
-    router.push(`/chat?notebook_id=${notebookId}`);
-
-  } catch (err) {
-    console.error("Create notebook failed", err);
-  } finally {
-    setLoading(false);
-  }
-};
-
-
+    } catch (err) {
+      console.error("Create notebook failed", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ✅ Sync props → state
   useEffect(() => {
@@ -75,7 +69,7 @@ const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
   };
 
   const closeModal = () => {
-    if (loading) return; // ✅ prevent closing during API call
+    if (loading) return;
     setModalType(null);
     setSelectedNotebook(null);
   };
@@ -85,19 +79,19 @@ const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
   // -----------------------------
 
   const handleConfirm = async () => {
-    if (!selectedNotebook || loading) return; // ✅ double-click guard
+    if (!selectedNotebook || loading) return;
 
     try {
       setLoading(true);
 
-      // ✅ RENAME
       if (modalType === "rename") {
         if (!inputValue.trim()) return;
 
         const updated = await updateNotebook({
           notebook_id: selectedNotebook.notebook_id,
           title: inputValue.trim(),
-          description: selectedNotebook.description ?? "Default Description", // ✅ FIXED
+          description:
+            selectedNotebook.description ?? "Default Description",
         });
 
         setLocalNotebooks((prev) =>
@@ -109,7 +103,6 @@ const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
         );
       }
 
-      // ✅ DELETE
       if (modalType === "delete") {
         await deleteNotebook(selectedNotebook.notebook_id);
 
@@ -139,27 +132,26 @@ const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
       </h2>
 
       <div className="flex gap-6 mb-12 overflow-x-auto no-scrollbar">
-       <CreateWorkspaceCard
-  onClick={handleCreateWorkspace}
-  disabled={loading}
-/>
+        <CreateWorkspaceCard
+          onClick={handleCreateWorkspace}
+          disabled={loading}
+        />
 
         {localNotebooks.map((nb) => (
           <div key={nb.notebook_id} className="shrink-0">
             <RecentNotebookCard
-  title={nb.title}
-  desc={nb.description || "No description available"}
-  createdAt={nb.created_at}
-  sourceCount={nb.processed_pdf_count} // ✅ ADD THIS
-  onClick={() => onSelect(nb.notebook_id)}
-  onRename={() => handleRename(nb)}
-  onDelete={() => handleDelete(nb)}
-/>
+              title={nb.title}
+              desc={nb.description || "No description available"}
+              createdAt={nb.created_at}
+              sourceCount={nb.processed_pdf_count}
+              onClick={() => onSelect(nb.notebook_id)} // ✅ delegate
+              onRename={() => handleRename(nb)}
+              onDelete={() => handleDelete(nb)}
+            />
           </div>
         ))}
       </div>
 
-      {/* ✅ MODAL */}
       <CommonModal
         isOpen={modalType !== null}
         title={
