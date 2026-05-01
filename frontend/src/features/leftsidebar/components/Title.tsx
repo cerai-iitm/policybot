@@ -108,8 +108,8 @@ const Title = ({ title, notebookId, onUpdate }: Props) => {
 />
         ) : (
           <h2
-  onClick={() => setEditing(true)}
-  className="
+   onClick={() => title !== "Loading..." && setEditing(true)}
+  className={`
     inline-block
     max-w-full
 
@@ -126,9 +126,10 @@ const Title = ({ title, notebookId, onUpdate }: Props) => {
     hover:border hover:border-black/40
     hover:bg-gray-50
 
-    break-all          /* 🔥 add this */
-    whitespace-pre-wrap /* 🔥 and this */
-  "
+    break-all         
+    whitespace-pre-wrap
+    ${title === "Loading..." ? "opacity-60 cursor-default hover:border-0 hover:bg-transparent" : ""}
+  `}
   title="Click to edit"
 >
   {title}

@@ -115,24 +115,27 @@ useEffect(() => {
   // =========================
   // SEND MESSAGE
   // =========================
-const handleSend = async () => {
-  if (!input.trim() || isDisabled) return;
+const handleSend = async (overrideText?: string) => {
+  const textToSend = overrideText ?? input;
 
-  hasUserStartedChatRef.current = true; // 🔥 LOCK SUMMARY
+  if (!textToSend.trim() || isDisabled) return;
 
-  const userText = input;
+  hasUserStartedChatRef.current = true;
 
-  addUserMessage(userText);
+  addUserMessage(textToSend);
   const aiMessageId = addAILoadingMessage();
 
-  setInput("");
+  // only clear input if user typed
+  if (!overrideText) {
+    setInput("");
+  }
 
   try {
     let fullText = "";
 
     await sendQueryStream(
       {
-        query: userText,
+        query: textToSend,
         session_id: sessionId,
         notebook_id: notebookId,
         pdf_ids: selectedPdfIds,
@@ -149,16 +152,9 @@ const handleSend = async () => {
     );
   }
 };
-
 const handleSuggestedClick = (q: string) => {
-  setInput(q);
-
-  // optional: auto-send
-  setTimeout(() => {
-    handleSend();
-  }, 0);
+  handleSend(q);
 };
-
   // =========================
   // DELETE FLOW (UPDATED)
   // =========================

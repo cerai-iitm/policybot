@@ -73,10 +73,14 @@ const LeftSidebar: React.FC<SidebarProps & {
         {/* ---------- TITLE ---------- */}
        {!collapsed && (
   <Title
-    title={title}
-    notebookId={notebookId}
-    onUpdate={onUpdateTitle}
-  />
+  title={
+    title === "Loading..."
+      ? "Loading..." // keep raw text
+      : title
+  }
+  notebookId={notebookId}
+  onUpdate={onUpdateTitle}
+/>
 )}
 
         {/* ---------- UPLOAD ---------- */}
