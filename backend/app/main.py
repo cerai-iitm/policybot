@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes.auth import router as auth_router
 from api.routes.chat import router as chat_router
+from api.routes.chat_sessions import router as chat_sessions_router
 from api.routes.notebooks import router as notebooks_router
 from api.routes.pdfs import router as pdfs_router
 
@@ -45,6 +46,7 @@ def create_app():
     app.include_router(notebooks_router, prefix="/policybot/api")
     app.include_router(pdfs_router, prefix="/policybot/api")
     app.include_router(chat_router, prefix="/policybot/api")
+    app.include_router(chat_sessions_router, prefix="/policybot/api")
 
     # Mount _next static files at root (for HTML references) - DISABLED
     # app.mount(

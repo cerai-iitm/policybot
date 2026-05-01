@@ -255,7 +255,7 @@ async def retrieve_chunks(
 
 
 async def get_chat_history(
-    session_id: str, db: AsyncSession, max_turns: int = 3
+    session_id: int, db: AsyncSession, max_turns: int = 3
 ) -> List:
     """Get chat history and format as LangChain messages."""
     config = get_config()

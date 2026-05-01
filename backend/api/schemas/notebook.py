@@ -26,3 +26,22 @@ class NotebookListResponse(BaseModel):
 class NotebookUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
+
+
+class PDFDetailItem(BaseModel):
+    pdf_id: str
+    filename: str
+    summary: str | None = None
+    suggested_queries: list[str] = []
+
+    class Config:
+        from_attributes = True
+
+
+class PDFDetailsRequest(BaseModel):
+    notebook_id: str
+    pdf_ids: list[str] | None = None
+
+
+class PDFDetailsResponse(BaseModel):
+    pdfs: list[PDFDetailItem]
