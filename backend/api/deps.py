@@ -5,6 +5,8 @@
 # Keep this compatibility re-export so existing modules that import from backend.api.deps
 # continue to work. Remove this re-export after migrating imports to core.auth.
 
+from fastapi import Depends, HTTPException, status
+
 from core.auth import (
     get_current_user,
     oauth2_scheme,
@@ -12,5 +14,15 @@ from core.auth import (
     create_access_token,
     create_user,
 )
-
+from db.models.user import User
 from db.session import get_db
+
+
+def get_strict_user(user: User = Depends(get_current_user)) -> User:
+    """Dependency that blocks demo users from write operations."""
+    if getattr(user, "is_demo_user", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Demo users cannot perform this action",
+        )
+    return user

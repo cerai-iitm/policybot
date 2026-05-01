@@ -36,6 +36,7 @@ class UserOut(BaseModel):
     email: Optional[str] = None
     full_name: Optional[str] = None
     is_active: bool
+    is_demo_user: bool = False
 
     class Config:
         from_attributes = True
@@ -52,7 +53,7 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(
-    subject: str | int, expires_delta: Optional[timedelta] = None
+    subject: str | int, expires_delta: Optional[timedelta] = None, is_demo: bool = False
 ) -> str:
     now = datetime.utcnow()
     if expires_delta is None:
@@ -61,6 +62,21 @@ def create_access_token(
         "sub": str(subject),
         "iat": int(now.timestamp()),
         "exp": int((now + expires_delta).timestamp()),
+        "is_demo": is_demo,
+    }
+    encoded_jwt = jwt.encode(to_encode, config.jwt_secret, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def create_demo_token(user_id: int) -> str:
+    """Create a non-expiring JWT for demo user."""
+    now = datetime.utcnow()
+    far_future = datetime.utcnow() + timedelta(days=365 * 10)
+    to_encode = {
+        "sub": str(user_id),
+        "iat": int(now.timestamp()),
+        "exp": int(far_future.timestamp()),
+        "is_demo": True,
     }
     encoded_jwt = jwt.encode(to_encode, config.jwt_secret, algorithm=ALGORITHM)
     return encoded_jwt
@@ -176,4 +192,8 @@ async def get_current_user(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user"
             )
+
+    is_demo = payload.get("is_demo", False)
+    user.is_demo_user = is_demo
+
     return user

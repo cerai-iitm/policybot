@@ -4,14 +4,18 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_config
 from db.session import get_db
+from db.models.user import User
 from core.auth import (
     create_access_token,
     authenticate_user,
     create_user,
     get_current_user,
+    create_demo_token,
     Token,
     UserOut,
     oauth2_scheme,
@@ -58,3 +62,29 @@ async def read_current_user(current_user: UserOut = Depends(get_current_user)):
 @router.post("/logout")
 async def logout():
     return {"message": "Successfully logged out"}
+
+
+@router.get("/demo", response_model=Token)
+async def get_demo_token(db: AsyncSession = Depends(get_db)):
+    """Get a non-expiring demo token for read-only access."""
+    config = get_config()
+
+    result = await db.execute(
+        select(User).where(User.username == config.demo_user_username)
+    )
+    demo_user = result.scalar_one_or_none()
+
+    if not demo_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Demo user not configured. Please create a user with username 'demo'.",
+        )
+
+    if not demo_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Demo user is not active.",
+        )
+
+    access_token = create_demo_token(demo_user.id)
+    return {"access_token": access_token, "token_type": "bearer"}

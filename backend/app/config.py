@@ -73,6 +73,9 @@ class Config(BaseSettings):
     # Validation is enforced via Pydantic Literal type.
     environment: Literal["development", "production"] = "production"
 
+    # Demo User Settings
+    demo_user_username: str = "demo"
+
 
 @lru_cache()
 def get_config() -> Config:
