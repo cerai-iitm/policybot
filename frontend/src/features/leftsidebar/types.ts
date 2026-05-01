@@ -18,4 +18,5 @@ export interface SidebarProps {
   onUploadPdf: (file: File) => void;
   onOpenProcessing: (item: any) => void;
   onRenamePdf?: (id: string, name: string) => void;
+  autoOpenUpload?: boolean;
 }

@@ -4,3 +4,4 @@ export interface ChatPayload {
   notebook_id: string;
   pdf_ids: string[];
 }
+

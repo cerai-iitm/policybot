@@ -10,6 +10,7 @@ export const usePdfManager = (notebookId: string | null) => {
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
   const [loadingPdfs, setLoadingPdfs] = useState(false);
   const [hasAutoSelected, setHasAutoSelected] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
 
 
   useEffect(() => {
@@ -50,6 +51,8 @@ const fetchPdfs = useCallback(async () => {
       finalList = Array.from(map.values());
       return finalList;
     });
+
+    setHasFetched(true);
 
     /* ✅ SAFE AUTO SELECT (OUTSIDE setSources) */
   const completedIds = mapped
@@ -173,5 +176,7 @@ const handleSelectAll = () => {
     handleTogglePdf,
     handleSelectAll,
     handleRenamePdf,
+    loadingPdfs,
+    hasFetched
   };
 };

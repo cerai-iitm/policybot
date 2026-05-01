@@ -38,7 +38,8 @@ const LeftSidebar: React.FC<SidebarProps & {
   onOpenProcessing,
   onRenamePdf,
   notebookId,
-  onUpdateTitle
+  onUpdateTitle,
+  autoOpenUpload
   
 }) => {
   /* ---------------- DERIVED STATE ---------------- */
@@ -88,6 +89,7 @@ const LeftSidebar: React.FC<SidebarProps & {
           <FileUpload
             onFileSelect={onUploadPdf}
             collapsed={collapsed}
+            autoOpen={autoOpenUpload}
           />
         </div>
 

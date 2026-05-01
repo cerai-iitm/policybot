@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+
 import FileUploadUI from "./FileUploadUI";
 import UploadModal from "./uploadmodel/UploadModal";
+import { useState, useEffect, useRef } from "react";
 
 interface Props {
   collapsed?: boolean;
   onFileSelect: (file: File) => void;
+  autoOpen?: boolean;
 }
 
 const FileUpload: React.FC<Props> = ({
   collapsed,
   onFileSelect,
+  autoOpen
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -21,6 +24,17 @@ const FileUpload: React.FC<Props> = ({
   const handleFile = (file: File) => {
     onFileSelect(file);
   };
+const hasAutoOpened = useRef(false);
+
+useEffect(() => {
+  if (autoOpen && !hasAutoOpened.current) {
+    hasAutoOpened.current = true;
+
+    setTimeout(() => {
+      setOpen(true);
+    }, 0);
+  }
+}, [autoOpen]);
 
   return (
     <>

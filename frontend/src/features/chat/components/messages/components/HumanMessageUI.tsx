@@ -27,7 +27,7 @@ const HumanMessageUI: React.FC<Props> = ({
         border border-slate-300
 
         /* 🔥 CHAT SHAPE */
-        rounded-xl
+        rounded-3xl
         rounded-br-sm   /* 👈 remove bottom-right curve */
 
         px-4 sm:px-5

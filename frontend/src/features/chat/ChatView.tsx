@@ -21,9 +21,10 @@ import SuggestedQuestions from "./components/suggestedquestions/SuggestedQuestio
 interface Props {
   notebookId: string;
   selectedPdfIds: string[];
+  onCitationsUpdate: (chunks: any[]) => void;
 }
 
-const ChatView = ({ notebookId, selectedPdfIds }: Props) => {
+const ChatView = ({ notebookId, selectedPdfIds,onCitationsUpdate }: Props) => {
   const searchParams = useSearchParams();
 
   const sessionRef = useRef<string>(uuidv4());
@@ -38,6 +39,7 @@ const ChatView = ({ notebookId, selectedPdfIds }: Props) => {
     updateAIMessage,
     setChatMessages,
     clearChat,
+    updateAIMessageChunks
   } = useChatUI();
 
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
@@ -116,6 +118,8 @@ useEffect(() => {
   // SEND MESSAGE
   // =========================
 const handleSend = async (overrideText?: string) => {
+  onCitationsUpdate([]); 
+  
   const textToSend = overrideText ?? input;
 
   if (!textToSend.trim() || isDisabled) return;
@@ -133,18 +137,25 @@ const handleSend = async (overrideText?: string) => {
   try {
     let fullText = "";
 
-    await sendQueryStream(
-      {
-        query: textToSend,
-        session_id: sessionId,
-        notebook_id: notebookId,
-        pdf_ids: selectedPdfIds,
-      },
-      (chunk: string) => {
-        fullText += chunk;
-        updateAIMessage(aiMessageId, fullText);
-      }
-    );
+   await sendQueryStream(
+  {
+    query: textToSend,
+    session_id: sessionId,
+    notebook_id: notebookId,
+    pdf_ids: selectedPdfIds,
+  },
+  (chunk: string) => {
+    fullText += chunk;
+    updateAIMessage(aiMessageId, fullText);
+  },
+  (chunks) => {
+    // ✅ attach to message
+    updateAIMessageChunks(aiMessageId, chunks);
+
+    // ✅ push to sidebar
+    onCitationsUpdate(chunks);
+  }
+);
   } catch {
     updateAIMessage(
       aiMessageId,

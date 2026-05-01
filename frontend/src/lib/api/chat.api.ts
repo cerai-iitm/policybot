@@ -5,7 +5,8 @@ import { getToken } from "@/lib/utils/token";
 
 export const sendQueryStream = async (
   data: ChatPayload,
-  onMessage: (msg: string) => void
+  onMessage: (msg: string) => void,
+  onContext?: (chunks: any[]) => void
 ) => {
   const token = getToken();
 
@@ -59,9 +60,10 @@ export const sendQueryStream = async (
           return;
         }
 
-        // (optional later)
-        // if (parsed.context_chunks) { ... }
-
+       // ✅ HANDLE CONTEXT CHUNKS
+if (parsed.context_chunks && onContext) {
+  onContext(parsed.context_chunks);
+}
       } catch (err) {
         console.error("Stream parse error:", err, jsonStr);
       }

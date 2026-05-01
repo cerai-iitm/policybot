@@ -17,6 +17,7 @@ import { usePdfManager } from "./hooks/usePdfManager";
 import { useProcessing } from "./hooks/useProcessing";
 import { usePdfModal } from "./hooks/usePdfModal";
 import { useNotebook } from "./hooks/useNotebook";
+import { useEffect } from "react";
 
 
 
@@ -29,12 +30,16 @@ export default function MainLayout() {
 
   /* ✅ SAME STATE (unchanged) */
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(true);
 
   /* 🔥 HOOKS */
   const pdf = usePdfManager(notebookId);
   const processing = useProcessing(pdf.fetchPdfs);
   const notebookData = useNotebook(notebookId);
+  const [citations, setCitations] = useState<any[]>([]);
+
+const autoOpenUpload =
+  pdf.hasFetched && pdf.sources.length === 0;
 
  const modal = usePdfModal(
   async (id) => {
@@ -64,6 +69,9 @@ export default function MainLayout() {
   const leftWidth = leftCollapsed ? "72px" : "285px";
   const rightWidth = rightCollapsed ? "72px" : "420px";
   const gridTemplate = `${leftWidth} 1fr ${rightWidth}`;
+
+
+
 
   return (
     <AdminProvider isAdmin={isAdmin}>
@@ -102,19 +110,24 @@ export default function MainLayout() {
                   () => pdf.setSelectedFilename(item.pdf_id)
                 )
               }
+
+              autoOpenUpload={autoOpenUpload}
             />
 
             {/* CENTER */}
-            <ChatView
+         <ChatView
   notebookId={notebookId || ""}
   selectedPdfIds={pdf.checkedPdfs}
+  onCitationsUpdate={setCitations} // ✅ NEW
 />
+
 
             {/* RIGHT */}
             <RightSidebar
-              collapsed={rightCollapsed}
-              onToggleCollapse={() => setRightCollapsed((p) => !p)}
-            />
+  collapsed={rightCollapsed}
+  onToggleCollapse={() => setRightCollapsed((p) => !p)}
+  citations={citations} // ✅ NEW
+/>
 
             {/* ✅ SAME MODALS POSITION */}
             <ProcessingModal

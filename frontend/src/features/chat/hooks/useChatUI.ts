@@ -50,6 +50,16 @@ export const useChatUI = () => {
 
   const clearChat = () => setMessages([]);
 
+  const updateAIMessageChunks = (id: string, chunks: any[]) => {
+  setMessages((prev) =>
+    prev.map((msg) =>
+      msg.id === id
+        ? { ...msg, sourceChunks: chunks }
+        : msg
+    )
+  );
+};
+
   return {
     messages,
     input,
@@ -58,6 +68,7 @@ export const useChatUI = () => {
     addAILoadingMessage,
     updateAIMessage,
     clearChat,
-    setChatMessages, // ✅ expose this
+    setChatMessages,
+    updateAIMessageChunks
   };
 };
