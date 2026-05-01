@@ -26,8 +26,8 @@ const MessageActions: React.FC<Props> = ({
   return (
     <div className="flex items-center gap-2 mt-3 text-slate-400 animate-fadeIn">
 
-      <button onClick={onCopy} className="p-2 -m-2 hover:text-slate-700">
-        {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+      <button onClick={onCopy} className="p-2 -m-2 hover:text-slate-700 cursor-pointer">
+        {copied ? <FiCheck size={16} /> : <FiCopy size={16} />}
       </button>
 
       <button
@@ -35,13 +35,13 @@ const MessageActions: React.FC<Props> = ({
         className={`${
           feedback === "like"
             ? "text-green-600"
-            : "hover:text-green-600"
+            : "hover:text-green-600 cursor-pointer"
         }`}
       >
         {feedback === "like" ? (
-          <AiFillLike size={14} />
+          <AiFillLike size={16} />
         ) : (
-          <AiOutlineLike size={14} />
+          <AiOutlineLike size={16} />
         )}
       </button>
 
@@ -50,13 +50,13 @@ const MessageActions: React.FC<Props> = ({
         className={`${
           feedback === "dislike"
             ? "text-red-600"
-            : "hover:text-red-500"
+            : "hover:text-red-500 cursor-pointer"
         }`}
       >
         {feedback === "dislike" ? (
-          <AiFillDislike size={14} />
+          <AiFillDislike size={16} />
         ) : (
-          <AiOutlineDislike size={14} />
+          <AiOutlineDislike size={16} />
         )}
       </button>
     </div>

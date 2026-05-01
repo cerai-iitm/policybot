@@ -22,13 +22,16 @@ const HumanMessageUI: React.FC<Props> = ({
         className="
         inline-block
         max-w-[90%] sm:max-w-[85%] md:max-w-140
+
         bg-slate-50
         border border-slate-300
-        rounded-[10px]
+
+        /* 🔥 CHAT SHAPE */
+        rounded-xl
+        rounded-br-sm   /* 👈 remove bottom-right curve */
+
         px-4 sm:px-5
         py-2.5 sm:py-3
-        
-        
       "
       >
         <p className="text-md text-[#334155] leading-6 wrap-break-words">

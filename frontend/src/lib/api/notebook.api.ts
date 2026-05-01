@@ -1,5 +1,5 @@
 import api from "@/lib/axios";
-import { CreateNotebookPayload,NotebookListItem  } from "@/lib/types/notebook";
+import { CreateNotebookPayload,NotebookListItem,PdfDetailsResponse  } from "@/lib/types/notebook";
 
 export interface UpdateNotebookPayload {
   notebook_id: string;
@@ -47,4 +47,37 @@ export const updateNotebook = async (data: UpdateNotebookPayload) => {
   );
 
   return res.data;
+};
+
+/* ---------------- PDF DETAILS (SUMMARY + QUERIES) ---------------- */
+
+
+export const getPdfDetails = async (
+  notebookId: string,
+  pdfIds: string[]
+): Promise<PdfDetailsResponse> => {
+  try {
+    const res = await api.post("/notebooks/pdf-details", {
+      notebook_id: notebookId,
+      pdf_ids: pdfIds,
+    });
+
+    const pdfs = res.data.pdfs || [];
+
+    // ✅ TEMP LOGIC (until backend gives combined response)
+    if (pdfs.length === 0) {
+      return { summary: "", suggested_queries: [] };
+    }
+
+    const lastPdf = pdfs[pdfs.length - 1];
+
+    return {
+      summary: lastPdf.summary || "",
+      suggested_queries: lastPdf.suggested_queries || [],
+    };
+
+  } catch (err) {
+    console.error("Failed to fetch PDF details", err);
+    return { summary: "", suggested_queries: [] };
+  }
 };

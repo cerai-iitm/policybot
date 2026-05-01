@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
-import { useEffect, useRef,useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ChatBody from "./components/ChatBody";
 import ChatInput from "./components/chatinput/ChatInput";
@@ -10,9 +10,13 @@ import ChatFooter from "./components/ChatFooter";
 import BaseSideContainer from "@/features/layout/components/BaseSideContainer";
 
 import { useChatUI } from "./hooks/useChatUI";
-import { sendQueryStream } from "@/lib/api/chat.api";
-import { getChatHistory } from "@/lib/api/chat.api";
+import { sendQueryStream, getChatHistory, deleteChatHistory } from "@/lib/api/chat.api";
 import { mapHistoryToMessages } from "./chat.mapper";
+
+import ChatMenu from "./components/chatmenu/ChatMenu";
+import CommonModal from "@/components/popup";
+import { getPdfDetails } from "@/lib/api/notebook.api";
+import SuggestedQuestions from "./components/suggestedquestions/SuggestedQuestions";
 
 interface Props {
   notebookId: string;
@@ -22,102 +26,216 @@ interface Props {
 const ChatView = ({ notebookId, selectedPdfIds }: Props) => {
   const searchParams = useSearchParams();
 
-  // 🔥 SESSION ID (from URL or fallback)
-const sessionRef = useRef<string>(uuidv4());
+  const sessionRef = useRef<string>(uuidv4());
+  const sessionId = searchParams.get("session_id") ?? sessionRef.current;
 
-// ✅ derive sessionId safely
-const sessionId = searchParams.get("session_id") ?? sessionRef.current;
-
-const {
-  messages,
-  input,
-  setInput,
-  addUserMessage,
-  addAILoadingMessage,
-  updateAIMessage,
-  setChatMessages, // ✅ NEW
-  clearChat,
-} = useChatUI();
+  const {
+    messages,
+    input,
+    setInput,
+    addUserMessage,
+    addAILoadingMessage,
+    updateAIMessage,
+    setChatMessages,
+    clearChat,
+  } = useChatUI();
 
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const isDisabled = selectedPdfIds.length === 0;
+  // ✅ NEW: modal + loading
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-  const fetchHistory = async () => {
+  const [summary, setSummary] = useState<string>("");
+const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
+const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+
+// 🚫 prevents refresh after chat starts
+const hasUserStartedChatRef = useRef(false);
+
+
+useEffect(() => {
+  const fetchSummary = async () => {
+    // 🚫 no PDFs → nothing
+    if (!selectedPdfIds.length) {
+      setSummary("");
+      setSuggestedQueries([]);
+      return;
+    }
+
+    // 🚫 if user already started chatting → DO NOT REFRESH
+    if (hasUserStartedChatRef.current) return;
+
     try {
-      setIsHistoryLoading(true);
+      setIsSummaryLoading(true);
 
-      const res = await getChatHistory(sessionId);
+      const res = await getPdfDetails(notebookId, selectedPdfIds);
 
-      const mapped = mapHistoryToMessages(res.messages || []);
-
-      setChatMessages(mapped);
+      setSummary(res.summary);
+      setSuggestedQueries(res.suggested_queries);
     } catch (err) {
-      console.error("Failed to load chat history", err);
-      clearChat();
+      console.error("Failed to fetch summary", err);
+      setSummary("");
+      setSuggestedQueries([]);
     } finally {
-      setIsHistoryLoading(false);
+      setIsSummaryLoading(false);
     }
   };
 
-  fetchHistory();
-}, [sessionId]);
+  fetchSummary();
+}, [notebookId, selectedPdfIds]);
 
 
-  const handleSend = async () => {
-    if (!input.trim() || isDisabled) return;
 
-    const userText = input;
+  const isDisabled = selectedPdfIds.length === 0;
 
-    // 1️⃣ Add user message
-    addUserMessage(userText);
+  // =========================
+  // FETCH HISTORY
+  // =========================
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setIsHistoryLoading(true);
 
-    // 2️⃣ Add AI loading message
-    const aiMessageId = addAILoadingMessage();
+        const res = await getChatHistory(sessionId);
+        const mapped = mapHistoryToMessages(res.messages || []);
+        setChatMessages(mapped);
+      } catch (err) {
+        console.error("Failed to load chat history", err);
+        clearChat();
+      } finally {
+        setIsHistoryLoading(false);
+      }
+    };
 
-    setInput("");
+    fetchHistory();
+  }, [sessionId]);
 
+  // =========================
+  // SEND MESSAGE
+  // =========================
+const handleSend = async () => {
+  if (!input.trim() || isDisabled) return;
+
+  hasUserStartedChatRef.current = true; // 🔥 LOCK SUMMARY
+
+  const userText = input;
+
+  addUserMessage(userText);
+  const aiMessageId = addAILoadingMessage();
+
+  setInput("");
+
+  try {
+    let fullText = "";
+
+    await sendQueryStream(
+      {
+        query: userText,
+        session_id: sessionId,
+        notebook_id: notebookId,
+        pdf_ids: selectedPdfIds,
+      },
+      (chunk: string) => {
+        fullText += chunk;
+        updateAIMessage(aiMessageId, fullText);
+      }
+    );
+  } catch {
+    updateAIMessage(
+      aiMessageId,
+      "Error: Failed to get response. Please try again."
+    );
+  }
+};
+
+const handleSuggestedClick = (q: string) => {
+  setInput(q);
+
+  // optional: auto-send
+  setTimeout(() => {
+    handleSend();
+  }, 0);
+};
+
+  // =========================
+  // DELETE FLOW (UPDATED)
+  // =========================
+
+  // 🔹 open modal (instead of direct delete)
+  const handleDeleteClick = () => {
+    setMenuOpen(false);
+    setShowDeleteModal(true);
+  };
+
+  // 🔹 confirm delete
+  const handleConfirmDelete = async () => {
     try {
-      let fullText = "";
+      setIsDeleting(true);
 
-      await sendQueryStream(
-        {
-          query: userText,
-          session_id: sessionId,
-          notebook_id: notebookId,
-          pdf_ids: selectedPdfIds,
-        },
-        (chunk: string) => {
-          fullText += chunk;
+      await deleteChatHistory(sessionId);
 
-          // 🔥 LIVE STREAM UPDATE
-          updateAIMessage(aiMessageId, fullText);
-        }
-      );
-    } catch (err: any) {
-      updateAIMessage(
-        aiMessageId,
-        "Error: Failed to get response. Please try again."
-      );
+      clearChat();
+      setShowDeleteModal(false);
+    } catch (err) {
+      console.error("Failed to delete chat history", err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
-    <BaseSideContainer title="Chat">
-      <div className="flex flex-col h-full">
-        <ChatBody messages={messages} loading={isHistoryLoading} />
-        <ChatInput
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onSend={handleSend}
-          disabled={isDisabled}
-          selectedCount={selectedPdfIds.length}
-        />
+    <>
+      <BaseSideContainer
+        title="Chat"
+        rightAction={
+          <ChatMenu
+            open={menuOpen}
+            onToggle={() => setMenuOpen((prev) => !prev)}
+            onClose={() => setMenuOpen(false)}
+            onDeleteChat={handleDeleteClick} // ✅ UPDATED
+          />
+        }
+      >
+        <div className="flex flex-col h-full">
+          <ChatBody
+  messages={messages}
+  loading={isHistoryLoading}
 
-        <ChatFooter />
-      </div>
-    </BaseSideContainer>
+  summary={summary}
+  suggestedQueries={suggestedQueries}
+  isSummaryLoading={isSummaryLoading}
+  onSuggestedClick={handleSuggestedClick}
+/>
+
+          <ChatInput
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onSend={handleSend}
+            disabled={isDisabled}
+            selectedCount={selectedPdfIds.length}
+          />
+
+          <ChatFooter />
+        </div>
+      </BaseSideContainer>
+
+      {/* =========================
+          DELETE CONFIRM MODAL
+         ========================= */}
+      <CommonModal
+        isOpen={showDeleteModal}
+        title="Delete chat history?"
+        description="This will permanently delete all messages in this session. This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteModal(false)}
+        isDanger
+        isLoading={isDeleting}
+      />
+    </>
   );
 };
 

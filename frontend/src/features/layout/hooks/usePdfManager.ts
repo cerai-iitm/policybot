@@ -9,41 +9,74 @@ export const usePdfManager = (notebookId: string | null) => {
   const [checkedPdfs, setCheckedPdfs] = useState<string[]>([]);
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
   const [loadingPdfs, setLoadingPdfs] = useState(false);
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
 
-  /* ✅ FIX: memoized fetch */
-  const fetchPdfs = useCallback(async () => {
-    if (!notebookId) return;
 
-    setLoadingPdfs(true);
-    try {
-      const data = await listPdfs(notebookId);
+  useEffect(() => {
+  // 🔥 reset when switching notebook
+  setCheckedPdfs([]);
+  setHasAutoSelected(false);
+}, [notebookId]);
 
-      const mapped: PdfItem[] = data.pdfs.map((pdf: any) => ({
-        pdf_id: pdf.stored_filename,
-        filename: pdf.original_filename,
-        notebook_id: pdf.notebook_id,
-        processing_status: pdf.processing_status,
-        summary: pdf.summary || "",
-        uploaded_at: pdf.uploaded_at,
-        suggested_queries: pdf.suggested_queries || [],
-      }));
 
-      setSources((prev) => {
-        const map = new Map<string, PdfItem>();
+const fetchPdfs = useCallback(async () => {
+  if (!notebookId) return;
 
-        mapped.forEach((item) => map.set(item.pdf_id, item));
-        prev.forEach((item) => {
-          if (!map.has(item.pdf_id)) map.set(item.pdf_id, item);
-        });
+  setLoadingPdfs(true);
+  try {
+    const data = await listPdfs(notebookId);
 
-        return Array.from(map.values());
+    const mapped: PdfItem[] = data.pdfs.map((pdf: any) => ({
+      pdf_id: pdf.stored_filename,
+      filename: pdf.original_filename,
+      notebook_id: pdf.notebook_id,
+      processing_status: pdf.processing_status,
+      summary: pdf.summary || "",
+      uploaded_at: pdf.uploaded_at,
+      suggested_queries: pdf.suggested_queries || [],
+    }));
+
+    // ✅ build merged list
+    let finalList: PdfItem[] = [];
+
+    setSources((prev) => {
+      const map = new Map<string, PdfItem>();
+
+      mapped.forEach((item) => map.set(item.pdf_id, item));
+      prev.forEach((item) => {
+        if (!map.has(item.pdf_id)) map.set(item.pdf_id, item);
       });
-    } catch (err) {
-      console.error("Failed to fetch PDFs", err);
-    } finally {
-      setLoadingPdfs(false);
-    }
-  }, [notebookId]); // ✅ dependency here
+
+      finalList = Array.from(map.values());
+      return finalList;
+    });
+
+    /* ✅ SAFE AUTO SELECT (OUTSIDE setSources) */
+  const completedIds = mapped
+  .filter((s) => s.processing_status === "complete")
+  .map((s) => s.pdf_id);
+
+/* 🔥 FIRST LOAD → SELECT ALL */
+if (!hasAutoSelected && completedIds.length > 0) {
+  setCheckedPdfs(completedIds);
+  setHasAutoSelected(true);
+}
+
+/* 🔥 AFTER UPLOAD → ADD NEW ONES */
+else if (hasAutoSelected && completedIds.length > 0) {
+  setCheckedPdfs((prev) => {
+    const newOnes = completedIds.filter((id) => !prev.includes(id));
+    return newOnes.length ? [...prev, ...newOnes] : prev;
+  });
+}
+
+  } catch (err) {
+    console.error("Failed to fetch PDFs", err);
+  } finally {
+    setLoadingPdfs(false);
+  }
+}, [notebookId, hasAutoSelected]); // ✅ add dependency
+
 
   /* ✅ FIX: now dependency is safe */
   useEffect(() => {

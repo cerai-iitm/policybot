@@ -15,7 +15,7 @@ interface Props {
 
 const DropdownMenu: React.FC<Props> = ({ items }) => {
   return (
-    <div className="w-44 bg-white border border-gray-300 rounded-lg shadow-md py-1">
+    <div className="w-full bg-white border border-gray-300 rounded-lg shadow-md py-1">
       {items.map((item, index) => (
         <button
           key={index}

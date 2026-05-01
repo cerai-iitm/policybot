@@ -15,7 +15,7 @@ interface Props {
 
 const NotebookDropdownMenu: React.FC<Props> = ({ items }) => {
   return (
-    <div className="w-44 bg-white border rounded-lg shadow-md py-1">
+    <div className="w-44 bg-white border border-gray-300 rounded-lg shadow-md py-1">
       {items.map((item, index) => (
         <button
           key={index}

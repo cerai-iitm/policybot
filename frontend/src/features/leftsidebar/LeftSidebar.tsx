@@ -96,27 +96,44 @@ const LeftSidebar: React.FC<SidebarProps & {
         )}
 
         {/* ---------- SOURCE LIST ---------- */}
-        <div className="flex-1 overflow-y-auto overflow-hidden pt-2 space-y-1 px-2 pb-4 custom-scrollbar">
-          {sources.map((item) => (
-            <SourceItem
-              key={item.pdf_id}
-              item={item}
-              checked={checkedPdfs.includes(item.pdf_id)}
-              onToggle={onTogglePdf}
-              onClick={() => {
-  if (item.processing_status !== "complete") {
-    onOpenProcessing(item);   // 🔥 open modal
-  } else {
-    onSelectPdf(item.pdf_id); // ✅ normal select
-  }
-}}
-              onDelete={onDeletePdf}
-              onRename={onRenamePdf}
-              isCollapsedSidebar={collapsed}
-              
-            />
-          ))}
-        </div>
+       {/* ---------- SOURCE LIST ---------- */}
+<div className="flex-1 overflow-y-auto pt-2 px-2 pb-4 custom-scrollbar">
+
+  {/* ✅ EMPTY STATE */}
+  {!collapsed && sources.length === 0 && (
+    <div className="h-full flex flex-col items-center justify-center text-center px-6">
+      <p className="text-sm text-slate-500">
+        Saved sources will appear here
+      </p>
+      <p className="text-sm text-slate-400 mt-1">
+        Click <span className="font-medium text-slate-600">Add source</span> above to add PDF
+      </p>
+    </div>
+  )}
+
+  {/* ✅ LIST */}
+  <div className="space-y-1">
+    {sources.map((item) => (
+      <SourceItem
+        key={item.pdf_id}
+        item={item}
+        checked={checkedPdfs.includes(item.pdf_id)}
+        onToggle={onTogglePdf}
+        onClick={() => {
+          if (item.processing_status !== "complete") {
+            onOpenProcessing(item);
+          } else {
+            onSelectPdf(item.pdf_id);
+          }
+        }}
+        onDelete={onDeletePdf}
+        onRename={onRenamePdf}
+        isCollapsedSidebar={collapsed}
+      />
+    ))}
+  </div>
+
+</div>
 
       </div>
     </BaseSideContainer>

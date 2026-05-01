@@ -19,3 +19,8 @@ export type NotebookResponse = {
   created_at: string;
   processed_pdf_count: number;
 };
+
+export interface PdfDetailsResponse {
+  summary: string;
+  suggested_queries: string[];
+}
