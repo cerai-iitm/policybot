@@ -22,11 +22,7 @@ const PolicyCollectionsSection = ({ notebooks, active, onSelect,recentNotebooks,
         onSelect={onSelect}
       />
 
-      <FeaturedSection
-        notebooks={notebooks}
-        active={active}
-        onSelect={onSelect}
-      />
+      
 
     </div>
   );

@@ -9,9 +9,7 @@ const TopBar = () => {
           All
         </button>
 
-        <span className="text-gray-700 text-sm">
-          Featured Workspaces
-        </span>
+     
       </div>
 
       <div className="flex items-center gap-4">
