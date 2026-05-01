@@ -1,84 +1,124 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { v4 as uuidv4 } from "uuid";
+import { useEffect, useRef,useState } from "react";
 
 import ChatBody from "./components/ChatBody";
-import ChatInput from "../chat/components/chatinput/ChatInput"
+import ChatInput from "./components/chatinput/ChatInput";
 import ChatFooter from "./components/ChatFooter";
 import BaseSideContainer from "@/features/layout/components/BaseSideContainer";
+
 import { useChatUI } from "./hooks/useChatUI";
+import { sendQueryStream } from "@/lib/api/chat.api";
+import { getChatHistory } from "@/lib/api/chat.api";
+import { mapHistoryToMessages } from "./chat.mapper";
 
-const ChatView = () => {
+interface Props {
+  notebookId: string;
+  selectedPdfIds: string[];
+}
 
-  const getMockResponse = (input: string) => {
-  const text = input.toLowerCase();
+const ChatView = ({ notebookId, selectedPdfIds }: Props) => {
+  const searchParams = useSearchParams();
 
-  if (text.includes("hello")) {
-    return "Hey 👋 How can I help you today?";
-  }
+  // 🔥 SESSION ID (from URL or fallback)
+const sessionRef = useRef<string>(uuidv4());
 
-  if (text.includes("policy")) {
-    return "This is a mock policy explanation. Real API will replace this.";
-  }
+// ✅ derive sessionId safely
+const sessionId = searchParams.get("session_id") ?? sessionRef.current;
 
-  if (text.includes("price")) {
-    return "Pricing depends on your plan. This is just a mock response.";
-  }
-
-  return "This is a mock AI response for testing UI flow.";
-};
-
-
-  const {
+const {
   messages,
   input,
   setInput,
   addUserMessage,
   addAILoadingMessage,
   updateAIMessage,
+  setChatMessages, // ✅ NEW
+  clearChat,
 } = useChatUI();
 
-const handleSend = () => {
-  if (!input.trim()) return;
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
 
-  const userText = input;
+  const isDisabled = selectedPdfIds.length === 0;
 
-  // 1️⃣ Add user message
-  addUserMessage(userText);
+  useEffect(() => {
+  const fetchHistory = async () => {
+    try {
+      setIsHistoryLoading(true);
 
-  // 2️⃣ Add AI loading
-  const aiMessageId = addAILoadingMessage();
+      const res = await getChatHistory(sessionId);
 
-  setInput("");
+      const mapped = mapHistoryToMessages(res.messages || []);
 
-  // 3️⃣ Mock AI response
-  setTimeout(() => {
-    const mockResponse = getMockResponse(userText);
+      setChatMessages(mapped);
+    } catch (err) {
+      console.error("Failed to load chat history", err);
+      clearChat();
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
 
-    updateAIMessage(aiMessageId, mockResponse);
-  }, 1200);
-};
+  fetchHistory();
+}, [sessionId]);
 
- return (
-  <BaseSideContainer title="Chat">
-    
-    <div className="flex flex-col h-full">
 
-      <ChatBody messages={messages} />
+  const handleSend = async () => {
+    if (!input.trim() || isDisabled) return;
 
-      <ChatInput
-  value={input}
-  onChange={(e) => setInput(e.target.value)}
-  onSend={handleSend}
-  disabled={false}
-  selectedCount={0}
-/>
+    const userText = input;
 
-      <ChatFooter />
+    // 1️⃣ Add user message
+    addUserMessage(userText);
 
-    </div>
+    // 2️⃣ Add AI loading message
+    const aiMessageId = addAILoadingMessage();
 
-  </BaseSideContainer>
-);
+    setInput("");
+
+    try {
+      let fullText = "";
+
+      await sendQueryStream(
+        {
+          query: userText,
+          session_id: sessionId,
+          notebook_id: notebookId,
+          pdf_ids: selectedPdfIds,
+        },
+        (chunk: string) => {
+          fullText += chunk;
+
+          // 🔥 LIVE STREAM UPDATE
+          updateAIMessage(aiMessageId, fullText);
+        }
+      );
+    } catch (err: any) {
+      updateAIMessage(
+        aiMessageId,
+        "Error: Failed to get response. Please try again."
+      );
+    }
+  };
+
+  return (
+    <BaseSideContainer title="Chat">
+      <div className="flex flex-col h-full">
+        <ChatBody messages={messages} loading={isHistoryLoading} />
+        <ChatInput
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onSend={handleSend}
+          disabled={isDisabled}
+          selectedCount={selectedPdfIds.length}
+        />
+
+        <ChatFooter />
+      </div>
+    </BaseSideContainer>
+  );
 };
 
 export default ChatView;

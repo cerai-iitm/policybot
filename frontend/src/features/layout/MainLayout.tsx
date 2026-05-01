@@ -105,7 +105,10 @@ export default function MainLayout() {
             />
 
             {/* CENTER */}
-            <ChatView />
+            <ChatView
+  notebookId={notebookId || ""}
+  selectedPdfIds={pdf.checkedPdfs}
+/>
 
             {/* RIGHT */}
             <RightSidebar

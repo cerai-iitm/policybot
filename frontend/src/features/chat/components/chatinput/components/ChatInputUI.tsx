@@ -50,7 +50,7 @@ const ChatInputUI: React.FC<Props> = ({
                 resize-none
                 bg-transparent
                 outline-none
-                text-sm
+                text-md
                 leading-6
                 text-slate-700
                 placeholder:text-slate-400
@@ -72,7 +72,7 @@ const ChatInputUI: React.FC<Props> = ({
               }}
             />
 
-            <SendButton onClick={onSend} disabled={disabled} />
+            <SendButton onClick={onSend} disabled={disabled || !value.trim()} />
           </div>
 
         </div>

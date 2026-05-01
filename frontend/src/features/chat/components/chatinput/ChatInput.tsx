@@ -21,7 +21,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onChange,
   onSend,
   disabled,
-  placeholder = "Select a source to continue",
+  placeholder,
   selectedCount,
   onOpenSidebar,
   onAttach,
@@ -61,7 +61,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
       onAttach={onAttach}
       onOpenSidebar={onOpenSidebar}
       disabled={disabled}
-      placeholder={placeholder}
+      placeholder={
+  selectedCount === 0
+    ? "Select at least one PDF to continue"
+    : "Ask something about your documents..."
+}
       selectedCount={selectedCount}
       
     />

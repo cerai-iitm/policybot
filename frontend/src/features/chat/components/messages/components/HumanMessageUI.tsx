@@ -31,7 +31,7 @@ const HumanMessageUI: React.FC<Props> = ({
         
       "
       >
-        <p className="text-sm text-[#334155] leading-6 wrap-break-words">
+        <p className="text-md text-[#334155] leading-6 wrap-break-words">
           {content}
         </p>
       </div>

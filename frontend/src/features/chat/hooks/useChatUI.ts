@@ -8,6 +8,11 @@ export const useChatUI = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
 
+  // ✅ NEW: hydrate from API
+  const setChatMessages = (msgs: Message[]) => {
+    setMessages(msgs);
+  };
+
   const addUserMessage = (text: string) => {
     const msg: Message = {
       id: uuidv4(),
@@ -18,7 +23,6 @@ export const useChatUI = () => {
     setMessages((prev) => [...prev, msg]);
   };
 
-  // 🔥 ADD LOADING AI MESSAGE
   const addAILoadingMessage = () => {
     const id = uuidv4();
 
@@ -31,10 +35,9 @@ export const useChatUI = () => {
 
     setMessages((prev) => [...prev, msg]);
 
-    return id; // return ID to update later
+    return id;
   };
 
-  // 🔥 UPDATE AI MESSAGE
   const updateAIMessage = (id: string, text: string) => {
     setMessages((prev) =>
       prev.map((msg) =>
@@ -55,5 +58,6 @@ export const useChatUI = () => {
     addAILoadingMessage,
     updateAIMessage,
     clearChat,
+    setChatMessages, // ✅ expose this
   };
 };

@@ -5,11 +5,18 @@ import { Message } from "../types/chat.types";
 import HumanMessage from "./messages/HumanMessage";
 import AIMessage from "./messages/AIMessage";
 
-const ChatBody = ({ messages }: { messages: Message[] }) => {
-  // 👉 Ref for auto-scroll
+const ChatBody = ({
+  messages,
+  loading,
+}: {
+  messages: Message[];
+  loading?: boolean;
+}) => {
+
+
+
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  // 👉 Scroll to bottom whenever messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -18,11 +25,18 @@ const ChatBody = ({ messages }: { messages: Message[] }) => {
     <div className="flex-1 overflow-y-auto pt-4 custom-scrollbar">
       <div className="w-full md:w-[90%] max-w-4xl mx-auto flex flex-col">
 
-        {messages.length === 0 && (
-          <div className="text-center mt-20 text-slate-500">
-            Start a conversation
-          </div>
-        )}
+        {loading && (
+  <div className="text-center mt-20 text-slate-500">
+    Loading chat history...
+  </div>
+)}
+
+
+        {!loading && messages.length === 0 && (
+  <div className="text-center mt-20 text-slate-500">
+    Start a conversation
+  </div>
+)}
 
         {messages.map((m) => (
           <div

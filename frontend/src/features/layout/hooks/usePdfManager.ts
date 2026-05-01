@@ -117,11 +117,17 @@ export const usePdfManager = (notebookId: string | null) => {
     );
   };
 
-  const handleSelectAll = () => {
-    const all = sources.map((s) => s.pdf_id);
-    const areAllSelected = all.every((id) => checkedPdfs.includes(id));
-    setCheckedPdfs(areAllSelected ? [] : all);
-  };
+const handleSelectAll = () => {
+  const all = sources
+    .filter((s) => s.processing_status === "complete")
+    .map((s) => s.pdf_id);
+
+  const areAllSelected = all.every((id) =>
+    checkedPdfs.includes(id)
+  );
+
+  setCheckedPdfs(areAllSelected ? [] : all);
+};
 
   return {
     sources,
