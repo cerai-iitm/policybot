@@ -145,7 +145,7 @@ async def chat_query(
     # 3. Classify query (conversational vs RAG)
     classification = await classify_query(request.query, pdf_summaries)
 
-    # 4. If conversational, return direct response
+    # 4. If conversational, stream response via SSE
     if (
         classification.query_type == "conversational"
         and classification.conversational_response
@@ -158,22 +158,37 @@ async def chat_query(
             content=request.query,
         )
         db.add(user_message)
-
-        assistant_message = ChatMessage(
-            user_id=user.id,
-            notebook_id=notebook.id,
-            session_id=session.id,
-            role="assistant",
-            content=classification.conversational_response,
-        )
-        db.add(assistant_message)
         await db.commit()
 
-        return {
-            "response": classification.conversational_response,
-            "query_type": "conversational",
-            "context_chunks": [],
-        }
+        response_text = classification.conversational_response
+
+        async def generate():
+            for i in range(0, len(response_text), 10):
+                chunk = response_text[i : i + 10]
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+            async with AsyncSessionLocal() as db_session:
+                assistant_message = ChatMessage(
+                    user_id=user.id,
+                    notebook_id=notebook.id,
+                    session_id=session.id,
+                    role="assistant",
+                    content=response_text,
+                )
+                db_session.add(assistant_message)
+                await db_session.commit()
+
+            yield 'data: {"context_chunks": []}\n\n'
+            yield 'data: {"done": true}\n\n'
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            },
+        )
 
     # 5. If RAG, generate HYDE + rewritten queries
     hyde_result = await generate_hyde_and_queries(request.query, pdf_summaries)
