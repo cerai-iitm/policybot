@@ -14,6 +14,7 @@ class NotebookResponse(BaseModel):
     title: str
     description: str | None
     created_at: datetime
+    processed_pdf_count: int = 0
 
     class Config:
         from_attributes = True
