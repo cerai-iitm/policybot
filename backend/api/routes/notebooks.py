@@ -45,12 +45,30 @@ async def list_notebooks(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Notebook).where(Notebook.user_id == current_user.id)
+    query = (
+        select(Notebook)
+        .options(selectinload(Notebook.pdfs))
+        .where(Notebook.user_id == current_user.id)
+    )
     if notebook_id:
         query = query.where(Notebook.notebook_id == notebook_id)
     result = await db.execute(query)
     notebooks = result.scalars().all()
-    return {"notebooks": notebooks}
+
+    notebooks_with_count = [
+        {
+            "id": nb.id,
+            "notebook_id": nb.notebook_id,
+            "title": nb.title,
+            "description": nb.description,
+            "created_at": nb.created_at,
+            "processed_pdf_count": sum(
+                1 for pdf in nb.pdfs if pdf.processing_status == "complete"
+            ),
+        }
+        for nb in notebooks
+    ]
+    return {"notebooks": notebooks_with_count}
 
 
 @router.get("/{notebook_id}", response_model=NotebookResponse)
