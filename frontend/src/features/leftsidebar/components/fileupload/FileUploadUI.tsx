@@ -21,7 +21,7 @@ const FileUploadUI: React.FC<Props> = ({
         onClick={onClick}
         className="flex justify-center items-center py-4 cursor-pointer"
       >
-        <div className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition">
+        <div className="w-10 h-10 min-w-10 min-h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition shrink-0 cursor-pointer">
           <Image src={addicon} alt="add" width={12} height={12} />
         </div>
       </div>
