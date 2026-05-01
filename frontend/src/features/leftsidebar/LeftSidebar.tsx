@@ -20,7 +20,12 @@ import Title from "./components/Title";
 /* ---------------- TYPES ---------------- */
 import { SidebarProps } from "./types";
 
-const LeftSidebar: React.FC<SidebarProps> = ({
+const LeftSidebar: React.FC<SidebarProps & {
+  title: string;
+  notebookId: string;
+  onUpdateTitle: (newTitle: string) => Promise<void>;
+}> = ({
+  title,
   sources,
   checkedPdfs,
   onTogglePdf,
@@ -31,7 +36,10 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   onUploadPdf,
   onOpenProcessing,
-  onRenamePdf
+  onRenamePdf,
+  notebookId,
+  onUpdateTitle
+  
 }) => {
   /* ---------------- DERIVED STATE ---------------- */
 
@@ -63,9 +71,13 @@ const LeftSidebar: React.FC<SidebarProps> = ({
       <div className="h-full flex flex-col bg-white">
 
         {/* ---------- TITLE ---------- */}
-        {!collapsed && (
-          <Title title="Education & Academic Policies" />
-        )}
+       {!collapsed && (
+  <Title
+    title={title}
+    notebookId={notebookId}
+    onUpdate={onUpdateTitle}
+  />
+)}
 
         {/* ---------- UPLOAD ---------- */}
         <div className="px-6 pt-2">

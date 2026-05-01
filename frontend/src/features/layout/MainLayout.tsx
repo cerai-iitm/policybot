@@ -16,6 +16,9 @@ import CommonModal from "@/components/popup";
 import { usePdfManager } from "./hooks/usePdfManager";
 import { useProcessing } from "./hooks/useProcessing";
 import { usePdfModal } from "./hooks/usePdfModal";
+import { useNotebook } from "./hooks/useNotebook";
+
+
 
 export default function MainLayout() {
   const pathname = usePathname();
@@ -31,6 +34,7 @@ export default function MainLayout() {
   /* 🔥 HOOKS */
   const pdf = usePdfManager(notebookId);
   const processing = useProcessing(pdf.fetchPdfs);
+  const notebookData = useNotebook(notebookId);
 
  const modal = usePdfModal(
   async (id) => {
@@ -40,6 +44,8 @@ export default function MainLayout() {
     await pdf.handleRenamePdf(id, name); // ✅ CLEAN
   }
 );
+
+
 
   /* 🔥 UPLOAD (same flow preserved) */
   const handleUpload = async (file: File) => {
@@ -75,6 +81,9 @@ export default function MainLayout() {
 
             {/* LEFT */}
             <LeftSidebar
+            title={notebookData.notebook?.title || "Loading..."}
+            notebookId={notebookId || ""}
+            onUpdateTitle={notebookData.updateTitle}
               collapsed={leftCollapsed}
               onToggleCollapse={() => setLeftCollapsed((p) => !p)}
               sources={pdf.sources}

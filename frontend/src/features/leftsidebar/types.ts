@@ -2,6 +2,9 @@
 import { PdfItem } from "@/lib/types/pdf";
 
 export interface SidebarProps {
+  title: string;
+  notebookId: string;
+  onUpdateTitle: (newTitle: string) => Promise<void>;
   sources: PdfItem[];
   checkedPdfs: string[];
 
