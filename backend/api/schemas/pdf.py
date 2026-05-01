@@ -54,3 +54,16 @@ class PDFDeleteResponse(BaseModel):
     message: str
     file_deleted: bool
     pdf_record_deleted: bool
+
+
+class FilenameUpdateRequest(BaseModel):
+    original_filename: str
+
+
+class FilenameUpdateResponse(BaseModel):
+    stored_filename: str
+    original_filename: str
+    notebook_id: str
+
+    class Config:
+        from_attributes = True
