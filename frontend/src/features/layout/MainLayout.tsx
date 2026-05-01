@@ -67,7 +67,23 @@ const fetchPdfs = async () => {
       suggested_queries: pdf.suggested_queries || [],
     }));
 
-    setSources(mapped);
+    setSources((prev) => {
+  const map = new Map<string, PdfItem>();
+
+  // ✅ Put latest backend data first
+  mapped.forEach((item) => {
+    map.set(item.pdf_id, item);
+  });
+
+  // ✅ Preserve any optimistic items not yet in backend
+  prev.forEach((item) => {
+    if (!map.has(item.pdf_id)) {
+      map.set(item.pdf_id, item);
+    }
+  });
+
+  return Array.from(map.values());
+});
   } catch (err) {
     console.error("Failed to fetch PDFs", err);
   } finally {
@@ -100,7 +116,12 @@ const handleUploadPdf = async (file: File) => {
     };
 
     // 2️⃣ Optimistic UI
-    setSources((prev) => [newPdf, ...prev]);
+    setSources((prev) => {
+  const exists = prev.some((p) => p.pdf_id === newPdf.pdf_id);
+  if (exists) return prev;
+
+  return [newPdf, ...prev];
+});
 
     // 3️⃣ Start processing (🔥 IMPORTANT)
     setProcessingLogs([]);
@@ -115,20 +136,18 @@ processPdfStream(
   }
 )
   .then(async () => {
-  setProcessingLogs((prev) => [...prev, "Completed ✅"]);
+    setProcessingLogs((prev) => [...prev, "Completed ✅"]);
 
-  await fetchPdfs();
+    await fetchPdfs(); // backend sync
 
-  // ✅ AUTO SELECT AFTER PROCESS
-  setSelectedFilename(res.stored_filename);
+    setSelectedFilename(res.stored_filename);
 
-  setProcessingOpen(false);
-})
+    setProcessingOpen(false);
+  })
   .catch(console.error);
  
 
-    // 4️⃣ Refetch after completion
-    await fetchPdfs();
+   
 
   } catch (err) {
     console.error("Upload/Process failed", err);
@@ -155,7 +174,7 @@ const handleOpenProcessing = (item: PdfItem) => {
     await fetchPdfs();
 
     // ✅ auto select after processing
-    setSelectedFilename(item.notebook_id,);
+    setSelectedFilename(item.pdf_id);
 
     // ✅ close modal
     setProcessingOpen(false);

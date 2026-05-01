@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 
 interface Props {
   open: boolean;
@@ -15,6 +15,11 @@ const ProcessingModal: React.FC<Props> = ({
   logs,
   filename,
 }) => {
+  const currentMessage = useMemo(() => {
+    if (!logs || logs.length === 0) return "Preparing document...";
+    return logs[logs.length - 1];
+  }, [logs]);
+
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -22,53 +27,85 @@ const ProcessingModal: React.FC<Props> = ({
 
     if (open) window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, [open]);
+  }, [open, onClose]);
 
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center"
+      className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center px-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[600px] max-h-[70vh] bg-white rounded-2xl shadow-xl border p-6 flex flex-col"
+        className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 px-8 py-9"
       >
         {/* HEADER */}
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-slate-800">
-            Processing PDF
-          </h2>
+        <div className="flex items-start justify-between mb-7">
+          <div>
+            <h2 className="text-base font-semibold text-slate-800">
+              Processing document
+            </h2>
+          </div>
 
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-slate-700"
+            className="text-slate-400 hover:text-slate-600 text-lg"
           >
             ✕
           </button>
         </div>
 
-        {/* FILE NAME */}
-        <p className="text-sm text-slate-500 mb-3">
-          {filename}
-        </p>
-
-        {/* LOGS */}
-        <div className="flex-1 overflow-y-auto bg-slate-50 rounded-lg p-4 text-sm text-slate-700 space-y-2 border">
-          {logs.length === 0 && (
-            <p className="text-slate-400">Starting process...</p>
-          )}
-
-          {logs.map((log, i) => (
-            <p key={i}>• {log}</p>
-          ))}
+        {/* FILE INFO */}
+        <div className="mb-9">
+          <p className="text-xs text-slate-400 mb-1">File</p>
+          <p className="text-sm text-slate-700 truncate">
+            {filename}
+          </p>
         </div>
 
-        {/* FOOTER */}
-        <div className="mt-4 text-xs text-slate-400">
-          Live updates from server...
+        {/* STATUS */}
+        <div className="mb-7">
+          <p className="text-sm text-slate-600 animate-fadeIn">
+            {currentMessage}
+          </p>
         </div>
+
+        {/* IMPROVED PROGRESS BAR */}
+        <div className="w-full h-0.75 bg-slate-100 rounded-full overflow-hidden relative">
+          <div className="absolute inset-0 bg-linear-to-r from-transparent via-slate-400/60 to-transparent animate-shimmer" />
+        </div>
+
+        {/* STYLES */}
+        <style jsx>{`
+          @keyframes shimmer {
+            0% {
+              transform: translateX(-100%);
+            }
+            100% {
+              transform: translateX(100%);
+            }
+          }
+
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(4px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          .animate-shimmer {
+            animation: shimmer 1.4s ease-in-out infinite;
+          }
+
+          .animate-fadeIn {
+            animation: fadeIn 0.25s ease-in-out;
+          }
+        `}</style>
       </div>
     </div>
   );

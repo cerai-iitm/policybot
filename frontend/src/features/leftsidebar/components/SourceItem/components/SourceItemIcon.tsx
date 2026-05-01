@@ -25,7 +25,7 @@ const SourceItemIcon: React.FC<Props> = ({
   processingStatus
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const isProcessing = processingStatus !== "complete";
+  const isProcessing = processingStatus && processingStatus !== "complete";
 
 const menuItems: DropdownItem[] = [
   {

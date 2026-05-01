@@ -65,7 +65,10 @@ const SourceItem: React.FC<Props> = ({
       onMouseLeave={() => setIsHovered(false)}
 
       onMainClick={onClick}
-      onToggle={() => onToggle(item.pdf_id)}
+      onToggle={() => {
+  if (item.processing_status !== "complete") return; // 🚫 block
+  onToggle(item.pdf_id);
+}}
 
       onMenuToggle={(e) => {
   e.stopPropagation();

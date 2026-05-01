@@ -53,7 +53,7 @@ const SourceItemUI: React.FC<UIProps> = (props) => {
     processingStatus
   } = props;
 
-  const isProcessing = processingStatus !== "complete";
+ const isProcessing = processingStatus !== "complete";
 
   /* COLLAPSED */
 if (isCollapsedSidebar) {
@@ -64,13 +64,14 @@ if (isCollapsedSidebar) {
       onMouseLeave={onMouseLeave}
       onClick={onMainClick}
     >
-      <SourceItemIcon
-        isHovered={isHovered}
-        showMenu={showMenu}
-        onMenuToggle={onMenuToggle}
-        onDeleteClick={onDeleteClick}
-        onMenuClose={onMenuClose}
-      />
+    <SourceItemIcon
+            isHovered={isHovered}
+            showMenu={showMenu}
+            onMenuToggle={onMenuToggle}
+            onDeleteClick={onDeleteClick}
+            onMenuClose={onMenuClose}
+            processingStatus={processingStatus}
+          />
     </div>
   );
 }
@@ -112,12 +113,13 @@ if (isCollapsedSidebar) {
             processingStatus={processingStatus}
           />
 
-          <SourceItemFilename
-            filename={filename}
-            displayName={displayName}
-            isLongName={isLongName}
-            onToggle={onToggle}
-          />
+        <SourceItemFilename
+  filename={filename}
+  displayName={displayName}
+  isLongName={isLongName}
+  isProcessing={isProcessing} // ✅ PASS
+  onToggle={onToggle}
+/>
         </div>
 
       {!isProcessing && (

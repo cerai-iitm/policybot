@@ -7,6 +7,7 @@ interface Props {
   displayName: string;
   isLongName: boolean;
   onToggle: () => void;
+  isProcessing?: boolean;
 }
 
 const SourceItemFilename: React.FC<Props> = ({
@@ -14,14 +15,18 @@ const SourceItemFilename: React.FC<Props> = ({
   displayName,
   isLongName,
   onToggle,
+  isProcessing
 }) => {
   return (
     <div
-      className="flex-1 overflow-hidden cursor-pointer"
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
+      className={`flex-1 overflow-hidden ${
+  isProcessing ? "cursor-default" : "cursor-pointer"
+}`}
+     onClick={(e) => {
+  e.stopPropagation();
+  if (isProcessing) return; // 🚫 block click
+  onToggle();
+}}
     >
       {isLongName ? (
         <>
