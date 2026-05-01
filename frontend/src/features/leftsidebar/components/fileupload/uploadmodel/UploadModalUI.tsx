@@ -34,7 +34,7 @@ const UploadModalUI: React.FC<Props> = ({
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="w-[520px] rounded-3xl bg-white shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-200 p-6 relative"
+        className="w-130 rounded-3xl bg-white shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-200 p-6 relative"
       >
         {/* CLOSE BUTTON */}
         <button

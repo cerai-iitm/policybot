@@ -14,15 +14,18 @@ interface Props {
   onMenuToggle: (e: React.MouseEvent) => void;
   onDeleteClick: () => void;
   onMenuClose: () => void;
+  processingStatus?: string;
 }
 
 const SourceItemIcon: React.FC<Props> = ({
   showMenu,
   onMenuToggle,
   onDeleteClick,
-  onMenuClose
+  onMenuClose,
+  processingStatus
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const isProcessing = processingStatus !== "complete";
 
 const menuItems: DropdownItem[] = [
   {
@@ -45,26 +48,33 @@ const menuItems: DropdownItem[] = [
     <>
       {/* BUTTON */}
       <div className="relative group">
-        <button
-          ref={buttonRef}
-          aria-label="menu"
-          onClick={onMenuToggle}
-          className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-200"
-        >
-          <span className="group-hover:hidden">
-            <Image src={docicon} alt="document" width={16} height={16} />
-          </span>
+  <button
+    ref={buttonRef}
+    aria-label="menu"
+    onClick={isProcessing ? undefined : onMenuToggle}
+    className="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-200"
+  >
+    {isProcessing ? (
+      /* 🔥 LOADER */
+      <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
+    ) : (
+      <>
+        <span className="group-hover:hidden">
+          <Image src={docicon} alt="document" width={16} height={16} />
+        </span>
 
-          <span className="hidden group-hover:block">
-            <FiMoreVertical size={18} />
-          </span>
-        </button>
-      </div>
+        <span className="hidden group-hover:block">
+          <FiMoreVertical size={18} />
+        </span>
+      </>
+    )}
+  </button>
+</div>
 
       {/* MENU */}
       <DropdownPortal
         anchorRef={buttonRef}
-        open={showMenu}
+        open={!isProcessing && showMenu}
         onClose={onMenuClose} 
       >
         <DropdownMenu items={menuItems} />

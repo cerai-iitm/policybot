@@ -15,7 +15,8 @@ import { PdfItem } from "@/lib/types/pdf";
 import { useSearchParams } from "next/navigation";
 import { uploadPdf } from "@/lib/api/pdf.api";
 import { deletePdf } from "@/lib/api/pdf.api";
-
+import { processPdfStream } from "@/lib/api/pdf.api";
+import ProcessingModal from "@/features/leftsidebar/components/processing/ProcessingModal";
 
 interface MainLayoutProps {
   isAdmin?: boolean;
@@ -44,6 +45,9 @@ const [loadingPdfs, setLoadingPdfs] = useState(false);
 
 const searchParams = useSearchParams();
 const notebookId = searchParams.get("notebook_id");
+const [processingLogs, setProcessingLogs] = useState<string[]>([]);
+const [processingOpen, setProcessingOpen] = useState(false);
+const [processingFile, setProcessingFile] = useState<string | null>(null);
 
 
 const fetchPdfs = async () => {
@@ -58,7 +62,7 @@ const fetchPdfs = async () => {
       filename: pdf.original_filename,
       notebook_id: pdf.notebook_id,
       processing_status: pdf.processing_status,
-      summary: pdf.summary,
+      summary: pdf.summary || "",
       uploaded_at: pdf.uploaded_at,
       suggested_queries: pdf.suggested_queries || [],
     }));
@@ -78,30 +82,86 @@ useEffect(() => {
 
   /* ---------------- HANDLERS ---------------- */
 
-  const handleUploadPdf = async (file: File) => {
+const handleUploadPdf = async (file: File) => {
   if (!notebookId) return;
 
   try {
+    // 1️⃣ Upload
     const res = await uploadPdf(notebookId, file);
 
     const newPdf: PdfItem = {
       pdf_id: res.stored_filename,
       filename: res.original_filename,
       notebook_id: res.notebook_id,
-      processing_status: res.processing_status,
+      processing_status: res.processing_status, // "uploaded"
       summary: "",
       uploaded_at: res.uploaded_at,
       suggested_queries: [],
     };
 
-    // ✅ optimistic UI update
+    // 2️⃣ Optimistic UI
     setSources((prev) => [newPdf, ...prev]);
 
+    // 3️⃣ Start processing (🔥 IMPORTANT)
+    setProcessingLogs([]);
+setProcessingOpen(true);
+setProcessingFile(res.original_filename);
+
+processPdfStream(
+  res.notebook_id,
+  res.stored_filename,
+  (msg) => {
+    setProcessingLogs((prev) => [...prev, msg]);
+  }
+)
+  .then(async () => {
+  setProcessingLogs((prev) => [...prev, "Completed ✅"]);
+
+  await fetchPdfs();
+
+  // ✅ AUTO SELECT AFTER PROCESS
+  setSelectedFilename(res.stored_filename);
+
+  setProcessingOpen(false);
+})
+  .catch(console.error);
+ 
+
+    // 4️⃣ Refetch after completion
+    await fetchPdfs();
+
   } catch (err) {
-    console.error("Upload failed", err);
+    console.error("Upload/Process failed", err);
   }
 };
 
+
+const handleOpenProcessing = (item: PdfItem) => {
+  if (item.processing_status === "complete") return;
+
+  setProcessingLogs([]);
+  setProcessingOpen(true);
+  setProcessingFile(item.filename);
+
+
+  processPdfStream(
+  item.notebook_id,
+  item.pdf_id,
+  (msg) => {
+    setProcessingLogs((prev) => [...prev, msg]);
+  }
+)
+  .then(async () => {
+    await fetchPdfs();
+
+    // ✅ auto select after processing
+    setSelectedFilename(item.notebook_id,);
+
+    // ✅ close modal
+    setProcessingOpen(false);
+  })
+  .catch(console.error);
+};
 
 
   const handleTogglePdf = (pdfId: string) => {
@@ -178,6 +238,7 @@ const handleSelectAll = () => {
   onDeletePdf={handleDeletePdf}
   onSelectAll={handleSelectAll}
   onUploadPdf={handleUploadPdf}
+  onOpenProcessing={handleOpenProcessing}
 />
 
             {/* CENTER */}
@@ -190,6 +251,13 @@ const handleSelectAll = () => {
                 setRightCollapsed((prev) => !prev)
               }
             />
+
+            <ProcessingModal
+  open={processingOpen}
+  onClose={() => setProcessingOpen(false)}
+  logs={processingLogs}
+  filename={processingFile || ""}
+/>
 
           </div>
         </main>

@@ -6,6 +6,7 @@ import SourceItemUI from "./SourceItemUI";
 interface SourceItemData {
   pdf_id: string;
   filename: string;
+  processing_status?: string;
 }
 
 
@@ -76,8 +77,12 @@ const SourceItem: React.FC<Props> = ({
       onDeleteClick={() => {
   setShowMenu(false);
   onDelete?.(item.pdf_id);
+
 }}
+     processingStatus={item.processing_status}
     />
+
+    
   );
 };
 

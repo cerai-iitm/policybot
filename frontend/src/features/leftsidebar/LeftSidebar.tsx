@@ -30,6 +30,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   collapsed,
   onToggleCollapse,
   onUploadPdf,
+  onOpenProcessing
 }) => {
   /* ---------------- DERIVED STATE ---------------- */
 
@@ -89,9 +90,16 @@ const LeftSidebar: React.FC<SidebarProps> = ({
               item={item}
               checked={checkedPdfs.includes(item.pdf_id)}
               onToggle={onTogglePdf}
-              onClick={() => onSelectPdf(item.pdf_id)}
+              onClick={() => {
+  if (item.processing_status !== "complete") {
+    onOpenProcessing(item);   // 🔥 open modal
+  } else {
+    onSelectPdf(item.pdf_id); // ✅ normal select
+  }
+}}
               onDelete={onDeletePdf}
               isCollapsedSidebar={collapsed}
+              
             />
           ))}
         </div>

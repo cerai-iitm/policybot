@@ -29,9 +29,12 @@ interface UIProps {
   onMenuToggle: (e: React.MouseEvent) => void;
   onDeleteClick: () => void;
   onMenuClose: () => void;
+  processingStatus?: string; 
 }
 
 const SourceItemUI: React.FC<UIProps> = (props) => {
+
+  
   const {
     filename,
     isLongName,
@@ -46,8 +49,11 @@ const SourceItemUI: React.FC<UIProps> = (props) => {
     onToggle,
     onMenuToggle,
     onDeleteClick,
-    onMenuClose
+    onMenuClose,
+    processingStatus
   } = props;
+
+  const isProcessing = processingStatus !== "complete";
 
   /* COLLAPSED */
 if (isCollapsedSidebar) {
@@ -70,6 +76,8 @@ if (isCollapsedSidebar) {
 }
 
   return (
+
+    
     <>
       <style jsx>{`
   @keyframes marqueeScroll {
@@ -101,6 +109,7 @@ if (isCollapsedSidebar) {
             onMenuToggle={onMenuToggle}
             onDeleteClick={onDeleteClick}
             onMenuClose={onMenuClose}
+            processingStatus={processingStatus}
           />
 
           <SourceItemFilename
@@ -111,10 +120,12 @@ if (isCollapsedSidebar) {
           />
         </div>
 
-        <SourceItemCheckbox
-          checked={checked}
-          onToggle={onToggle}
-        />
+      {!isProcessing && (
+  <SourceItemCheckbox
+    checked={checked}
+    onToggle={onToggle}
+  />
+)}
       </div>
     </>
   );

@@ -13,4 +13,5 @@ export interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onUploadPdf: (file: File) => void;
+  onOpenProcessing: (item: any) => void;
 }
