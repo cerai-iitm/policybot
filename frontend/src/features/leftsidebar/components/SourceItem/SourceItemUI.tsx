@@ -30,6 +30,7 @@ interface UIProps {
   onDeleteClick: () => void;
   onMenuClose: () => void;
   processingStatus?: string; 
+  onRenameClick: () => void;
 }
 
 const SourceItemUI: React.FC<UIProps> = (props) => {
@@ -50,7 +51,8 @@ const SourceItemUI: React.FC<UIProps> = (props) => {
     onMenuToggle,
     onDeleteClick,
     onMenuClose,
-    processingStatus
+    processingStatus,
+    onRenameClick
   } = props;
 
  const isProcessing = processingStatus !== "complete";
@@ -71,6 +73,7 @@ if (isCollapsedSidebar) {
             onDeleteClick={onDeleteClick}
             onMenuClose={onMenuClose}
             processingStatus={processingStatus}
+            onRenameClick={onRenameClick}
           />
     </div>
   );
@@ -111,6 +114,7 @@ if (isCollapsedSidebar) {
             onDeleteClick={onDeleteClick}
             onMenuClose={onMenuClose}
             processingStatus={processingStatus}
+            onRenameClick={onRenameClick}
           />
 
         <SourceItemFilename

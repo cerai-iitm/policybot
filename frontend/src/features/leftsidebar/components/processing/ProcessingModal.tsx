@@ -50,7 +50,7 @@ const ProcessingModal: React.FC<Props> = ({
 
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-lg"
+            className="text-slate-400 hover:text-slate-600 text-lg cursor-pointer"
           >
             ✕
           </button>

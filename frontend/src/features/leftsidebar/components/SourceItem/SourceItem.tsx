@@ -17,6 +17,7 @@ interface Props {
   onDelete?: (id: string) => void;
   onClick?: () => void;
   isCollapsedSidebar?: boolean;
+  onRename?: (id: string, name: string) => void;
 }
 
 const SourceItem: React.FC<Props> = ({
@@ -26,6 +27,7 @@ const SourceItem: React.FC<Props> = ({
   onClick,
   isCollapsedSidebar,
   onDelete,
+  onRename
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -49,6 +51,8 @@ const SourceItem: React.FC<Props> = ({
 
   return `${base.slice(0, 16)}...${ext}`;
 };
+
+
 
   return (
     <SourceItemUI
@@ -82,6 +86,12 @@ const SourceItem: React.FC<Props> = ({
   onDelete?.(item.pdf_id);
 
 }}
+
+onRenameClick={() => {
+  setShowMenu(false);
+  onRename?.(item.pdf_id, item.filename);
+}}
+
      processingStatus={item.processing_status}
     />
 

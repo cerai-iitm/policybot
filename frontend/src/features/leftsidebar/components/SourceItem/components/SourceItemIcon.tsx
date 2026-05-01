@@ -15,6 +15,7 @@ interface Props {
   onDeleteClick: () => void;
   onMenuClose: () => void;
   processingStatus?: string;
+  onRenameClick: () => void;
 }
 
 const SourceItemIcon: React.FC<Props> = ({
@@ -22,7 +23,8 @@ const SourceItemIcon: React.FC<Props> = ({
   onMenuToggle,
   onDeleteClick,
   onMenuClose,
-  processingStatus
+  processingStatus,
+  onRenameClick
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isProcessing = processingStatus && processingStatus !== "complete";
@@ -39,7 +41,7 @@ const menuItems: DropdownItem[] = [
   {
     label: "Rename",
     icon: <FiEdit2 size={16} />,
-    onClick: () => {},
+    onClick: onRenameClick, 
     className: "text-slate-700",
   },
 ];

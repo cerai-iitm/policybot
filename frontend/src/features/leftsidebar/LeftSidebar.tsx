@@ -30,7 +30,8 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   collapsed,
   onToggleCollapse,
   onUploadPdf,
-  onOpenProcessing
+  onOpenProcessing,
+  onRenamePdf
 }) => {
   /* ---------------- DERIVED STATE ---------------- */
 
@@ -98,6 +99,7 @@ const LeftSidebar: React.FC<SidebarProps> = ({
   }
 }}
               onDelete={onDeletePdf}
+              onRename={onRenamePdf}
               isCollapsedSidebar={collapsed}
               
             />
