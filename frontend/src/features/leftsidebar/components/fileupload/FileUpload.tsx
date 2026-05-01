@@ -1,45 +1,40 @@
 "use client";
 
-import { useRef } from "react";
+import { useState } from "react";
 import FileUploadUI from "./FileUploadUI";
+import UploadModal from "./uploadmodel/UploadModal";
 
 interface Props {
   collapsed?: boolean;
   onFileSelect: (file: File) => void;
 }
 
-const FileUpload: React.FC<Props> = ({ collapsed, onFileSelect }) => {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+const FileUpload: React.FC<Props> = ({
+  collapsed,
+  onFileSelect,
+}) => {
+  const [open, setOpen] = useState(false);
 
-  const handleClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleOpen = () => setOpen(true);
+  const handleClose = () => setOpen(false);
 
-  const handleFileChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // ✅ Allow only PDF
-    if (file.type !== "application/pdf") {
-      alert("Only PDF files are allowed");
-      return;
-    }
-
+  const handleFile = (file: File) => {
     onFileSelect(file);
-
-    // reset input so same file can be selected again
-    e.target.value = "";
   };
 
   return (
-    <FileUploadUI
-      collapsed={collapsed}
-      onClick={handleClick}
-      inputRef={fileInputRef}
-      onChange={handleFileChange}
-    />
+    <>
+      <FileUploadUI
+        collapsed={collapsed}
+        onClick={handleOpen}
+      />
+
+      <UploadModal
+        open={open}
+        onClose={handleClose}
+        onFileSelect={handleFile}
+      />
+    </>
   );
 };
 

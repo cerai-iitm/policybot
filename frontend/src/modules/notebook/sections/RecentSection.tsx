@@ -164,7 +164,7 @@ const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
         isOpen={modalType !== null}
         title={
           modalType === "rename"
-            ? "Edit Notebook"
+            ? "Edit Workspace"
             : `Delete ${selectedNotebook?.title}?`
         }
         description={
