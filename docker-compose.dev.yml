@@ -24,6 +24,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-policybot}
       - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - RUN_MIGRATIONS=true
+      - RUN_DEMO_SETUP=true
     volumes:
       - ./backend/uploads:/app/backend/uploads
       - ./backend/logs:/app/logs
@@ -61,6 +62,12 @@ services:
         - action: sync
           path: ./backend/migrations
           target: /app/migrations
+        - action: sync
+          path: ./backend/demo_config.py
+          target: /app/backend/demo_config.py
+        - action: sync
+          path: ./backend/setup_demo.py
+          target: /app/backend/setup_demo.py
     depends_on:
       postgres:
         condition: service_healthy
