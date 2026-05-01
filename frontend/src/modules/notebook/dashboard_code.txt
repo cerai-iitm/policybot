@@ -1,0 +1,1041 @@
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\PolicyCollectionsSection.tsx  
+==============================  
+import TopBar from "./sections/TopBar";
+import RecentSection from "./sections/RecentSection";
+import FeaturedSection from "./sections/FeaturedSection";
+
+import { NotebookListItem } from "@/lib/types/notebook";
+
+type Props = {
+  notebooks: NotebookListItem[];
+  recentNotebooks: NotebookListItem[]; 
+  active: string;
+  onSelect: (id: string) => void;
+};
+
+const PolicyCollectionsSection = ({ notebooks, active, onSelect,recentNotebooks, }: Props) => {
+  return (
+    <div className="mt-10 mx-30">
+
+      <TopBar />
+
+       <RecentSection
+        recentNotebooks={recentNotebooks}
+        onSelect={onSelect}
+      />
+
+      
+
+    </div>
+  );
+};
+
+export default PolicyCollectionsSection; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\components\cards\CreateWorkspaceCard.tsx  
+==============================  
+import { Plus } from "lucide-react";
+
+type Props = {
+  onClick?: () => void;
+};
+
+const CreateWorkspaceCard = ({ onClick }: Props) => {
+  return (
+    <div
+      onClick={onClick}
+      className="min-w-80 h-56 rounded-xl border border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:shadow-md transition"
+    >
+      <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center mb-4">
+        <Plus className="text-blue-600" size={24} />
+      </div>
+
+      <p className="text-gray-800 font-medium text-base">
+        Create a new workspace
+      </p>
+    </div>
+  );
+};
+
+export default CreateWorkspaceCard; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\components\cards\NotebookCard.tsx  
+==============================  
+import Arrowright from "@/assets/arrow copy.png";
+
+type Props = {
+  img: string;
+  title: string;
+  desc: string;
+  active?: boolean;
+  onClick?: () => void;
+};
+
+const NotebookCard = ({ img, title, desc, active = false, onClick }: Props) => {
+  return (
+    <div className="relative overflow-hidden rounded-xl w-80 h-56 transition-all duration-300 ease-out">
+
+      <button
+        aria-label="open workspace"
+        onClick={onClick}
+        className="absolute inset-0 z-20 cursor-pointer"
+      />
+
+      <img src={img} alt={title} className="absolute inset-0 h-full w-full object-cover" />
+
+      <div className={`absolute inset-0 ${active ? "bg-black/60" : "bg-black/45"}`} />
+
+      <div className="absolute inset-0 flex flex-col justify-end p-5 gap-2 text-white">
+        <h3 className="text-lg font-semibold">{title}</h3>
+
+        <p className="text-sm text-gray-200 line-clamp-2">
+          {desc}
+        </p>
+
+        <img src={Arrowright.src} alt="" className="w-4 h-4 mt-1" />
+      </div>
+    </div>
+  );
+};
+
+export default NotebookCard; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\components\cards\RecentNotebookCard\RecentNotebookCard.tsx  
+==============================  
+"use client";
+
+import { useRef, useState } from "react";
+import { FiTrash2, FiEdit2 } from "react-icons/fi";
+
+import NotebookDropdownPortal from "../../menu/NotebookDropdownPortal";
+import NotebookDropdownMenu, {
+  NotebookDropdownItem,
+} from "../../menu/NotebookDropdownMenu";
+
+import RecentNotebookCardUI from "./RecentNotebookCardUI";
+
+type Props = {
+  title: string;
+  desc: string;
+  createdAt: string;
+  sourceCount: number; // ✅ ADD
+  onClick?: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
+};
+
+const RecentNotebookCard = ({
+  title,
+  desc,
+  createdAt,
+  sourceCount,
+  onClick,
+  onRename,
+  onDelete
+}: Props) => {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const handleMenuToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpen((prev) => !prev);
+  };
+
+const menuItems: NotebookDropdownItem[] = [
+  {
+    label: "Rename",
+    icon: <FiEdit2 size={16} />,
+    onClick: () => {
+      onRename?.()
+      setOpen(false)
+    },
+  },
+  {
+    label: "Delete",
+    icon: <FiTrash2 size={16} />,
+    onClick: () => {
+      onDelete?.()
+      setOpen(false)
+    },
+    className: "text-red-600 hover:bg-red-50",
+  },
+]
+
+  return (
+    <>
+      <RecentNotebookCardUI
+  title={title}
+  desc={desc}
+  createdAt={createdAt}
+  sourceCount={sourceCount} // ✅ ADD
+  onCardClick={onClick}
+  onMenuClick={handleMenuToggle}
+  buttonRef={buttonRef}
+/>
+
+      <NotebookDropdownPortal
+        anchorRef={buttonRef}
+        open={open}
+        onClose={() => setOpen(false)}
+      >
+        <NotebookDropdownMenu items={menuItems} />
+      </NotebookDropdownPortal>
+    </>
+  );
+};
+
+export default RecentNotebookCard; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\components\cards\RecentNotebookCard\RecentNotebookCardUI.tsx  
+==============================  
+"use client";
+
+import React from "react";
+import { MoreVertical } from "lucide-react";
+
+type Props = {
+  title: string;
+  desc: string;
+  createdAt: string;
+  sourceCount: number; // ✅ ADD
+  onCardClick?: () => void;
+  onMenuClick?: (e: React.MouseEvent) => void;
+  buttonRef?: React.RefObject<HTMLButtonElement | null>;
+};
+
+const RecentNotebookCardUI: React.FC<Props> = ({
+  title,
+  desc,
+  createdAt,
+  sourceCount,
+  onCardClick,
+  onMenuClick,
+  buttonRef,
+}) => {
+
+  // 🔹 Format date → April 1, 2026
+  const formattedDate = new Date(createdAt).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  // 🔹 Get initials (like "IN")
+  const initials = title
+    .split(" ")
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+
+  return (
+    <div
+      onClick={onCardClick}
+      className="
+        relative
+        w-80 h-56
+        rounded-2xl
+        bg-[#f3f4f6]
+        p-5
+        flex flex-col justify-between
+        cursor-pointer
+        transition-all duration-300 ease-out
+        hover:shadow-md
+      "
+    >
+      {/* 🔹 TOP SECTION */}
+      <div className="flex items-start justify-between">
+
+        {/* INITIALS BLOCK */}
+        <div className="text-3xl font-semibold text-gray-700 tracking-wide">
+          {initials}
+        </div>
+
+        {/* MENU */}
+        <button
+          ref={buttonRef}
+          onClick={onMenuClick}
+          className="
+            p-1.5 rounded-md
+            text-gray-500
+            hover:bg-gray-200
+            transition
+          "
+          aria-label="More options"
+        >
+          <MoreVertical size={18} />
+        </button>
+      </div>
+
+      {/* 🔹 BOTTOM CONTENT */}
+      <div className="flex flex-col gap-2">
+
+        <h3
+          className="
+            text-xl font-semibold text-gray-900
+            leading-snug
+            line-clamp-2
+          "
+        >
+          {title}
+        </h3>
+
+        <p className="text-sm text-gray-600">
+  {formattedDate} • {sourceCount} {sourceCount === 1 ? "source" : "sources"}
+</p>
+
+      </div>
+    </div>
+  );
+};
+
+export default RecentNotebookCardUI; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\components\layout\Navbar.tsx  
+==============================  
+"use client";
+
+import { useState, useEffect } from "react";
+import { FaGithub, FaBars, FaTimes } from "react-icons/fa";
+import logo from "@/assets/logo/logo.png";
+import Link from "next/link";
+import cerailogo from "@/assets/logo/cerai.png";
+import iitmlogo from "@/assets/logo/iiit.png";
+import wsailogo from "@/assets/logo/wsai.png";
+
+import { getMe } from "@/lib/api";
+import { User } from "@/lib/types/auth";
+import { useAuth } from "@/lib/hooks/useAuth";
+import ProfileDropdown from "./ProfileDropdown";
+
+
+
+const Navbar = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+
+  const { logout } = useAuth();
+
+  // ✅ Fetch user once
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const data = await getMe();
+        setUser(data);
+      } catch (err) {
+        console.error("Failed to fetch user");
+      } finally {
+        setLoadingUser(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+
+  return (
+    <>
+      <nav className="sticky top-0 z-50 flex justify-between items-center px-12 py-6 bg-white/90 backdrop-blur-md">
+
+        {/* Logo */}
+        <Link
+            href="/"
+           
+          >
+        <img
+          src={logo.src}
+          alt="PolicyBot"
+          className="h-6 w-auto"
+        />
+</Link>
+        {/* Desktop Links */}
+        <div className="hidden md:flex items-center gap-4">
+
+         
+
+          <a
+            href="https://github.com/cerai-iitm/policybot.git"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open PolicyBot GitHub repository"
+            title="GitHub"
+          >
+            <FaGithub className="text-xl text-gray-700 cursor-pointer transition duration-300 hover:scale-125 hover:text-primary" />
+          </a>
+<div className="ml-2">
+  <div className="flex items-center justify-center gap-6 h-10.75 px-5 rounded-[10px] border border-black/20 bg-white">
+
+    <a
+      href="https://cerai.iitm.ac.in/"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Open CeRAI website"
+      title="CeRAI"
+    >
+      <img
+        src={cerailogo.src}
+        alt="CeRAI"
+        className="h-5 w-auto object-contain cursor-pointer transition duration-300 hover:scale-110"
+      />
+    </a>
+
+    <a
+      href="https://www.iitm.ac.in/"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Open IITM website"
+      title="IITM"
+    >
+      <img
+        src={iitmlogo.src}
+        alt="IITM"
+        className="h-5 w-auto object-contain cursor-pointer transition duration-300 hover:scale-110"
+      />
+    </a>
+
+    <a
+      href="https://wsai.iitm.ac.in/"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Open WSAI website"
+      title="WSAI"
+    >
+      <img
+        src={wsailogo.src}
+        alt="WSAI"
+        className="h-5 w-auto object-contain cursor-pointer transition duration-300 hover:scale-110"
+      />
+    </a>
+
+  </div>
+</div>
+
+         
+          
+     {/* ✅ Profile */}
+     <ProfileDropdown />
+
+
+        </div>
+
+        {/* Mobile Hamburger */}
+        <button
+        type="button"
+        aria-label="Open mobile menu"
+          className="md:hidden text-2xl text-gray-800"
+          onClick={() => setIsOpen(true)}
+        >
+          <FaBars />
+        </button>
+      </nav>
+
+      {/* Mobile Fullscreen Menu */}
+      <div
+        className={`fixed inset-0 bg-white z-50 transform transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="flex justify-between items-center px-6 py-6 border-b">
+          <img src={logo.src} alt="PolicyBot" className="h-6 w-auto" />
+          <button
+          type="button"          aria-label="Close mobile menu"
+            onClick={() => setIsOpen(false)}
+            className="text-2xl text-gray-800"
+          >
+            <FaTimes />
+          </button>
+        </div>
+
+       <div className="flex flex-col gap-8 px-6 pt-12 text-left h-full">
+
+  <Link
+    href="/"
+    onClick={() => setIsOpen(false)}
+    className="text-xl font-medium text-gray-800"
+  >
+    Overview
+  </Link>
+
+  <Link
+    href="/notebook"
+    onClick={() => setIsOpen(false)}
+    className="text-xl font-medium text-gray-800"
+  >
+    Policy Notebooks
+  </Link>
+
+  <a
+    href="https://github.com/cerai-iitm/policybot.git"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex items-center gap-3 text-xl font-medium text-gray-800"
+  >
+    <FaGithub />
+    GitHub
+  </a>
+
+  {/* Partner Logos Section */}
+  <div className="pt-8 mt-6 border-t border-gray-200">
+    <p className="text-sm text-gray-500 mb-4 tracking-wide">
+      In Collaboration With
+    </p>
+
+    <div className="flex items-center gap-8">
+
+      <a
+        href="https://cerai.iitm.ac.in/"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => setIsOpen(false)}
+      >
+        <img
+          src={cerailogo.src}
+          alt="CeRAI"
+          className="h-7 w-auto object-contain transition duration-300 hover:scale-110"
+        />
+      </a>
+
+      <a
+        href="https://www.iitm.ac.in/"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => setIsOpen(false)}
+      >
+        <img
+          src={iitmlogo.src}
+          alt="IITM"
+          className="h-7 w-auto object-contain transition duration-300 hover:scale-110"
+        />
+      </a>
+
+      <a
+        href="https://wsai.iitm.ac.in/"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => setIsOpen(false)}
+      >
+        <img
+          src={wsailogo.src}
+          alt="WSAI"
+          className="h-7 w-auto object-contain transition duration-300 hover:scale-110"
+        />
+      </a>
+
+    </div>
+  </div>
+
+  <Link
+    href="/notebook"
+    onClick={() => setIsOpen(false)}
+  >
+    <button className="mt-8 w-full border border-gray-400 px-6 py-3 rounded-xl transition duration-300 hover:bg-primary hover:text-white">
+      Get Started
+    </button>
+  </Link>
+
+</div>
+
+      </div>
+    </>
+  )
+}
+
+export default Navbar
+ 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\components\layout\ProfileDropdown.tsx  
+==============================  
+"use client";
+
+import { useEffect, useState } from "react";
+import { getMe } from "@/lib/api";
+import { User } from "@/lib/types/auth";
+import { useAuth } from "@/lib/hooks/useAuth";
+
+const ProfileDropdown = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+
+  const { logout } = useAuth();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const data = await getMe();
+        setUser(data);
+      } catch (err) {
+        console.error("Failed to fetch user");
+      } finally {
+        setLoadingUser(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  return (
+    <div className="relative group ml-2">
+
+      {/* Avatar */}
+      <button
+        className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-700 hover:bg-gray-200 transition"
+      >
+        {user?.username?.charAt(0).toUpperCase() || "?"}
+      </button>
+
+      {/* Dropdown */}
+      <div
+        className="
+          absolute right-0 mt-3 w-64
+          bg-white rounded-xl
+          shadow-lg shadow-black/10
+          border border-gray-100
+          opacity-0 invisible
+          group-hover:opacity-100 group-hover:visible
+          transition-all duration-200
+          overflow-hidden
+        "
+      >
+
+        {/* Header */}
+        <div className="px-4 py-4">
+          {loadingUser ? (
+            <div className="text-sm text-gray-400">Loading...</div>
+          ) : user ? (
+            <>
+              <div className="text-sm font-semibold text-gray-900 truncate">
+                {user.full_name}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5 truncate">
+                @{user.username}
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-red-500">
+              Failed to load user
+            </div>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-gray-100" />
+
+        {/* Account Section */}
+        <div className="py-2">
+
+          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+            My Profile
+          </button>
+
+          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+            Account Settings
+          </button>
+
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-gray-100" />
+
+        {/* Logout */}
+        <div className="py-2">
+          <button
+            onClick={logout}
+            className="
+              w-full text-left px-4 py-2 text-sm
+              text-red-600 hover:bg-red-50
+              transition
+            "
+          >
+            Sign out
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default ProfileDropdown; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\components\menu\NotebookDropdownMenu.tsx  
+==============================  
+"use client";
+
+import React from "react";
+
+export interface NotebookDropdownItem {
+  label: string;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  className?: string;
+}
+
+interface Props {
+  items: NotebookDropdownItem[];
+}
+
+const NotebookDropdownMenu: React.FC<Props> = ({ items }) => {
+  return (
+    <div className="w-44 bg-white border rounded-lg shadow-md py-1">
+      {items.map((item, index) => (
+        <button
+          key={index}
+          onClick={item.onClick}
+          className={`w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-slate-100 ${item.className || ""}`}
+        >
+          {item.icon && <span className="text-base">{item.icon}</span>}
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+};
+
+export default NotebookDropdownMenu; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\components\menu\NotebookDropdownPortal.tsx  
+==============================  
+"use client";
+
+import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+interface Props {
+  anchorRef: React.RefObject<HTMLElement | null>;
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+const NotebookDropdownPortal: React.FC<Props> = ({
+  anchorRef,
+  open,
+  onClose,
+  children,
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  // 📌 Position
+  useEffect(() => {
+    if (open && anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+
+      setPos({
+        top: rect.bottom + 6,
+        left: rect.right - 180, // align right side nicely
+      });
+    }
+  }, [open, anchorRef]);
+
+  // 📌 Outside click + ESC
+  useEffect(() => {
+    if (!open) return;
+
+    const handleClick = (e: MouseEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node) &&
+        anchorRef.current &&
+        !anchorRef.current.contains(e.target as Node)
+      ) {
+        onClose();
+      }
+    };
+
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+
+    window.addEventListener("mousedown", handleClick);
+    window.addEventListener("keydown", handleEsc);
+
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, [open, onClose, anchorRef]);
+
+  if (!open || typeof window === "undefined") return null;
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      style={{
+        position: "fixed",
+        top: pos.top,
+        left: pos.left,
+      }}
+      className="z-9999 animate-fadeIn"
+    >
+      {children}
+    </div>,
+    document.body
+  );
+};
+
+export default NotebookDropdownPortal; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\sections\FeaturedSection.tsx  
+==============================  
+import NotebookCard from "../components/cards/NotebookCard";
+import { NotebookListItem } from "@/lib/types//notebook";
+import { getNotebookImage } from "../utils/getNotebookImage";
+
+type Props = {
+  notebooks: NotebookListItem[];
+  active: string;
+  onSelect: (id: string) => void;
+};
+
+const FeaturedSection = ({ notebooks, active, onSelect }: Props) => {
+  return (
+    <>
+      <h2 className="text-xl font-semibold mb-6">
+        Featured Workspaces
+      </h2>
+
+      <div className="flex gap-6 overflow-x-auto no-scrollbar pb-6">
+        {notebooks.map((nb) => (
+          <div key={nb.notebook_id} className="shrink-0">
+            <NotebookCard
+              img={getNotebookImage(nb.title)}
+              title={nb.title}
+              desc={nb.description || "No description available"}
+              active={active === nb.notebook_id}
+              onClick={() => onSelect(nb.notebook_id)}
+            />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+};
+
+export default FeaturedSection; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\sections\RecentSection.tsx  
+==============================  
+"use client";
+
+import { useState, useEffect } from "react";
+
+import CreateWorkspaceCard from "../components/cards/CreateWorkspaceCard";
+import RecentNotebookCard from "../components/cards/RecentNotebookCard/RecentNotebookCard";
+import CommonModal from "@/components/popup";
+
+import { NotebookListItem } from "@/lib/types/notebook";
+import { updateNotebook, deleteNotebook } from "@/lib/api/notebook.api";
+
+type Props = {
+  recentNotebooks?: NotebookListItem[];
+  onSelect: (id: string) => void;
+};
+
+const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
+  const [modalType, setModalType] = useState<"rename" | "delete" | null>(null);
+  const [selectedNotebook, setSelectedNotebook] =
+    useState<NotebookListItem | null>(null);
+  const [inputValue, setInputValue] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const [localNotebooks, setLocalNotebooks] = useState<NotebookListItem[]>([]);
+
+  // ✅ Sync props → state
+  useEffect(() => {
+    setLocalNotebooks(recentNotebooks);
+  }, [recentNotebooks]);
+
+  // -----------------------------
+  // ACTION HANDLERS
+  // -----------------------------
+
+  const handleRename = (nb: NotebookListItem) => {
+    setSelectedNotebook(nb);
+    setInputValue(nb.title);
+    setModalType("rename");
+  };
+
+  const handleDelete = (nb: NotebookListItem) => {
+    setSelectedNotebook(nb);
+    setModalType("delete");
+  };
+
+  const closeModal = () => {
+    if (loading) return; // ✅ prevent closing during API call
+    setModalType(null);
+    setSelectedNotebook(null);
+  };
+
+  // -----------------------------
+  // CONFIRM HANDLER
+  // -----------------------------
+
+  const handleConfirm = async () => {
+    if (!selectedNotebook || loading) return; // ✅ double-click guard
+
+    try {
+      setLoading(true);
+
+      // ✅ RENAME
+      if (modalType === "rename") {
+        if (!inputValue.trim()) return;
+
+        const updated = await updateNotebook({
+          notebook_id: selectedNotebook.notebook_id,
+          title: inputValue.trim(),
+          description: selectedNotebook.description ?? "Default Description", // ✅ FIXED
+        });
+
+        setLocalNotebooks((prev) =>
+          prev.map((nb) =>
+            nb.notebook_id === selectedNotebook.notebook_id
+              ? { ...nb, title: updated.title }
+              : nb
+          )
+        );
+      }
+
+      // ✅ DELETE
+      if (modalType === "delete") {
+        await deleteNotebook(selectedNotebook.notebook_id);
+
+        setLocalNotebooks((prev) =>
+          prev.filter(
+            (nb) => nb.notebook_id !== selectedNotebook.notebook_id
+          )
+        );
+      }
+
+      closeModal();
+    } catch (err) {
+      console.error("Operation failed", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // -----------------------------
+  // UI
+  // -----------------------------
+
+  return (
+    <>
+      <h2 className="text-xl font-semibold mb-6">
+        Recent Workspaces
+      </h2>
+
+      <div className="flex gap-6 mb-12 overflow-x-auto no-scrollbar">
+        <CreateWorkspaceCard />
+
+        {localNotebooks.map((nb) => (
+          <div key={nb.notebook_id} className="shrink-0">
+            <RecentNotebookCard
+  title={nb.title}
+  desc={nb.description || "No description available"}
+  createdAt={nb.created_at}
+  sourceCount={nb.processed_pdf_count} // ✅ ADD THIS
+  onClick={() => onSelect(nb.notebook_id)}
+  onRename={() => handleRename(nb)}
+  onDelete={() => handleDelete(nb)}
+/>
+          </div>
+        ))}
+      </div>
+
+      {/* ✅ MODAL */}
+      <CommonModal
+        isOpen={modalType !== null}
+        title={
+          modalType === "rename"
+            ? "Edit Notebook"
+            : `Delete ${selectedNotebook?.title}?`
+        }
+        description={
+          modalType === "delete"
+            ? "This notebook will be permanently deleted. This action cannot be undone."
+            : undefined
+        }
+        showInput={modalType === "rename"}
+        inputValue={inputValue}
+        onInputChange={setInputValue}
+        confirmText={modalType === "rename" ? "Save" : "Delete"}
+        isDanger={modalType === "delete"}
+        onConfirm={handleConfirm}
+        onCancel={closeModal}
+        isLoading={loading}
+      />
+    </>
+  );
+};
+
+export default RecentSection; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\sections\TopBar.tsx  
+==============================  
+import { Search, Plus } from "lucide-react";
+
+const TopBar = () => {
+  return (
+    <div className="flex items-center justify-between mb-10">
+
+      <div className="flex items-center gap-6">
+        <button className="px-4 py-2 rounded-full bg-gray-200 text-sm font-medium">
+          All
+        </button>
+
+     
+      </div>
+
+      <div className="flex items-center gap-4">
+
+        <button
+          aria-label="search"
+          className="p-2 rounded-full border hover:bg-gray-100"
+        >
+          <Search size={18} />
+        </button>
+
+        <button className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-full text-sm font-medium">
+          <Plus size={16} />
+          Create Workspace
+        </button>
+
+      </div>
+    </div>
+  );
+};
+
+export default TopBar; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\modules\notebook\utils\getNotebookImage.ts  
+==============================  
+import AiImg from "@/assets/notebookbg/ai.jpg";
+import EducationImg from "@/assets/notebookbg/education.jpg";
+import UnionBudgetImg from "@/assets/notebookbg/unionbudget.png";
+
+const defaultImg = EducationImg;
+
+export const getNotebookImage = (title?: string) => {
+  if (!title) return defaultImg.src;
+
+  const t = title.toLowerCase();
+
+  if (t.includes("education") || t.includes("academic"))
+    return EducationImg.src;
+
+  if (
+    t.includes("digital") ||
+    t.includes("governance") ||
+    t.includes("cyber") ||
+    t.includes("it")
+  )
+    return AiImg.src;
+
+  if (t.includes("union") || t.includes("budget"))
+    return UnionBudgetImg.src;
+
+  return defaultImg.src;
+}; 

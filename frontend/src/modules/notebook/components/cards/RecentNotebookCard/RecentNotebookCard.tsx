@@ -14,6 +14,7 @@ type Props = {
   title: string;
   desc: string;
   createdAt: string;
+  sourceCount: number; // ✅ ADD
   onClick?: () => void;
   onRename?: () => void;
   onDelete?: () => void;
@@ -23,6 +24,7 @@ const RecentNotebookCard = ({
   title,
   desc,
   createdAt,
+  sourceCount,
   onClick,
   onRename,
   onDelete
@@ -58,13 +60,14 @@ const menuItems: NotebookDropdownItem[] = [
   return (
     <>
       <RecentNotebookCardUI
-        title={title}
-        desc={desc}
-        createdAt={createdAt}
-        onCardClick={onClick}
-        onMenuClick={handleMenuToggle}
-        buttonRef={buttonRef}
-      />
+  title={title}
+  desc={desc}
+  createdAt={createdAt}
+  sourceCount={sourceCount} // ✅ ADD
+  onCardClick={onClick}
+  onMenuClick={handleMenuToggle}
+  buttonRef={buttonRef}
+/>
 
       <NotebookDropdownPortal
         anchorRef={buttonRef}

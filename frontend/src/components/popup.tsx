@@ -1,6 +1,6 @@
 "use client"
 
-import { X } from "lucide-react"
+import { X, Loader2 } from "lucide-react"
 
 interface ModalProps {
   isOpen: boolean
@@ -14,6 +14,7 @@ interface ModalProps {
   onConfirm: () => void
   onCancel: () => void
   isDanger?: boolean
+  isLoading?: boolean   // ✅ NEW
 }
 
 export default function CommonModal({
@@ -27,7 +28,8 @@ export default function CommonModal({
   cancelText = "Cancel",
   onConfirm,
   onCancel,
-  isDanger = false
+  isDanger = false,
+  isLoading = false     // ✅ NEW
 }: ModalProps) {
   if (!isOpen) return null
 
@@ -36,8 +38,8 @@ export default function CommonModal({
 
       {/* 🔹 BACKDROP */}
       <div
-        className="absolute inset-0 bg-black/10"
-        onClick={onCancel}
+        className={`absolute inset-0 bg-black/10 ${isLoading ? "pointer-events-none" : ""}`}
+        onClick={!isLoading ? onCancel : undefined} // ❌ block close when loading
       />
 
       {/* 🔹 MODAL */}
@@ -50,8 +52,9 @@ export default function CommonModal({
           </h2>
 
           <button
-            onClick={onCancel}
-            className="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+            onClick={!isLoading ? onCancel : undefined}
+            disabled={isLoading}
+            className="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition disabled:opacity-50"
             aria-label="Close"
           >
             <X size={18} />
@@ -69,6 +72,7 @@ export default function CommonModal({
         {showInput && (
           <input
             autoFocus
+            disabled={isLoading} // ✅ disable while loading
             aria-label="input"
             value={inputValue}
             onChange={(e) => onInputChange?.(e.target.value)}
@@ -84,6 +88,7 @@ export default function CommonModal({
               focus:ring-blue-500
               focus:border-transparent
               transition
+              disabled:opacity-60 disabled:cursor-not-allowed
             "
             placeholder="Enter name..."
           />
@@ -93,6 +98,7 @@ export default function CommonModal({
         <div className="flex justify-end gap-3 pt-2">
           <button
             onClick={onCancel}
+            disabled={isLoading} // ✅ disable
             className="
               px-4 py-2
               rounded-lg
@@ -101,6 +107,7 @@ export default function CommonModal({
               text-gray-700
               hover:bg-gray-100
               transition
+              disabled:opacity-50 disabled:cursor-not-allowed
             "
           >
             {cancelText}
@@ -108,12 +115,15 @@ export default function CommonModal({
 
           <button
             onClick={onConfirm}
+            disabled={isLoading} // ✅ prevent spam clicks
             className={`
+              flex items-center justify-center gap-2
               px-4 py-2
               rounded-lg
               text-sm font-medium
               text-white
               transition
+              disabled:opacity-70 disabled:cursor-not-allowed
               ${
                 isDanger
                   ? "bg-red-600 hover:bg-red-700"
@@ -121,7 +131,14 @@ export default function CommonModal({
               }
             `}
           >
-            {confirmText}
+            {isLoading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Processing...
+              </>
+            ) : (
+              confirmText
+            )}
           </button>
         </div>
 

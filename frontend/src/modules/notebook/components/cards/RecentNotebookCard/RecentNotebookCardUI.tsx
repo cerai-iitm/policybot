@@ -5,8 +5,9 @@ import { MoreVertical } from "lucide-react";
 
 type Props = {
   title: string;
-  desc: string; // kept (not used)
+  desc: string;
   createdAt: string;
+  sourceCount: number; // ✅ ADD
   onCardClick?: () => void;
   onMenuClick?: (e: React.MouseEvent) => void;
   buttonRef?: React.RefObject<HTMLButtonElement | null>;
@@ -16,6 +17,7 @@ const RecentNotebookCardUI: React.FC<Props> = ({
   title,
   desc,
   createdAt,
+  sourceCount,
   onCardClick,
   onMenuClick,
   buttonRef,
@@ -89,8 +91,8 @@ const RecentNotebookCardUI: React.FC<Props> = ({
         </h3>
 
         <p className="text-sm text-gray-600">
-          {formattedDate} • 1 source
-        </p>
+  {formattedDate} • {sourceCount} {sourceCount === 1 ? "source" : "sources"}
+</p>
 
       </div>
     </div>

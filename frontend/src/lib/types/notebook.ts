@@ -7,5 +7,15 @@ export type NotebookListItem = {
   notebook_id: string;
   title: string;
   description?: string;
-  created_at: string; // ✅ ADD THIS
+  created_at: string;
+  processed_pdf_count: number; // ✅ ADD THIS
+};
+
+export type NotebookResponse = {
+  id: number;
+  notebook_id: string;
+  title: string;
+  description: string;
+  created_at: string;
+  processed_pdf_count: number;
 };
