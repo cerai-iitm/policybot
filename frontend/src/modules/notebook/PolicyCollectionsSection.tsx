@@ -1,6 +1,6 @@
-import TopBar from "./components/sections/TopBar";
-import RecentSection from "./components/sections/RecentSection";
-import FeaturedSection from "./components/sections/FeaturedSection";
+import TopBar from "./sections/TopBar";
+import RecentSection from "./sections/RecentSection";
+import FeaturedSection from "./sections/FeaturedSection";
 
 import { NotebookListItem } from "@/lib/types/notebook";
 

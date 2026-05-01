@@ -1,6 +1,6 @@
-import NotebookCard from "../cards/NotebookCard";
+import NotebookCard from "../components/cards/NotebookCard";
 import { NotebookListItem } from "@/lib/types//notebook";
-import { getNotebookImage } from "../../utils/getNotebookImage";
+import { getNotebookImage } from "../utils/getNotebookImage";
 
 type Props = {
   notebooks: NotebookListItem[];
