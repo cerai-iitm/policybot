@@ -28,6 +28,8 @@ from api.schemas.pdf import (
     PDFResponse,
     PDFUploadResponse,
     SuggestedQueryResponse,
+    FilenameUpdateRequest,
+    FilenameUpdateResponse,
 )
 from app.config import get_config
 from db.models.notebook import Notebook
@@ -298,6 +300,35 @@ async def delete_pdf(
         message=f"PDF {stored_filename} deleted",
         file_deleted=file_deleted,
         pdf_record_deleted=True,
+    )
+
+
+@router.patch("/filename", response_model=FilenameUpdateResponse)
+async def update_pdf_filename(
+    pdf_id: str = Query(..., description="PDF stored_filename"),
+    request: FilenameUpdateRequest = ...,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update PDF's original_filename by stored_filename."""
+    result = await db.execute(
+        select(PDF).where(PDF.stored_filename == pdf_id, PDF.user_id == user.id)
+    )
+    pdf = result.scalar_one_or_none()
+    if not pdf:
+        raise HTTPException(status_code=404, detail="PDF not found")
+
+    pdf.original_filename = request.original_filename
+    await db.commit()
+    await db.refresh(pdf)
+
+    notebook = await db.get(Notebook, pdf.notebook_id)
+    notebook_id_str = str(notebook.notebook_id) if notebook else ""
+
+    return FilenameUpdateResponse(
+        stored_filename=pdf.stored_filename,
+        original_filename=pdf.original_filename,
+        notebook_id=notebook_id_str,
     )
 
 
