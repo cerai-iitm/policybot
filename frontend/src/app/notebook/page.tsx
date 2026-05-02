@@ -1,104 +1,118 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-
-import Navbar from "@/features/notebook/Navbar";
-import PolicyCollectionsSection from "@/features/notebook/PolicyCollectionsSection";
-import PolicyTopicsSection from "@/features/notebook/PolicyTopicsSection";
-
-import { listNotebooks, listPdfs } from "@/lib/router";
-import { NotebookListItem, FirstNotebookPDFItem } from "@/lib/interfaces";
+import { useEffect, useState } from "react";
+import Navbar from "@/modules/notebook/components/layout/Navbar";
+import PolicyCollectionsSection from "@/modules/notebook/PolicyCollectionsSection";
+import { NotebookListItem } from "@/lib/types/notebook";
+import { getNotebooks } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import {
+  getActiveSession,
+  createSession,
+} from "@/lib/api/session.api";
 
 function NotebookContent() {
-  const [notebooks, setNotebooks] = useState<NotebookListItem[]>([]);
-  const [activeCollection, setActiveCollection] = useState<string>("");
-  const [pdfs, setPdfs] = useState<FirstNotebookPDFItem[]>([]);
-  const [loading, setLoading] = useState(false);
-
   const router = useRouter();
-  const searchParams = useSearchParams();
+
+  const featuredNotebooks: NotebookListItem[] = [
+    {
+      notebook_id: "1",
+      title: "Education Policy",
+      description: "Explore India's education policies and reforms",
+      created_at: new Date().toISOString(),
+      processed_pdf_count: 5,
+    },
+    {
+      notebook_id: "2",
+      title: "Digital Governance",
+      description: "Understand digital India initiatives and IT laws",
+      created_at: new Date().toISOString(),
+      processed_pdf_count: 5,
+    },
+    {
+      notebook_id: "3",
+      title: "Union Budget",
+      description: "Dive into financial policies and budget insights",
+      created_at: new Date().toISOString(),
+      processed_pdf_count: 5,
+    },
+  ];
+
+  const [recentNotebooks, setRecentNotebooks] = useState<NotebookListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [active, setActive] = useState("");
 
   useEffect(() => {
-    const preferred = searchParams.get("preferred");
-
-    const fetchNotebooks = async () => {
+    const fetchRecent = async () => {
       try {
-        const data = await listNotebooks();
-        setNotebooks(data.notebooks);
+        const data = await getNotebooks();
 
-        if (preferred) {
-          const pref = preferred.toLowerCase();
+        const sorted = [...data].sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() -
+            new Date(a.created_at).getTime()
+        );
 
-          const match = data.notebooks.find((n) =>
-            n.title.toLowerCase().includes(pref)
-          );
+        setRecentNotebooks(sorted);
 
-          if (match) setActiveCollection(match.notebook_id);
-          else if (data.first_notebook_id)
-            setActiveCollection(data.first_notebook_id);
-
-          router.replace("/notebook");
-          return;
-        }
-
-        if (data.first_notebook_id) {
-          setActiveCollection(data.first_notebook_id);
+        if (sorted.length > 0) {
+          setActive(sorted[0].notebook_id);
         }
       } catch (err) {
-        console.error(err);
-      }
-    };
-
-    fetchNotebooks();
-  }, [searchParams, router]);
-
-  useEffect(() => {
-    if (!activeCollection) return;
-
-    const fetchPdfs = async () => {
-      try {
-        setLoading(true);
-        const data = await listPdfs(activeCollection);
-
-        setPdfs(data.pdfs);
-      } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch recent notebooks");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchPdfs();
-  }, [activeCollection]);
+    fetchRecent();
+  }, []);
 
-  const activeNotebookTitle =
-    notebooks.find((n) => n.notebook_id === activeCollection)?.title || "";
+  if (loading) {
+    return <div className="p-10">Loading workspaces...</div>;
+  }
+
+  // ✅ CENTRALIZED SESSION + ROUTING
+  const handleSelect = async (notebookId: string) => {
+    setActive(notebookId);
+
+    try {
+      let session;
+
+      // 🔥 try get session
+      try {
+        session = await getActiveSession(notebookId);
+      } catch {
+        // 🔥 fallback create (for newly created notebook)
+        session = await createSession(notebookId);
+      }
+
+      const sessionId = session.session_id;
+
+      if (!sessionId) throw new Error("Session ID missing");
+
+      router.push(
+        `/chat?notebook_id=${notebookId}&session_id=${sessionId}`
+      );
+    } catch (err) {
+      console.error("Failed to open notebook", err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
 
       <PolicyCollectionsSection
-        notebooks={notebooks}
-        active={activeCollection}
-        onSelect={setActiveCollection}
-      />
-
-      <PolicyTopicsSection
-        pdfs={pdfs}
-        loading={loading}
-        title={activeNotebookTitle}
-        notebookId={activeCollection}
+        notebooks={featuredNotebooks}
+        recentNotebooks={recentNotebooks}
+        active={active}
+        onSelect={handleSelect}
       />
     </div>
   );
 }
 
 export default function NotebookPage() {
-  return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
-      <NotebookContent />
-    </Suspense>
-  );
+  return <NotebookContent />;
 }

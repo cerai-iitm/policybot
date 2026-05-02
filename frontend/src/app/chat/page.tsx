@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
-import MainLayout from "../../features/chat/layout/MainLayout";
+
+import MainLayout from "../../features/layout/MainLayout";
 
 function ChatContent() {
   return <MainLayout />;
