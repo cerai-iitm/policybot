@@ -88,6 +88,9 @@ COPY backend/alembic.ini ./backend/
 COPY backend/migrations/ ./migrations/
 COPY backend/.env ./backend/
 COPY backend/entrypoint.sh ./
+COPY backend/demo_config.py ./backend/
+COPY backend/setup_demo.py ./backend/
+COPY backend/demo_pdfs ./demo_pdfs/
 
 EXPOSE 8000
 USER appuser
@@ -134,6 +137,9 @@ COPY backend/services/ ./backend/services/
 COPY backend/core/ ./backend/core/
 COPY backend/alembic.ini ./backend/
 COPY backend/migrations/ ./migrations/
+COPY backend/demo_config.py ./backend/
+COPY backend/setup_demo.py ./backend/
+COPY backend/demo_pdfs ./demo_pdfs/
 
 EXPOSE 8000
 USER appuser

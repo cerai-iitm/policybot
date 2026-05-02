@@ -14,6 +14,7 @@ class User(Base):
     full_name = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True)
+    is_demo_user = Column(Boolean, default=False)
 
     notebooks = relationship(
         "Notebook", back_populates="user", cascade="all, delete-orphan"

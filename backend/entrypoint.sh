@@ -33,6 +33,16 @@ else
     echo "Skipping migrations (RUN_MIGRATIONS != true)"
 fi
 
+# ---- Run demo setup ----
+if [ "${RUN_DEMO_SETUP:-false}" = "true" ]; then
+    echo "Running demo setup..."
+    cd /app/backend && PYTHONPATH=/app python setup_demo.py
+    echo "Demo setup complete"
+else
+    echo "Skipping demo setup (RUN_DEMO_SETUP != true)"
+fi
+
 # ---- Exec CMD ----
 echo "Starting application..."
+cd /app
 exec "$@"
