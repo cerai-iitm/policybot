@@ -10,9 +10,22 @@ import PrivacySection from "@/modules/homepage/PrivacySection"
 import FAQSection from "@/modules/homepage/FAQSection"
 import Footer from "@/modules/homepage/Footer"
 import Reveal from "@/modules/homepage/Reveal"
-
+import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function HomePage() {
+
+  const { loginDemo, loading } = useAuth();
+
+  const handleDemo = async () => {
+  try {
+    await loginDemo();
+    router.push("/notebook");
+  } catch (err) {
+    console.error("Demo login failed", err);
+  }
+};
+
+
   const router = useRouter();
 
    return (
@@ -37,12 +50,24 @@ export default function HomePage() {
   </p>
 
   
-   <button
-          onClick={() => router.push("/notebook")}
-          className="mt-12 bg-primary text-white px-8 py-4 rounded-xl hover:scale-105 transition"
-        >
-          Try PolicyBot
-        </button>
+<div className="mt-12 flex items-center justify-center gap-4">
+  {/* Demo */}
+  <button
+    onClick={handleDemo}
+    disabled={loading}
+    className="px-8 py-4 rounded-xl border border-gray-300 text-gray-700 bg-white hover:bg-gray-100 transition"
+  >
+    Explore Demo
+  </button>
+
+  {/* Primary */}
+  <button
+    onClick={() => router.push("/notebook")}
+    className="px-8 py-4 rounded-xl bg-primary text-white hover:scale-105 transition"
+  >
+    Get Started
+  </button>
+</div>
 
 </div>
 

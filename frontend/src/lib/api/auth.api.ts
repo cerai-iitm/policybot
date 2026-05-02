@@ -27,3 +27,9 @@ export const logoutUser = async () => {
   const res = await api.post("/auth/logout");
   return res.data;
 };
+
+// NEW: Demo login (no payload)
+export const loginDemoUser = async () => {
+  const res = await api.get("/auth/demo");
+  return res.data;
+};

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { loginUser, registerUser } from "@/lib/api/auth.api";
+import { loginUser, registerUser, loginDemoUser } from "@/lib/api/auth.api";
 import { LoginResponse, RegisterPayload } from "@/lib/types/auth";
 import Cookies from "js-cookie";
 
@@ -43,5 +43,32 @@ export const useAuth = () => {
     window.location.href = "/login";
   };
 
-  return { login, register, logout, loading };
+
+   const loginDemo = async () => {
+  setLoading(true);
+  try {
+    const data = await loginDemoUser();
+
+    Cookies.set("token", data.access_token, {
+      expires: 7,
+      path: "/",
+      sameSite: "lax",
+    });
+
+    return data;
+  } catch (err: any) {
+    throw err?.response?.data || err;
+  } finally {
+    setLoading(false);
+  }
 };
+
+
+
+  return { login, register, logout,loginDemo, loading };
+
+ 
+
+
+};
+
