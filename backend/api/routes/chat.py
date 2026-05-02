@@ -7,7 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.deps import get_current_user
+from api.deps import get_current_user, get_strict_user
 from api.schemas.chat import ChatHistoryResponse, ChatQueryRequest
 from app.config import get_config
 from app.prompts import (
@@ -344,7 +344,7 @@ async def get_chat_history_endpoint(
 @router.delete("/history")
 async def clear_chat_history(
     session_id: str = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     session_result = await db.execute(

@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api.deps import get_current_user
+from api.deps import get_current_user, get_strict_user
 from api.schemas.pdf import (
     PDFDeleteResponse,
     PDFListResponse,
@@ -74,7 +74,7 @@ async def upload_pdf(
     # External API accepts the public notebook_id string
     notebook_id: str = Form(...),
     file: UploadFile = File(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     if not file.filename:
@@ -268,7 +268,7 @@ async def view_pdf(
 @router.delete("/", response_model=PDFDeleteResponse)
 async def delete_pdf(
     pdf_id: str = Query(..., description="PDF stored_filename to delete"),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete PDF by stored_filename."""
@@ -307,7 +307,7 @@ async def delete_pdf(
 async def update_pdf_filename(
     pdf_id: str = Query(..., description="PDF stored_filename"),
     request: FilenameUpdateRequest = ...,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update PDF's original_filename by stored_filename."""
