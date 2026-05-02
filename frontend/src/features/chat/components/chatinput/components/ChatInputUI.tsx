@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import SendButton from "./SendButton";
+import SendButton from "./sendbutton/SendButton";
 import SourceCount from "./SourceCount";
 
 interface Props {

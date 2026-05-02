@@ -16,15 +16,16 @@ import { mapHistoryToMessages } from "./chat.mapper";
 import ChatMenu from "./components/chatmenu/ChatMenu";
 import CommonModal from "@/components/popup";
 import { getPdfDetails } from "@/lib/api/notebook.api";
-import SuggestedQuestions from "./components/suggestedquestions/SuggestedQuestions";
+
 
 interface Props {
   notebookId: string;
   selectedPdfIds: string[];
   onCitationsUpdate: (chunks: any[]) => void;
+  onOpenCitations: () => void;
 }
 
-const ChatView = ({ notebookId, selectedPdfIds,onCitationsUpdate }: Props) => {
+const ChatView = ({ notebookId, selectedPdfIds,onCitationsUpdate,onOpenCitations }: Props) => {
   const searchParams = useSearchParams();
 
   const sessionRef = useRef<string>(uuidv4());
@@ -53,20 +54,21 @@ const ChatView = ({ notebookId, selectedPdfIds,onCitationsUpdate }: Props) => {
 const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
 const [isSummaryLoading, setIsSummaryLoading] = useState(false);
 
+
 // 🚫 prevents refresh after chat starts
 const hasUserStartedChatRef = useRef(false);
 
 
 useEffect(() => {
-  const fetchSummary = async () => {
-    // 🚫 no PDFs → nothing
+  let retryTimer: NodeJS.Timeout;
+
+  const fetchSummary = async (retry = 0) => {
     if (!selectedPdfIds.length) {
       setSummary("");
       setSuggestedQueries([]);
       return;
     }
 
-    // 🚫 if user already started chatting → DO NOT REFRESH
     if (hasUserStartedChatRef.current) return;
 
     try {
@@ -74,8 +76,21 @@ useEffect(() => {
 
       const res = await getPdfDetails(notebookId, selectedPdfIds);
 
-      setSummary(res.summary);
-      setSuggestedQueries(res.suggested_queries);
+      const summaryData = res.summary || "";
+      const queriesData = Array.isArray(res.suggested_queries)
+        ? res.suggested_queries
+        : [];
+
+      setSummary(summaryData);
+      setSuggestedQueries([...queriesData]);
+
+      // 🔥 RETRY if queries not ready yet
+      if (queriesData.length === 0 && retry < 5) {
+        retryTimer = setTimeout(() => {
+          fetchSummary(retry + 1);
+        }, 1500); // wait for backend processing
+      }
+
     } catch (err) {
       console.error("Failed to fetch summary", err);
       setSummary("");
@@ -86,6 +101,8 @@ useEffect(() => {
   };
 
   fetchSummary();
+
+  return () => clearTimeout(retryTimer);
 }, [notebookId, selectedPdfIds]);
 
 
@@ -214,6 +231,7 @@ const handleSuggestedClick = (q: string) => {
   suggestedQueries={suggestedQueries}
   isSummaryLoading={isSummaryLoading}
   onSuggestedClick={handleSuggestedClick}
+  onSourcesClick={onOpenCitations} 
 />
 
           <ChatInput

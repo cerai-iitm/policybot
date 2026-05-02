@@ -19,12 +19,14 @@ interface Props {
   content: string;
   sourceChunks?: SourceChunk[];
   loadingType?: "thinking" | "summary";
+  onSourcesClick?: () => void;
 }
 
 const AIMessage: React.FC<Props> = ({
   content,
   sourceChunks,
   loadingType,
+  onSourcesClick
 }) => {
   const [showChunks, setShowChunks] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -81,13 +83,14 @@ const shouldShowChunks = showChunks && !isGenerating;
             />
           )}
 
-          {showActions && sourceChunks?.length ? (
-            <SourcesButton
-              onClick={() =>
-                setShowChunks((prev) => !prev)
-              }
-            />
-          ) : null}
+          {showActions && Array.isArray(sourceChunks) && sourceChunks.length > 0 && (
+ <SourcesButton
+  onClick={() => {
+    setShowChunks((prev) => !prev);
+    onSourcesClick?.(); // 🔥 trigger sidebar
+  }}
+/>
+)}
         </>
       )}
 

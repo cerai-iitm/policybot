@@ -32,6 +32,8 @@ export default function MainLayout() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(true);
 
+  const openRightSidebar = () => setRightCollapsed(false);
+
   /* 🔥 HOOKS */
   const pdf = usePdfManager(notebookId);
   const processing = useProcessing(pdf.fetchPdfs);
@@ -118,7 +120,8 @@ const autoOpenUpload =
          <ChatView
   notebookId={notebookId || ""}
   selectedPdfIds={pdf.checkedPdfs}
-  onCitationsUpdate={setCitations} // ✅ NEW
+  onCitationsUpdate={setCitations}
+  onOpenCitations={openRightSidebar}
 />
 
 

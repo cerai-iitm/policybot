@@ -13,20 +13,21 @@ const ChatBody = ({
   suggestedQueries,
   isSummaryLoading,
   onSuggestedClick,
+  onSourcesClick
 }: {
   messages: Message[];
   loading?: boolean;
-
   summary?: string;
   suggestedQueries?: string[];
   isSummaryLoading?: boolean;
   onSuggestedClick?: (q: string) => void;
+  onSourcesClick?: () => void;
 }) => {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, summary, suggestedQueries]); // ✅ include these
 
   return (
     <div className="flex-1 overflow-y-auto pt-4 custom-scrollbar">
@@ -39,32 +40,32 @@ const ChatBody = ({
           </div>
         )}
 
-        {/* ================= SUMMARY (AI STYLE) ================= */}
-        {!loading && (
-          <>
-            {/* 🔄 SUMMARY LOADER */}
-            {isSummaryLoading && (
-              <div className="flex justify-start">
-                <AIMessage content="" loadingType="summary" />
-              </div>
-            )}
+        {/* ================= SUMMARY + SUGGESTIONS ================= */}
+       {!loading && (
+  <>
+    {isSummaryLoading && (
+      <div className="flex justify-start">
+        <AIMessage content="" loadingType="summary" />
+      </div>
+    )}
 
-            {/* ✅ SUMMARY AS AI MESSAGE */}
-            {!isSummaryLoading && summary && (
-              <div className="flex justify-start">
-                <AIMessage content={summary} />
-              </div>
-            )}
+    {!isSummaryLoading && summary && (
+      <div className="flex justify-start">
+        <AIMessage content={summary} />
+      </div>
+    )}
 
-            {/* 💡 SUGGESTED QUESTIONS */}
-            {!isSummaryLoading && suggestedQueries?.length ? (
-              <SuggestedQuestions
-                questions={suggestedQueries}
-                onSelect={(q) => onSuggestedClick?.(q)}
-              />
-            ) : null}
-          </>
-        )}
+    {!isSummaryLoading &&
+      Array.isArray(suggestedQueries) &&
+      suggestedQueries.length > 0 && (
+        <SuggestedQuestions
+          key={suggestedQueries.join("-")} // 🔥 critical fix
+          questions={suggestedQueries}
+          onSelect={(q) => onSuggestedClick?.(q)}
+        />
+      )}
+  </>
+)}
 
         {/* ================= CHAT MESSAGES ================= */}
         {messages.map((m) => (
@@ -77,14 +78,17 @@ const ChatBody = ({
             {m.type === "user" ? (
               <HumanMessage content={m.content} />
             ) : (
-              <AIMessage content={m.content} />
+             <AIMessage 
+  content={m.content} 
+  sourceChunks={m.sourceChunks} 
+  onSourcesClick={onSourcesClick}
+/>
             )}
           </div>
         ))}
 
         {/* 👇 AUTO SCROLL */}
         <div ref={bottomRef} />
-
       </div>
     </div>
   );
