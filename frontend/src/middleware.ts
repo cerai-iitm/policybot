@@ -20,12 +20,12 @@ export function middleware(request: NextRequest) {
 
   // 🔒 Allow BOTH demo + real users into notebook
   if (!token && isProtected) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/policybot/login", request.url));
   }
 
   // 🚫 Only block login for REAL users (not demo)
   if (isRealUser && isAuthPage) {
-    return NextResponse.redirect(new URL("/notebook", request.url));
+    return NextResponse.redirect(new URL("/policybot/notebook", request.url));
   }
 
   return NextResponse.next();

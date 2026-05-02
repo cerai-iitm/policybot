@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { loginUser, registerUser, loginDemoUser } from "@/lib/api/auth.api";
 import { LoginResponse, RegisterPayload } from "@/lib/types/auth";
 import Cookies from "js-cookie";
 
 export const useAuth = () => {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const isDemoUser = Cookies.get("isDemoUser") === "true"; // ✅ CENTRAL FLAG
@@ -69,7 +71,7 @@ export const useAuth = () => {
   const logout = () => {
     Cookies.remove("token");
     Cookies.remove("isDemoUser");
-    window.location.href = "/login";
+    router.push("/login");
   };
 
   const startRealUserFlow = () => {
