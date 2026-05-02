@@ -52,7 +52,7 @@ class PDFProcessor:
 
         # If already fully processed, nothing to do.
         if pdf.processing_status == "complete":
-            yield "PDF already complete"
+            yield "Document ready"
             yield "done"
             return
 
@@ -72,7 +72,7 @@ class PDFProcessor:
         if pdf.processing_status != "embeddings_complete":
             # If embeddings already exist in Qdrant, mark stage complete in DB
             if embeddings_exist:
-                yield "Embeddings already exist in vector store. Marking embeddings_complete."
+                yield "Embeddings ready"
                 pdf.processing_status = "embeddings_complete"
                 db.add(pdf)
                 await db.commit()
@@ -83,7 +83,7 @@ class PDFProcessor:
                     return
             else:
                 # Perform full embedding pipeline and only mark embeddings_complete after success
-                yield "Extracting text from PDF..."
+                yield "Extracting text..."
                 docs = await asyncio.to_thread(self._extract_text_from_pdf, pdf)
                 if not docs:
                     yield "Error: Failed to extract text"
@@ -95,13 +95,13 @@ class PDFProcessor:
                     yield "Error: Failed to split documents"
                     return
 
-                yield "Generating embeddings..."
+                yield "Processing embeddings..."
                 embeddings = await self._embed_docs(split_docs)
                 if embeddings is None:
                     yield "Error: Failed to generate embeddings"
                     return
 
-                yield "Storing embeddings..."
+                yield "Embeddings saved"
             try:
                 await self._store_embeddings(
                     split_docs, embeddings, pdf.stored_filename
@@ -121,7 +121,7 @@ class PDFProcessor:
 
         else:
             # embeddings already marked complete in DB; ensure we have text for summary
-            yield "Embeddings already marked complete. Extracting text for summary..."
+            yield "Reading document..."
             docs = await asyncio.to_thread(self._extract_text_from_pdf, pdf)
             if not docs:
                 yield "Error: Failed to extract text"
@@ -134,7 +134,7 @@ class PDFProcessor:
                 pdf.processing_status = "complete"
                 db.add(pdf)
                 await db.commit()
-                yield "Summary already present; marked complete."
+                yield "Summary ready"
                 yield "done"
                 return
 
@@ -146,17 +146,17 @@ class PDFProcessor:
             pdf.processing_status = "complete"
             db.add(pdf)
             await db.commit()
-            yield "Summary created"
+            yield "Summary complete"
 
             # --- Suggested Queries stage ---
-            yield "Generating suggested queries..."
+            yield "Creating suggestions..."
             queries_created = await self._generate_suggested_queries(
                 pdf.summary, pdf_id, db
             )
             if queries_created:
-                yield "Suggested queries created"
+                yield "Suggestions ready"
             else:
-                yield "No suggested queries generated"
+                yield "Suggestions ready"
         else:
             # Summary failed; do not change processing_status so worker can retry
             yield "Error: Failed to create summary"
