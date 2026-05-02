@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { listPdfs, uploadPdf, deletePdf } from "@/lib/api/pdf.api";
 import { PdfItem } from "@/lib/types/pdf";
+import { renamePdf } from "@/lib/api/pdf.api";
 
 export const usePdfManager = (notebookId: string | null) => {
   const [sources, setSources] = useState<PdfItem[]>([]);
@@ -87,23 +88,33 @@ else if (hasAutoSelected && completedIds.length > 0) {
   }, [fetchPdfs]);
 
   /* ---------------- RENAME ---------------- */
-  const handleRenamePdf = async (pdfId: string, newName: string) => {
-    setSources((prev) =>
-      prev.map((item) =>
-        item.pdf_id === pdfId
-          ? { ...item, filename: newName }
-          : item
-      )
-    );
+/* ---------------- RENAME ---------------- */
+const handleRenamePdf = async (pdfId: string, newName: string) => {
+  const trimmed = newName.trim();
 
-    try {
-      // TODO: real API
-      await fetchPdfs();
-    } catch (err) {
-      console.error("Rename failed", err);
-      await fetchPdfs();
-    }
-  };
+  if (!trimmed) return;
+
+  // ✅ Optimistic UI update
+  setSources((prev) =>
+    prev.map((item) =>
+      item.pdf_id === pdfId
+        ? { ...item, filename: trimmed }
+        : item
+    )
+  );
+
+  try {
+    await renamePdf(pdfId, trimmed);
+
+    // ✅ Sync with backend
+    await fetchPdfs();
+  } catch (err) {
+    console.error("Rename failed", err);
+
+    // ❌ rollback
+    await fetchPdfs();
+  }
+};
 
   /* ---------------- UPLOAD ---------------- */
   const handleUploadPdf = async (file: File) => {

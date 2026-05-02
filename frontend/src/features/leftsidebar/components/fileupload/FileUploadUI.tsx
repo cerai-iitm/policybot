@@ -31,7 +31,7 @@ const FileUploadUI: React.FC<Props> = ({
   return (
     <button
       onClick={onClick}
-      className="w-full h-28 rounded-xl bg-slate-100 hover:bg-slate-200 transition flex flex-col items-center justify-center gap-2"
+      className="w-full h-28 rounded-xl bg-slate-100 hover:bg-slate-200 transition flex flex-col items-center justify-center gap-2 cursor-pointer"
     >
       <div className="w-10 h-10 flex items-center justify-center">
         <Image src={fileicon} alt="file" className="w-5 opacity-80" />

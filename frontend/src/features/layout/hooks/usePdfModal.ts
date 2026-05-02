@@ -12,36 +12,46 @@ export const usePdfModal = (
   const [renameValue, setRenameValue] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const handleRenameChange = (val: string) => {
+  // 🔥 strip trailing ".pdf" if user types it
+  const cleaned = val.replace(/\.pdf$/i, "");
+  setRenameValue(cleaned);
+};
+
   const openDelete = (id: string) => {
     setActivePdfId(id);
     setModalType("delete");
     setModalOpen(true);
   };
 
-  const openRename = (id: string, name: string) => {
-    setActivePdfId(id);
-    setRenameValue(name);
-    setModalType("rename");
-    setModalOpen(true);
-  };
+const openRename = (id: string, name: string) => {
+  const base = name.toLowerCase().endsWith(".pdf")
+    ? name.slice(0, -4)
+    : name;
 
-  const confirm = async () => {
-    if (!activePdfId) return;
+  setActivePdfId(id);
+  setRenameValue(base); // ✅ only base name
+  setModalType("rename");
+  setModalOpen(true);
+};
+const confirm = async () => {
+  if (!activePdfId) return;
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      if (modalType === "delete") {
-        await onDelete(activePdfId);
-      } else {
-        await onRename(activePdfId, renameValue);
-      }
-    } finally {
-      setLoading(false);
-      setModalOpen(false);
-      setActivePdfId(null);
+  try {
+    if (modalType === "delete") {
+      await onDelete(activePdfId);
+    } else {
+      const finalName = `${renameValue.trim()}.pdf`; // ✅ enforce extension
+      await onRename(activePdfId, finalName);
     }
-  };
+  } finally {
+    setLoading(false);
+    setModalOpen(false);
+    setActivePdfId(null);
+  }
+};
 
   return {
     modalOpen,
@@ -53,5 +63,6 @@ export const usePdfModal = (
     openRename,
     confirm,
     setModalOpen,
+    handleRenameChange
   };
 };

@@ -33,6 +33,15 @@ export default function CommonModal({
 }: ModalProps) {
   if (!isOpen) return null
 
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+  if (e.key === "Enter" && !isLoading) {
+    e.preventDefault();
+    onConfirm();
+  }
+};
+
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
 
@@ -76,6 +85,7 @@ export default function CommonModal({
             aria-label="input"
             value={inputValue}
             onChange={(e) => onInputChange?.(e.target.value)}
+            onKeyDown={handleKeyDown} 
             className="
               w-full
               border border-gray-300

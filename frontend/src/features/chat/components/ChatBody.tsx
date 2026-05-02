@@ -33,6 +33,23 @@ const ChatBody = ({
     <div className="flex-1 overflow-y-auto pt-4 custom-scrollbar">
       <div className="w-full md:w-[90%] max-w-4xl mx-auto flex flex-col">
 
+
+{!loading &&
+  messages.length === 0 &&
+  !summary &&
+  !isSummaryLoading && (
+  <div className="flex flex-col items-center justify-center text-center mt-24 px-6">
+  <h2 className="text-lg font-semibold text-slate-800 mb-2">
+    Add a policy document to begin
+  </h2>
+
+  <p className="text-sm text-slate-500 max-w-md">
+    Upload a policy file to start asking questions and receive answers grounded in the original document with clear citations.
+  </p>
+</div>
+)}
+
+
         {/* ================= HISTORY LOADING ================= */}
         {loading && (
           <div className="text-center mt-20 text-slate-500">

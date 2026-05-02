@@ -154,7 +154,7 @@ const autoOpenUpload =
               }
               showInput={modal.modalType === "rename"}
               inputValue={modal.renameValue}
-              onInputChange={modal.setRenameValue}
+              onInputChange={modal.handleRenameChange}
               confirmText={
                 modal.modalType === "delete" ? "Delete" : "Rename"
               }

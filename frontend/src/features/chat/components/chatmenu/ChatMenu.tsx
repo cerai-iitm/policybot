@@ -48,6 +48,7 @@ const ChatMenu: React.FC<Props> = ({
           hover:bg-slate-100
           hover:text-slate-700
           transition
+          cursor-pointer
         "
       >
         <HiOutlineDotsVertical size={18} />

@@ -30,6 +30,24 @@ const ChatInputUI: React.FC<Props> = ({
   placeholder,
   selectedCount,
 }) => {
+
+
+  const noSources = selectedCount === 0;
+const noMessage = !value.trim();
+
+const isDisabled = disabled || noSources || noMessage;
+
+let tooltipText = "";
+
+if (noSources) {
+  tooltipText = "Select a source to continue";
+} else if (noMessage) {
+  tooltipText = "Type a message to send";
+} else {
+  tooltipText = "Send prompt";
+}
+
+
   return (
     <div className="w-full flex justify-center px-4 pb-4">
       <div className="w-full md:w-[90%] max-w-4xl">
@@ -72,7 +90,11 @@ const ChatInputUI: React.FC<Props> = ({
               }}
             />
 
-            <SendButton onClick={onSend} disabled={disabled || !value.trim()} />
+            <SendButton
+  onClick={onSend}
+  disabled={isDisabled}
+  tooltipText={tooltipText}
+/>
           </div>
 
         </div>

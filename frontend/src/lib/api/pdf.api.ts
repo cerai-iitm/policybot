@@ -28,7 +28,19 @@ export const getPdf = async (pdfIds: string) => {
   return res.data;
 };
 
+export const renamePdf = async (
+  pdfId: string,
+  newFilename: string
+) => {
+  const res = await api.patch(
+    `/pdfs/filename?pdf_id=${pdfId}`,
+    {
+      original_filename: newFilename,
+    }
+  );
 
+  return res.data;
+};
 
 export const processPdfStream = async (
   notebookId: string,

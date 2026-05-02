@@ -45,7 +45,7 @@ const RecentNotebookCardUI: React.FC<Props> = ({
         relative
         w-80 h-56
         rounded-2xl
-        bg-[#f3f4f6]
+        bg-[#F1F5F9]
         p-5
         flex flex-col justify-between
         cursor-pointer
