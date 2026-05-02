@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import ChatBody from "./components/ChatBody";
 import ChatInput from "./components/chatinput/ChatInput";
@@ -10,13 +10,13 @@ import ChatFooter from "./components/ChatFooter";
 import BaseSideContainer from "@/features/layout/components/BaseSideContainer";
 
 import { useChatUI } from "./hooks/useChatUI";
-import { sendQueryStream, getChatHistory, deleteChatHistory } from "@/lib/api/chat.api";
-import { mapHistoryToMessages } from "./chat.mapper";
+import { useChatHistory } from "./hooks/useChatHistory";
+import { useSummary } from "./hooks/useSummary";
+import { useChatController } from "./hooks/useChatController";
 
 import ChatMenu from "./components/chatmenu/ChatMenu";
 import CommonModal from "@/components/popup";
-import { getPdfDetails } from "@/lib/api/notebook.api";
-
+import { deleteChatHistory } from "@/lib/api/chat.api";
 
 interface Props {
   notebookId: string;
@@ -25,188 +25,42 @@ interface Props {
   onOpenCitations: () => void;
 }
 
-const ChatView = ({ notebookId, selectedPdfIds,onCitationsUpdate,onOpenCitations }: Props) => {
+const ChatView = ({ notebookId, selectedPdfIds, onCitationsUpdate, onOpenCitations }: Props) => {
   const searchParams = useSearchParams();
+const [sessionId] = useState(() => {
+  return searchParams.get("session_id") ?? uuidv4();
+});
+  const chatUI = useChatUI();
 
-  const sessionRef = useRef<string>(uuidv4());
-  const sessionId = searchParams.get("session_id") ?? sessionRef.current;
+  const { isLoading } = useChatHistory(
+    sessionId,
+    chatUI.setChatMessages,
+    chatUI.clearChat
+  );
 
-  const {
-    messages,
-    input,
-    setInput,
-    addUserMessage,
-    addAILoadingMessage,
-    updateAIMessage,
-    setChatMessages,
-    clearChat,
-    updateAIMessageChunks
-  } = useChatUI();
+  const summaryState = useSummary(notebookId, selectedPdfIds);
 
-  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const { handleSend } = useChatController({
+    sessionId,
+    notebookId,
+    selectedPdfIds,
+    input: chatUI.input,
+    setInput: chatUI.setInput,
+    addUserMessage: chatUI.addUserMessage,
+    addAILoadingMessage: chatUI.addAILoadingMessage,
+    updateAIMessage: chatUI.updateAIMessage,
+    updateAIMessageChunks: chatUI.updateAIMessageChunks,
+    onCitationsUpdate,
+    hasStartedRef: summaryState.hasStartedRef,
+  });
+
   const [menuOpen, setMenuOpen] = useState(false);
-
-  // ✅ NEW: modal + loading
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  const [summary, setSummary] = useState<string>("");
-const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
-const [isSummaryLoading, setIsSummaryLoading] = useState(false);
-
-
-// 🚫 prevents refresh after chat starts
-const hasUserStartedChatRef = useRef(false);
-
-
-useEffect(() => {
-  let retryTimer: NodeJS.Timeout;
-
-  const fetchSummary = async (retry = 0) => {
-    if (!selectedPdfIds.length) {
-      setSummary("");
-      setSuggestedQueries([]);
-      return;
-    }
-
-    if (hasUserStartedChatRef.current) return;
-
-    try {
-      setIsSummaryLoading(true);
-
-      const res = await getPdfDetails(notebookId, selectedPdfIds);
-
-      const summaryData = res.summary || "";
-      const queriesData = Array.isArray(res.suggested_queries)
-        ? res.suggested_queries
-        : [];
-
-      setSummary(summaryData);
-      setSuggestedQueries([...queriesData]);
-
-      // 🔥 RETRY if queries not ready yet
-      if (queriesData.length === 0 && retry < 5) {
-        retryTimer = setTimeout(() => {
-          fetchSummary(retry + 1);
-        }, 1500); // wait for backend processing
-      }
-
-    } catch (err) {
-      console.error("Failed to fetch summary", err);
-      setSummary("");
-      setSuggestedQueries([]);
-    } finally {
-      setIsSummaryLoading(false);
-    }
-  };
-
-  fetchSummary();
-
-  return () => clearTimeout(retryTimer);
-}, [notebookId, selectedPdfIds]);
-
-
-
-  const isDisabled = selectedPdfIds.length === 0;
-
-  // =========================
-  // FETCH HISTORY
-  // =========================
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        setIsHistoryLoading(true);
-
-        const res = await getChatHistory(sessionId);
-        const mapped = mapHistoryToMessages(res.messages || []);
-        setChatMessages(mapped);
-      } catch (err) {
-        console.error("Failed to load chat history", err);
-        clearChat();
-      } finally {
-        setIsHistoryLoading(false);
-      }
-    };
-
-    fetchHistory();
-  }, [sessionId]);
-
-  // =========================
-  // SEND MESSAGE
-  // =========================
-const handleSend = async (overrideText?: string) => {
-  onCitationsUpdate([]); 
-  
-  const textToSend = overrideText ?? input;
-
-  if (!textToSend.trim() || isDisabled) return;
-
-  hasUserStartedChatRef.current = true;
-
-  addUserMessage(textToSend);
-  const aiMessageId = addAILoadingMessage();
-
-  // only clear input if user typed
-  if (!overrideText) {
-    setInput("");
-  }
-
-  try {
-    let fullText = "";
-
-   await sendQueryStream(
-  {
-    query: textToSend,
-    session_id: sessionId,
-    notebook_id: notebookId,
-    pdf_ids: selectedPdfIds,
-  },
-  (chunk: string) => {
-    fullText += chunk;
-    updateAIMessage(aiMessageId, fullText);
-  },
-  (chunks) => {
-    // ✅ attach to message
-    updateAIMessageChunks(aiMessageId, chunks);
-
-    // ✅ push to sidebar
-    onCitationsUpdate(chunks);
-  }
-);
-  } catch {
-    updateAIMessage(
-      aiMessageId,
-      "Error: Failed to get response. Please try again."
-    );
-  }
-};
-const handleSuggestedClick = (q: string) => {
-  handleSend(q);
-};
-  // =========================
-  // DELETE FLOW (UPDATED)
-  // =========================
-
-  // 🔹 open modal (instead of direct delete)
-  const handleDeleteClick = () => {
-    setMenuOpen(false);
-    setShowDeleteModal(true);
-  };
-
-  // 🔹 confirm delete
-  const handleConfirmDelete = async () => {
-    try {
-      setIsDeleting(true);
-
-      await deleteChatHistory(sessionId);
-
-      clearChat();
-      setShowDeleteModal(false);
-    } catch (err) {
-      console.error("Failed to delete chat history", err);
-    } finally {
-      setIsDeleting(false);
-    }
+  const handleDelete = async () => {
+    await deleteChatHistory(sessionId);
+    chatUI.clearChat();
+    setShowDeleteModal(false);
   };
 
   return (
@@ -216,29 +70,28 @@ const handleSuggestedClick = (q: string) => {
         rightAction={
           <ChatMenu
             open={menuOpen}
-            onToggle={() => setMenuOpen((prev) => !prev)}
+            onToggle={() => setMenuOpen((p) => !p)}
             onClose={() => setMenuOpen(false)}
-            onDeleteChat={handleDeleteClick} // ✅ UPDATED
+            onDeleteChat={() => setShowDeleteModal(true)}
           />
         }
       >
         <div className="flex flex-col h-full">
           <ChatBody
-  messages={messages}
-  loading={isHistoryLoading}
-
-  summary={summary}
-  suggestedQueries={suggestedQueries}
-  isSummaryLoading={isSummaryLoading}
-  onSuggestedClick={handleSuggestedClick}
-  onSourcesClick={onOpenCitations} 
-/>
+            messages={chatUI.messages}
+            loading={isLoading}
+            summary={summaryState.summary}
+            suggestedQueries={summaryState.suggestedQueries}
+            isSummaryLoading={summaryState.isSummaryLoading}
+            onSuggestedClick={handleSend}
+            onSourcesClick={onOpenCitations}
+          />
 
           <ChatInput
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={chatUI.input}
+            onChange={(e) => chatUI.setInput(e.target.value)}
             onSend={handleSend}
-            disabled={isDisabled}
+            disabled={selectedPdfIds.length === 0}
             selectedCount={selectedPdfIds.length}
           />
 
@@ -246,19 +99,15 @@ const handleSuggestedClick = (q: string) => {
         </div>
       </BaseSideContainer>
 
-      {/* =========================
-          DELETE CONFIRM MODAL
-         ========================= */}
       <CommonModal
         isOpen={showDeleteModal}
         title="Delete chat history?"
-        description="This will permanently delete all messages in this session. This action cannot be undone."
+        description="This action cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"
-        onConfirm={handleConfirmDelete}
+        onConfirm={handleDelete}
         onCancel={() => setShowDeleteModal(false)}
         isDanger
-        isLoading={isDeleting}
       />
     </>
   );

@@ -1,0 +1,224 @@
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\features\rightsidebar\RightSidebar.tsx  
+==============================  
+"use client";
+
+import React, { useRef, useState } from "react";
+import sidebaricon from "@/assets/sidebar.png";
+
+import BaseSideContainer from "@/features/layout/components/BaseSideContainer";
+import CitationCard from "./components/CitationCard";
+import Image from "next/image";
+import citation from "@/assets/greycitation.png";
+import TooltipPortal from "./components/TooltipPortal"; // ✅ IMPORT
+
+interface Props {
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  citations: any[];
+}
+
+const RightSidebar: React.FC<Props> = ({
+  collapsed,
+  onToggleCollapse,
+  citations,
+}) => {
+  const iconRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <BaseSideContainer
+      title="Citations"
+      icon={sidebaricon}
+      collapsed={collapsed}
+      onToggle={onToggleCollapse}
+    >
+      <div
+        className={`h-full overflow-y-auto custom-scrollbar ${
+          collapsed
+            ? "flex flex-col items-center gap-3 py-4"
+            : "p-4"
+        }`}
+      >
+        {/* ✅ EMPTY STATE (EXPANDED) */}
+        {!collapsed && citations.length === 0 && (
+          <div className="h-full flex flex-col items-center justify-center text-center px-6">
+            <p className="text-sm text-slate-500">
+              No citations yet
+            </p>
+            <p className="text-sm text-slate-400 mt-1">
+              Ask a question to see referenced sources here
+            </p>
+          </div>
+        )}
+
+        {/* ✅ COLLAPSED EMPTY STATE (🔥 FIXED WITH PORTAL) */}
+        {collapsed && citations.length === 0 && (
+          <div className="flex flex-col h-full items-center">
+            <div
+              ref={iconRef}
+              className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center cursor-default"
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
+            >
+              <Image
+                src={citation}
+                alt="citation"
+                width={14}
+                height={14}
+                className="opacity-50"
+              />
+            </div>
+
+            {/* ✅ TOOLTIP VIA PORTAL */}
+            <TooltipPortal anchorRef={iconRef} open={hovered}>
+              <div className="text-xs bg-black text-white px-2 py-1 rounded shadow">
+                Citations
+              </div>
+            </TooltipPortal>
+          </div>
+        )}
+
+        {/* ✅ LIST */}
+        {!(collapsed && citations.length === 0) && (
+          <div className="space-y-4">
+            {citations.map((item, index) => (
+              <CitationCard
+                key={index}
+                title={item.original_filename || "Document"}
+                subtitle="Referenced document"
+                pageNo={item.page_number || "-"}
+                content={item.text}
+                collapsed={collapsed}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </BaseSideContainer>
+  );
+};
+
+export default RightSidebar; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\features\rightsidebar\components\CitationCard.tsx  
+==============================  
+"use client";
+import Image from "next/image";
+import React from "react";
+import citation from "@/assets/citation.png";
+
+interface Props {
+  title: string;
+  subtitle?: string;
+  pageNo: string;
+  content: string;
+  collapsed?: boolean; // ✅ include here
+}
+
+const CitationCard: React.FC<Props> = ({
+  title,
+  subtitle,
+  pageNo,
+  content,
+  collapsed,
+}) => {
+
+
+
+
+ if (collapsed) {
+  return (
+    <div className="flex justify-center items-center">
+      <div className="w-10 h-10 min-w-10 min-h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition shrink-0 cursor-pointer">
+        <Image src={citation} alt="citation" width={14} height={14} />
+      </div>
+    </div>
+  );
+}
+
+
+  return (
+    <div className="w-full bg-[#F4F6F8] border border-[#E7EBF0] rounded-xl overflow-hidden">
+      
+      {/* HEADER */}
+      <div className="flex items-start justify-between px-5 pt-4">
+        <div>
+          <h3 className="text-sm font-medium text-[#1F2937] leading-5">
+            {title}
+          </h3>
+          {subtitle && (
+            <p className="text-xs text-[#4B5563] leading-5">
+              {subtitle}
+            </p>
+          )}
+        </div>
+
+        <div className="bg-slate-300 text-xs font-medium text-[#1F2937] px-3 py-1 rounded-full">
+          Page {pageNo}
+        </div>
+      </div>
+
+      {/* DIVIDER */}
+      <div className="border-t border-white mt-3"></div>
+
+      {/* CONTENT */}
+      <div className="px-5 py-4">
+        <p className="text-sm text-[#334155] leading-6">
+          {content}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default CitationCard; 
+==============================  
+FILE: D:\buddi\Policybot\frontend\src\features\rightsidebar\components\TooltipPortal.tsx  
+==============================  
+"use client";
+
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+
+interface Props {
+  anchorRef: React.RefObject<HTMLElement | null>;
+  open: boolean;
+  children: React.ReactNode;
+}
+
+export default function TooltipPortal({
+  anchorRef,
+  open,
+  children,
+}: Props) {
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (open && anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+
+      setPos({
+        top: rect.top + rect.height / 2,
+        left: rect.left - 8, // 👈 LEFT side
+      });
+    }
+  }, [open, anchorRef]);
+
+  if (!open || typeof window === "undefined") return null;
+
+  return createPortal(
+    <div
+      style={{
+        position: "fixed",
+        top: pos.top,
+        left: pos.left,
+        transform: "translate(-100%, -50%)",
+      }}
+      className="z-9999"
+    >
+      {children}
+    </div>,
+    document.body
+  );
+} 

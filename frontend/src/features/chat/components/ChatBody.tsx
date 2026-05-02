@@ -6,6 +6,7 @@ import HumanMessage from "./messages/HumanMessage";
 import AIMessage from "./messages/AIMessage";
 import SuggestedQuestions from "./suggestedquestions/SuggestedQuestions";
 
+
 const ChatBody = ({
   messages,
   loading,
@@ -23,6 +24,9 @@ const ChatBody = ({
   onSuggestedClick?: (q: string) => void;
   onSourcesClick?: () => void;
 }) => {
+
+  const isInitialLoading = loading || isSummaryLoading;
+
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -34,31 +38,30 @@ const ChatBody = ({
       <div className="w-full md:w-[90%] max-w-4xl mx-auto flex flex-col">
 
 
-{!loading &&
+{!isInitialLoading &&
   messages.length === 0 &&
-  !summary &&
-  !isSummaryLoading && (
-  <div className="flex flex-col items-center justify-center text-center mt-24 px-6">
-  <h2 className="text-lg font-semibold text-slate-800 mb-2">
-    Add a policy document to begin
-  </h2>
+  !summary && (
+    <div className="flex flex-col items-center justify-center text-center mt-24 px-6">
+      <h2 className="text-lg font-semibold text-slate-800 mb-2">
+        Add a policy document to begin
+      </h2>
 
-  <p className="text-sm text-slate-500 max-w-md">
-    Upload a policy file to start asking questions and receive answers grounded in the original document with clear citations.
-  </p>
-</div>
+      <p className="text-sm text-slate-500 max-w-md">
+        Upload a policy file to start asking questions and receive answers grounded in the original document with clear citations.
+      </p>
+    </div>
 )}
 
 
         {/* ================= HISTORY LOADING ================= */}
-        {loading && (
-          <div className="text-center mt-20 text-slate-500">
-            Loading chat history...
-          </div>
-        )}
+       {isInitialLoading && (
+  <div className="text-center mt-20 text-slate-500">
+    Loading...
+  </div>
+)}
 
         {/* ================= SUMMARY + SUGGESTIONS ================= */}
-       {!loading && (
+      {!isInitialLoading && (
   <>
     {isSummaryLoading && (
       <div className="flex justify-start">

@@ -13,12 +13,14 @@ interface Props {
   collapsed: boolean;
   onToggleCollapse: () => void;
   citations: any[];
+  onOpen: () => void;
 }
 
 const RightSidebar: React.FC<Props> = ({
   collapsed,
   onToggleCollapse,
   citations,
+  onOpen
 }) => {
   const iconRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
@@ -87,6 +89,7 @@ const RightSidebar: React.FC<Props> = ({
                 pageNo={item.page_number || "-"}
                 content={item.text}
                 collapsed={collapsed}
+                 onClick={onOpen}
               />
             ))}
           </div>

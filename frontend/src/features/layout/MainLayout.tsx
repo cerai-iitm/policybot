@@ -130,6 +130,7 @@ const autoOpenUpload =
   collapsed={rightCollapsed}
   onToggleCollapse={() => setRightCollapsed((p) => !p)}
   citations={citations} // ✅ NEW
+  onOpen={openRightSidebar}
 />
 
             {/* ✅ SAME MODALS POSITION */}

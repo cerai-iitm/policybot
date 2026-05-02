@@ -10,6 +10,7 @@ export interface Message {
   content: string;
   sourceChunks?: SourceChunk[];
   loading?: boolean;
+  
 }
 
 export interface SourceChunk {

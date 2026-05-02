@@ -9,6 +9,7 @@ interface Props {
   pageNo: string;
   content: string;
   collapsed?: boolean; // ✅ include here
+   onClick?: () => void;
 }
 
 const CitationCard: React.FC<Props> = ({
@@ -17,6 +18,7 @@ const CitationCard: React.FC<Props> = ({
   pageNo,
   content,
   collapsed,
+  onClick
 }) => {
 
 
@@ -24,9 +26,9 @@ const CitationCard: React.FC<Props> = ({
 
  if (collapsed) {
   return (
-    <div className="flex justify-center items-center">
+    <div onClick={onClick} className="flex justify-center items-center">
       <div className="w-10 h-10 min-w-10 min-h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition shrink-0 cursor-pointer">
-        <Image src={citation} alt="citation" width={14} height={14} />
+        <Image   src={citation} alt="citation" width={14} height={14} />
       </div>
     </div>
   );
