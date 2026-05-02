@@ -5,11 +5,19 @@ import Link from "next/link"
 import cerailogo from "@/assets/logo/cerai.png"
 import iitmlogo from "@/assets/logo/iiit.png"
 import wsailogo from "@/assets/logo/wsai.png"
-
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 const Navbar = () => {
-  const [isOpen, setIsOpen] = useState(false)
+    const { loginDemo, loading, startRealUserFlow } = useAuth();
+    const handleGetStarted = () => {
+  startRealUserFlow(); // ✅ remove demo token if exists
+  router.push("/notebook");
+};
 
+
+  const [isOpen, setIsOpen] = useState(false)
+  const router = useRouter();
   return (
     <>
       <nav className="sticky top-0 z-50 flex justify-between items-center px-12 py-6 bg-white/90 backdrop-blur-md">
@@ -103,11 +111,11 @@ const Navbar = () => {
 
          
           
-          <Link href="/notebook">
+          <div  onClick={handleGetStarted}>
             <button className="border border-gray-400 px-6 py-2 rounded-xl transition duration-300 bg-primary text-white hover:scale-105">
               Get Started
             </button>
-          </Link>
+          </div>
 
         </div>
 

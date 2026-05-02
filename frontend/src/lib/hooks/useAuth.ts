@@ -72,5 +72,14 @@ export const useAuth = () => {
     window.location.href = "/login";
   };
 
-  return { login, register, logout, loginDemo, loading, isDemoUser };
+  const startRealUserFlow = () => {
+  const isDemo = Cookies.get("isDemoUser") === "true";
+
+  if (isDemo) {
+    Cookies.remove("token");
+    Cookies.remove("isDemoUser");
+  }
+};
+
+  return { login, register, logout, loginDemo, loading, isDemoUser,startRealUserFlow };
 };

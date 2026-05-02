@@ -14,7 +14,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 
 export default function HomePage() {
 
-  const { loginDemo, loading } = useAuth();
+  const { loginDemo, loading, startRealUserFlow } = useAuth();
 
   const handleDemo = async () => {
   try {
@@ -23,6 +23,12 @@ export default function HomePage() {
   } catch (err) {
     console.error("Demo login failed", err);
   }
+};
+
+
+const handleGetStarted = () => {
+  startRealUserFlow(); // ✅ remove demo token if exists
+  router.push("/notebook");
 };
 
 
@@ -62,7 +68,7 @@ export default function HomePage() {
 
   {/* Primary */}
   <button
-    onClick={() => router.push("/notebook")}
+     onClick={handleGetStarted}
     className="px-8 py-4 rounded-xl bg-primary text-white hover:scale-105 transition"
   >
     Get Started
