@@ -32,7 +32,7 @@ api.interceptors.response.use(
     if (status === 401 && !isLoginRequest) {
       if (typeof window !== "undefined") {
         Cookies.remove("token"); // ✅ FIXED
-        window.location.href = "/login";
+        window.location.href = "/policybot/login";
       }
     }
 

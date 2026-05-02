@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api.deps import get_current_user
+from api.deps import get_current_user, get_strict_user
 from api.schemas.pdf import (
     PDFDeleteResponse,
     PDFListResponse,
@@ -38,6 +38,10 @@ from db.models.user import User
 from db.session import AsyncSessionLocal, get_db
 from services.pdf_processor import PDFProcessor
 
+# In-memory storage for processing messages (pdf_id -> list of messages)
+# This allows SSE endpoint to read real-time messages from background task
+_processing_messages: dict[int, list[str]] = {}
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pdfs", tags=["PDFs"])
@@ -49,11 +53,18 @@ _PROCESS_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENT)
 
 async def process_pdf_background(pdf_id: int):
     """Background processing for PDF RAG pipeline."""
+    _processing_messages[pdf_id] = []  # Initialize messages list
+
     async with AsyncSessionLocal() as bg_db:
         processor = PDFProcessor()
         try:
             async for update in processor.process_pdf(pdf_id, bg_db):
                 logger.info(f"[bg:{pdf_id}] {update}")
+
+                # Store message in memory for SSE to read
+                if pdf_id in _processing_messages:
+                    _processing_messages[pdf_id].append(update)
+
                 if isinstance(update, str) and update.startswith("Error:"):
                     logger.exception(
                         f"[bg:{pdf_id}] Error detected, stopping processing"
@@ -61,6 +72,9 @@ async def process_pdf_background(pdf_id: int):
                     break
         except Exception as e:
             logger.exception(f"Background processing failed for pdf_id {pdf_id}")
+        finally:
+            # Cleanup: remove messages after processing
+            _processing_messages.pop(pdf_id, None)
 
 
 def get_upload_path(user_id: int, notebook_id: int) -> Path:
@@ -74,7 +88,7 @@ async def upload_pdf(
     # External API accepts the public notebook_id string
     notebook_id: str = Form(...),
     file: UploadFile = File(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     if not file.filename:
@@ -268,7 +282,7 @@ async def view_pdf(
 @router.delete("/", response_model=PDFDeleteResponse)
 async def delete_pdf(
     pdf_id: str = Query(..., description="PDF stored_filename to delete"),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete PDF by stored_filename."""
@@ -307,7 +321,7 @@ async def delete_pdf(
 async def update_pdf_filename(
     pdf_id: str = Query(..., description="PDF stored_filename"),
     request: FilenameUpdateRequest = ...,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Update PDF's original_filename by stored_filename."""
@@ -375,10 +389,18 @@ async def pdf_process_sse(
         raise HTTPException(status_code=404, detail="PDF not found")
 
     pdf_internal_id = pdf.id
+    initial_status = pdf.processing_status
 
     async def generate():
         start_time = asyncio.get_event_loop().time()
         max_duration = 15 * 60  # 15 minutes
+
+        # Check if already complete
+        if initial_status == "complete":
+            yield "data: Document ready\n\n"
+            yield "data: done\n\n"
+            return
+
         try:
             while True:
                 elapsed = asyncio.get_event_loop().time() - start_time
@@ -388,11 +410,19 @@ async def pdf_process_sse(
                     yield "data: done\n\n"
                     break
 
-                # Refresh PDF status from DB
+                # Read messages from in-memory dict
+                messages = _processing_messages.get(pdf_internal_id, [])
+                if messages:
+                    # Send all pending messages
+                    for msg in messages:
+                        yield f"data: {msg}\n\n"
+                    # Clear messages we've sent
+                    _processing_messages[pdf_internal_id] = []
+
+                # Also check DB status for completion
                 try:
                     await db.refresh(pdf)
                 except Exception:
-                    # If refresh fails, re-fetch
                     r = await db.execute(
                         select(PDF).where(
                             PDF.id == pdf_internal_id, PDF.user_id == user.id
@@ -403,13 +433,12 @@ async def pdf_process_sse(
                         pdf = pdf_local
 
                 status = pdf.processing_status or "uploaded"
-                yield f"data: {status}\n\n"
 
                 if status in ["complete", "error"]:
                     yield "data: done\n\n"
                     break
 
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)  # Check every second for new messages
 
         except asyncio.CancelledError:
             logger.info(f"SSE connection closed for pdf_id={pdf_id}")

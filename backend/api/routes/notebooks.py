@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import secrets
 
-from api.deps import get_current_user
+from api.deps import get_current_user, get_strict_user
 from db.session import get_db
 from db.models import User, Notebook, PDF
 from sqlalchemy.orm import selectinload
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/notebooks", tags=["notebooks"])
 @router.post("", response_model=NotebookResponse, status_code=status.HTTP_201_CREATED)
 async def create_notebook(
     notebook_data: NotebookCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     notebook = Notebook(
@@ -91,7 +91,7 @@ async def get_notebook(
 @router.delete("/{notebook_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_notebook(
     notebook_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -110,7 +110,7 @@ async def delete_notebook(
 async def update_notebook(
     notebook_id: str,
     notebook_data: NotebookUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(

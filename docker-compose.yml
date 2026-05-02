@@ -9,7 +9,23 @@ services:
     depends_on:
       backend:
         condition: service_started
+      frontend:
+        condition: service_started
     restart: on-failure
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+    expose:
+      - "3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://nginx
+      - NEXT_PUBLIC_API_PREFIX=api
+    depends_on:
+      - backend
+    restart: unless-stopped
 
   backend:
     build:
@@ -172,3 +188,4 @@ volumes:
     driver: local
   pdf_data:
     driver: local
+

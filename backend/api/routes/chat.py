@@ -7,7 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.deps import get_current_user
+from api.deps import get_current_user, get_strict_user
 from api.schemas.chat import ChatHistoryResponse, ChatQueryRequest
 from app.config import get_config
 from app.prompts import (
@@ -125,9 +125,38 @@ async def chat_query(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    session, notebook_id = await get_or_create_active_session(
-        request.notebook_id, user.id, db, request.session_id
-    )
+    is_demo = getattr(user, "is_demo_user", False)
+
+    if is_demo:
+        result = await db.execute(
+            select(Notebook).where(
+                and_(
+                    Notebook.notebook_id == request.notebook_id,
+                    Notebook.user_id == user.id,
+                )
+            )
+        )
+        notebook = result.scalar_one_or_none()
+        if not notebook:
+            raise HTTPException(status_code=404, detail="Notebook not found")
+
+        session_id = request.session_id or f"session_{secrets.token_hex(8)}"
+        notebook_id = notebook.notebook_id
+    else:
+        session, notebook_id = await get_or_create_active_session(
+            request.notebook_id, user.id, db, request.session_id
+        )
+        session_id = session.session_id
+
+        result = await db.execute(
+            select(Notebook).where(
+                and_(
+                    Notebook.notebook_id == request.notebook_id,
+                    Notebook.user_id == user.id,
+                )
+            )
+        )
+        notebook = result.scalar_one_or_none()
 
     stored_filenames, notebook = await get_notebook_pdfs(
         request.notebook_id, user.id, request.stored_filenames, db
@@ -150,15 +179,16 @@ async def chat_query(
         classification.query_type == "conversational"
         and classification.conversational_response
     ):
-        user_message = ChatMessage(
-            user_id=user.id,
-            notebook_id=notebook.id,
-            session_id=session.id,
-            role="user",
-            content=request.query,
-        )
-        db.add(user_message)
-        await db.commit()
+        if not is_demo:
+            user_message = ChatMessage(
+                user_id=user.id,
+                notebook_id=notebook.id,
+                session_id=session.id,
+                role="user",
+                content=request.query,
+            )
+            db.add(user_message)
+            await db.commit()
 
         response_text = classification.conversational_response
 
@@ -167,16 +197,17 @@ async def chat_query(
                 chunk = response_text[i : i + 10]
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
 
-            async with AsyncSessionLocal() as db_session:
-                assistant_message = ChatMessage(
-                    user_id=user.id,
-                    notebook_id=notebook.id,
-                    session_id=session.id,
-                    role="assistant",
-                    content=response_text,
-                )
-                db_session.add(assistant_message)
-                await db_session.commit()
+            if not is_demo:
+                async with AsyncSessionLocal() as db_session:
+                    assistant_message = ChatMessage(
+                        user_id=user.id,
+                        notebook_id=notebook.id,
+                        session_id=session.id,
+                        role="assistant",
+                        content=response_text,
+                    )
+                    db_session.add(assistant_message)
+                    await db_session.commit()
 
             yield 'data: {"context_chunks": []}\n\n'
             yield 'data: {"done": true}\n\n'
@@ -214,18 +245,22 @@ async def chat_query(
     )
 
     # Get chat history
-    history = await get_chat_history(session.id, db, config.max_history_messages)
+    if is_demo:
+        history = []
+    else:
+        history = await get_chat_history(session.id, db, config.max_history_messages)
 
     # Persist user message using numeric notebook FK
-    user_message = ChatMessage(
-        user_id=user.id,
-        notebook_id=notebook.id,
-        session_id=session.id,
-        role="user",
-        content=request.query,
-    )
-    db.add(user_message)
-    await db.commit()
+    if not is_demo:
+        user_message = ChatMessage(
+            user_id=user.id,
+            notebook_id=notebook.id,
+            session_id=session.id,
+            role="user",
+            content=request.query,
+        )
+        db.add(user_message)
+        await db.commit()
 
     # Use LangChain prompt with history
     prompt = ChatPromptTemplate.from_messages(
@@ -253,40 +288,45 @@ async def chat_query(
                     full_response += chunk.content
                     yield f"data: {json.dumps({'content': chunk.content})}\n\n"
 
-            async with AsyncSessionLocal() as db_session:
-                assistant_message = ChatMessage(
-                    user_id=user.id,
-                    notebook_id=notebook.id,
-                    session_id=session.id,
-                    role="assistant",
-                    content=full_response,
-                )
-                db_session.add(assistant_message)
-                await db_session.commit()
+            stored_filenames_list = list(
+                set(c["stored_filename"] for c in context_chunks)
+            )
+            filename_map = {}
 
-                stored_filenames = list(
-                    set(c["stored_filename"] for c in context_chunks)
-                )
-                filename_map = {}
-                if stored_filenames:
-                    pdf_result = await db_session.execute(
-                        select(PDF.stored_filename, PDF.original_filename).where(
-                            PDF.stored_filename.in_(stored_filenames)
-                        )
+            if is_demo:
+                for c in context_chunks:
+                    filename_map[c["stored_filename"]] = c["stored_filename"]
+            else:
+                async with AsyncSessionLocal() as db_session:
+                    assistant_message = ChatMessage(
+                        user_id=user.id,
+                        notebook_id=notebook.id,
+                        session_id=session.id,
+                        role="assistant",
+                        content=full_response,
                     )
-                    filename_map = dict(pdf_result.all())
+                    db_session.add(assistant_message)
+                    await db_session.commit()
 
-                context_for_client = [
-                    {
-                        "original_filename": filename_map.get(
-                            c["stored_filename"], c["stored_filename"]
-                        ),
-                        "page_number": c["page_number"],
-                        "text": c["text"],
-                    }
-                    for c in context_chunks
-                ]
-                yield f"data: {json.dumps({'context_chunks': context_for_client})}\n\n"
+                    if stored_filenames_list:
+                        pdf_result = await db_session.execute(
+                            select(PDF.stored_filename, PDF.original_filename).where(
+                                PDF.stored_filename.in_(stored_filenames_list)
+                            )
+                        )
+                        filename_map = dict(pdf_result.all())
+
+            context_for_client = [
+                {
+                    "original_filename": filename_map.get(
+                        c["stored_filename"], c["stored_filename"]
+                    ),
+                    "page_number": c["page_number"],
+                    "text": c["text"],
+                }
+                for c in context_chunks
+            ]
+            yield f"data: {json.dumps({'context_chunks': context_for_client})}\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -344,7 +384,7 @@ async def get_chat_history_endpoint(
 @router.delete("/history")
 async def clear_chat_history(
     session_id: str = Query(...),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_strict_user),
     db: AsyncSession = Depends(get_db),
 ):
     session_result = await db.execute(
