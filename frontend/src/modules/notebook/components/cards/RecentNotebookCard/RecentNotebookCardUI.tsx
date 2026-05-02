@@ -2,6 +2,7 @@
 
 import React from "react";
 import { MoreVertical } from "lucide-react";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 type Props = {
   title: string;
@@ -22,6 +23,8 @@ const RecentNotebookCardUI: React.FC<Props> = ({
   onMenuClick,
   buttonRef,
 }) => {
+
+  const { isDemoUser } = useAuth();
 
   // 🔹 Format date → April 1, 2026
   const formattedDate = new Date(createdAt).toLocaleDateString("en-US", {
@@ -62,19 +65,21 @@ const RecentNotebookCardUI: React.FC<Props> = ({
         </div>
 
         {/* MENU */}
-        <button
-          ref={buttonRef}
-          onClick={onMenuClick}
-          className="
-            p-1.5 rounded-md
-            text-gray-500
-            hover:bg-gray-200
-            transition
-          "
-          aria-label="More options"
-        >
-          <MoreVertical size={18} />
-        </button>
+        {!isDemoUser && (
+  <button
+    ref={buttonRef}
+    onClick={onMenuClick}
+    className="
+      p-1.5 rounded-md
+      text-gray-500
+      hover:bg-gray-200
+      transition
+    "
+    aria-label="More options"
+  >
+    <MoreVertical size={18} />
+  </button>
+)}
       </div>
 
       {/* 🔹 BOTTOM CONTENT */}

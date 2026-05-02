@@ -10,6 +10,7 @@ import { NotebookListItem } from "@/lib/types/notebook";
 import { updateNotebook, deleteNotebook } from "@/lib/api/notebook.api";
 import { createNotebook } from "@/lib/api/notebook.api";
 import { DEFAULT_NOTEBOOK } from "@/lib/constants/notebook";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 type Props = {
   recentNotebooks?: NotebookListItem[];
@@ -17,6 +18,7 @@ type Props = {
 };
 
 const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
+  const { isDemoUser } = useAuth();
 
   const [modalType, setModalType] = useState<"rename" | "delete" | null>(null);
   const [selectedNotebook, setSelectedNotebook] =
@@ -127,15 +129,17 @@ const RecentSection = ({ recentNotebooks = [], onSelect }: Props) => {
 
   return (
     <>
-      <h2 className="text-xl font-semibold mb-6">
-        Recent Workspaces
-      </h2>
+     <h2 className="text-xl font-semibold mb-6">
+  {isDemoUser ? "Featured Workspaces" : "Recent Workspaces"}
+</h2>
 
       <div className="flex gap-6 mb-12 overflow-x-auto no-scrollbar">
-        <CreateWorkspaceCard
-          onClick={handleCreateWorkspace}
-          disabled={loading}
-        />
+        {!isDemoUser && (
+  <CreateWorkspaceCard
+    onClick={handleCreateWorkspace}
+    disabled={loading}
+  />
+)}
 
         {localNotebooks.map((nb) => (
           <div key={nb.notebook_id} className="shrink-0">

@@ -8,6 +8,7 @@ import DropdownPortal from "@/features/chat/components/chatmenu/menu/DropdownPor
 import DropdownMenu, {
   DropdownItem,
 } from "@/features/chat/components/chatmenu/menu/DropdownMenu";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 interface Props {
   open: boolean;
@@ -22,8 +23,16 @@ const ChatMenu: React.FC<Props> = ({
   onClose,
   onDeleteChat,
 }) => {
+
+  
+
+  
+
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  const { isDemoUser } = useAuth();
+
+if (isDemoUser) return null;
   const menuItems: DropdownItem[] = [
     {
       label: "Delete chat history",

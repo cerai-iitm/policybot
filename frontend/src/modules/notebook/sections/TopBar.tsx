@@ -1,6 +1,8 @@
 import { Search, Plus } from "lucide-react";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 const TopBar = () => {
+  const { isDemoUser } = useAuth();
   return (
     <div className="flex items-center justify-between mb-10">
 
@@ -21,10 +23,12 @@ const TopBar = () => {
           <Search size={18} />
         </button>
 
-        <button className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-full text-sm font-medium">
-          <Plus size={16} />
-          Create Workspace
-        </button>
+     {!isDemoUser && (
+  <button className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-full text-sm font-medium">
+    <Plus size={16} />
+    Create Workspace
+  </button>
+)}
 
       </div>
     </div>
