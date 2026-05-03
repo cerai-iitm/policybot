@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_config
 from app.prompts import COMBINE_PROMPT
 from db.models.pdf import PDF
+from db.models.notebook import Notebook
 from db.models.pdf_suggested_query import PDFSuggestedQuery
 from providers.embedding.factory import get_embedding
 from providers.llm.factory import get_llm
@@ -148,6 +149,29 @@ class PDFProcessor:
             db.add(pdf)
             await db.commit()
             yield "Summary complete"
+
+            # Auto-generate notebook title if first complete PDF + default title
+            try:
+                check_result = await db.execute(
+                    select(PDF).where(
+                        PDF.notebook_id == pdf.notebook_id,
+                        PDF.processing_status == "complete",
+                    )
+                )
+                existing_pdfs = check_result.scalars().all()
+
+                # Only update if this is the first complete PDF and title is default
+                if len(existing_pdfs) == 1 and pdf.id == existing_pdfs[0].id:
+                    notebook = await db.get(Notebook, pdf.notebook_id)
+                    if notebook and notebook.title == "Untitled":
+                        from services.rag import generate_notebook_title
+
+                        new_title = await generate_notebook_title(pdf.summary)
+                        notebook.title = new_title
+                        await db.commit()
+                        yield f'data: {{"type": "notebook_title", "title": "{new_title}"}}\n\n'
+            except Exception as e:
+                logger.exception("Error generating notebook title")
 
             # --- Suggested Queries stage ---
             yield "Creating suggestions..."

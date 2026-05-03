@@ -79,6 +79,48 @@ async def classify_query(
         )
 
 
+async def generate_notebook_title(pdf_summary: str) -> str:
+    """Generate a concise notebook title from PDF summary using LLM."""
+    from api.schemas.notebook import NotebookTitle
+
+    if not pdf_summary or len(pdf_summary.strip()) < 10:
+        return "Untitled"
+
+    llm = get_llm()
+
+    prompt = f"""Generate a concise 3-10 word title for this notebook based on its first document summary.
+
+Be specific, descriptive, and professional. Examples:
+- "AI Ethics Guidelines India"
+- "Data Privacy Regulations"  
+- "Cybersecurity Best Practices"
+- "Employment Law Policies"
+- "Financial Compliance Guide"
+
+Summary:
+{pdf_summary[:500]}
+
+Generate a title:"""
+
+    try:
+        structured_llm = llm.with_structured_output(NotebookTitle)
+        result = await structured_llm.ainvoke(prompt)
+        return result.title if result.title else "Untitled"
+    except Exception as e:
+        # Fallback: use first 30 chars of summary
+        return pdf_summary[:30].strip() + "..."
+
+    try:
+        structured_llm = llm.with_structured_output(QueryClassification)
+        result = await structured_llm.ainvoke(system_prompt)
+        return result
+    except Exception as e:
+        # Default to RAG on error
+        return QueryClassification(
+            query_type="rag_question", conversational_response=None
+        )
+
+
 async def generate_hyde_and_queries(
     query: str, pdf_summaries: str, num_queries: int = 5
 ) -> HYDEQueries:
