@@ -158,18 +158,18 @@ async def chat_query(
         )
         notebook = result.scalar_one_or_none()
 
-    stored_filenames, notebook = await get_notebook_pdfs(
-        request.notebook_id, user.id, request.stored_filenames, db
+    pdf_ids, notebook = await get_notebook_pdfs(
+        request.notebook_id, user.id, request.pdf_ids, db
     )
 
-    if not stored_filenames:
+    if not pdf_ids:
         raise HTTPException(
             status_code=400,
             detail="No completed PDFs found in the specified notebook",
         )
 
     # 2. Get PDF summaries for classification
-    pdf_summaries = await get_pdf_summaries(stored_filenames, db)
+    pdf_summaries = await get_pdf_summaries(pdf_ids, db)
 
     # 3. Get chat history for better classification
     previous_conversation = ""
@@ -234,7 +234,7 @@ async def chat_query(
     # 6. Retrieve chunks using RRF
     context_chunks = await retrieve_chunks(
         query=request.query,
-        stored_filenames=stored_filenames,
+        stored_filenames=pdf_ids,
         hyde_answer=hyde_result.hyde_answer,
         rewritten_queries=hyde_result.rewritten_queries,
         top_k=5,
