@@ -293,7 +293,7 @@ async def retrieve_chunks(
                     }
                 )
 
-        return final_chunks[:top_k] if top_k else final_chunks
+        return final_chunks
 
     finally:
         await client.close()
