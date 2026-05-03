@@ -3,7 +3,6 @@ from collections import defaultdict
 from typing import List
 
 import numpy as np
-from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel
 from qdrant_client.http.models import (
     FieldCondition,
@@ -59,11 +58,15 @@ async def get_pdf_summaries(stored_filenames: List[str], db: AsyncSession) -> st
     return "\n\n".join(summaries)
 
 
-async def classify_query(query: str, pdf_summaries: str) -> QueryClassification:
+async def classify_query(
+    query: str, pdf_summaries: str, previous_conversation: str = ""
+) -> QueryClassification:
     """Classify query as conversational or rag_question using LLM with structured output."""
     config = get_config()
     llm = get_llm()
-    system_prompt = query_classifier_system_prompt(query, pdf_summaries)
+    system_prompt = query_classifier_system_prompt(
+        query, pdf_summaries, previous_conversation
+    )
 
     try:
         structured_llm = llm.with_structured_output(QueryClassification)
@@ -256,10 +259,8 @@ async def retrieve_chunks(
 
 async def get_chat_history(
     session_id: int, db: AsyncSession, max_turns: int = 3
-) -> List:
-    """Get chat history and format as LangChain messages."""
-    config = get_config()
-
+) -> str:
+    """Get formatted chat history as string for context."""
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
@@ -268,11 +269,15 @@ async def get_chat_history(
     )
     messages = result.scalars().all()
 
-    langchain_messages = []
+    if not messages:
+        return ""
+
+    formatted_parts = []
     for msg in messages:
         if msg.role == "user":
-            langchain_messages.append(HumanMessage(content=msg.content))
+            formatted_parts.append(f"Q: {msg.content}")
         else:
-            langchain_messages.append(AIMessage(content=msg.content))
+            formatted_parts.append(f"A: {msg.content}")
 
-    return langchain_messages
+    history_text = "\n".join(formatted_parts)
+    return f"Previous conversation:\n{history_text}"

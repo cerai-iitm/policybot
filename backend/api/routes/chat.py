@@ -3,7 +3,7 @@ import json
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -171,8 +171,15 @@ async def chat_query(
     # 2. Get PDF summaries for classification
     pdf_summaries = await get_pdf_summaries(stored_filenames, db)
 
-    # 3. Classify query (conversational vs RAG)
-    classification = await classify_query(request.query, pdf_summaries)
+    # 3. Get chat history for better classification
+    previous_conversation = ""
+    if not is_demo:
+        previous_conversation = await get_chat_history(session.id, db, max_turns=3)
+
+    # 4. Classify query (conversational vs RAG)
+    classification = await classify_query(
+        request.query, pdf_summaries, previous_conversation
+    )
 
     # 4. If conversational, stream response via SSE
     if (
@@ -262,14 +269,8 @@ async def chat_query(
         db.add(user_message)
         await db.commit()
 
-    # Use LangChain prompt with history
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            RAG_CHAT_SYSTEM_MESSAGE,
-            MessagesPlaceholder(variable_name="history"),
-            ("user", RAG_CHAT_USER_MESSAGE_TEMPLATE),
-        ]
-    )
+    # Use LangChain prompt with history string
+    prompt = ChatPromptTemplate.from_template(RAG_CHAT_USER_MESSAGE_TEMPLATE)
 
     async def generate():
         llm = get_llm()
@@ -279,7 +280,7 @@ async def chat_query(
         try:
             async for chunk in chain.astream(
                 {
-                    "history": history,
+                    "previous_conversation": history,
                     "context": context_text,
                     "question": request.query,
                 }
