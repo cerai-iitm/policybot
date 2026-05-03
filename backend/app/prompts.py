@@ -1,5 +1,28 @@
 from typing import List, Tuple
 
+from langchain_core.prompts import PromptTemplate
+
+COMBINE_PROMPT = PromptTemplate(
+    template="""You are a policy document summarizer. Write a concise single-paragraph summary (MAX 120 WORDS) that captures the essence of this document for a human reader.
+
+The summary should:
+- Be in natural paragraph prose (no bullets, no lists, no headers)
+- Describe what the document is about, its purpose, and key topics
+- Mention important entities, laws, frameworks, or organizations naturally
+- Be self-contained so a reader understands the document's main idea
+
+Input document sections:
+{text}
+
+Write a single paragraph summary (max 120 words):""",
+    input_variables=["text"],
+)
+
+# =============================================================================
+# PDF SUMMARY PROMPTS
+# =============================================================================
+
+
 # =============================================================================
 # SUGGESTED QUERIES PROMPTS
 # =============================================================================

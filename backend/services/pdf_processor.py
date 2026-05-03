@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_config
+from app.prompts import COMBINE_PROMPT
 from db.models.pdf import PDF
 from db.models.pdf_suggested_query import PDFSuggestedQuery
 from providers.embedding.factory import get_embedding
@@ -310,7 +311,9 @@ class PDFProcessor:
             llm = get_llm()
             from langchain_classic.chains.summarize import load_summarize_chain
 
-            chain = load_summarize_chain(llm, chain_type="map_reduce")
+            chain = load_summarize_chain(
+                llm, chain_type="map_reduce", combine_prompt=COMBINE_PROMPT
+            )
             result = await asyncio.to_thread(
                 chain.invoke, {"input_documents": documents}
             )
