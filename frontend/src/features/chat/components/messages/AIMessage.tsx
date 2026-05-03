@@ -13,6 +13,7 @@ interface SourceChunk {
   text: string;
   source: string;
   page_number: number | null;
+  original_filename?: string;
 }
 
 interface Props {
@@ -20,13 +21,15 @@ interface Props {
   sourceChunks?: SourceChunk[];
   loadingType?: "thinking" | "summary";
   onSourcesClick?: () => void;
+  onCitationsUpdate?: (chunks: SourceChunk[]) => void;
 }
 
 const AIMessage: React.FC<Props> = ({
   content,
   sourceChunks,
   loadingType,
-  onSourcesClick
+  onSourcesClick,
+  onCitationsUpdate
 }) => {
   const [showChunks, setShowChunks] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -83,13 +86,14 @@ const shouldShowChunks = showChunks && !isGenerating;
             />
           )}
 
-          {showActions && Array.isArray(sourceChunks) && sourceChunks.length > 0 && (
- <SourcesButton
-  onClick={() => {
-    setShowChunks((prev) => !prev);
-    onSourcesClick?.(); // 🔥 trigger sidebar
-  }}
-/>
+{showActions && Array.isArray(sourceChunks) && sourceChunks.length > 0 && (
+  <SourcesButton
+    onClick={() => {
+      setShowChunks((prev) => !prev);
+      onSourcesClick?.();
+      onCitationsUpdate?.(sourceChunks);
+    }}
+  />
 )}
         </>
       )}

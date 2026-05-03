@@ -29,6 +29,7 @@ class ChatMessageResponse(BaseModel):
     id: int
     role: str
     content: str
+    source_chunks: list[dict] | None = None
     created_at: datetime
 
     class Config:

@@ -298,16 +298,6 @@ async def chat_query(
                     filename_map[c["stored_filename"]] = c["stored_filename"]
             else:
                 async with AsyncSessionLocal() as db_session:
-                    assistant_message = ChatMessage(
-                        user_id=user.id,
-                        notebook_id=notebook.id,
-                        session_id=session.id,
-                        role="assistant",
-                        content=full_response,
-                    )
-                    db_session.add(assistant_message)
-                    await db_session.commit()
-
                     if stored_filenames_list:
                         pdf_result = await db_session.execute(
                             select(PDF.stored_filename, PDF.original_filename).where(
@@ -315,6 +305,29 @@ async def chat_query(
                             )
                         )
                         filename_map = dict(pdf_result.all())
+
+                    source_chunks_for_db = [
+                        {
+                            "stored_filename": c["stored_filename"],
+                            "original_filename": filename_map.get(
+                                c["stored_filename"], c["stored_filename"]
+                            ),
+                            "page_number": c["page_number"],
+                            "text": c["text"],
+                        }
+                        for c in context_chunks
+                    ]
+
+                    assistant_message = ChatMessage(
+                        user_id=user.id,
+                        notebook_id=notebook.id,
+                        session_id=session.id,
+                        role="assistant",
+                        content=full_response,
+                        source_chunks=source_chunks_for_db,
+                    )
+                    db_session.add(assistant_message)
+                    await db_session.commit()
 
             context_for_client = [
                 {
@@ -374,6 +387,7 @@ async def get_chat_history_endpoint(
                 "id": m.id,
                 "role": m.role,
                 "content": m.content,
+                "source_chunks": m.source_chunks,
                 "created_at": m.created_at,
             }
             for m in messages
