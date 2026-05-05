@@ -1,5 +1,28 @@
 from typing import List, Tuple
 
+from langchain_core.prompts import PromptTemplate
+
+COMBINE_PROMPT = PromptTemplate(
+    template="""You are a policy document summarizer. Write a concise single-paragraph summary (MAX 120 WORDS) that captures the essence of this document for a human reader.
+
+The summary should:
+- Be in natural paragraph prose (no bullets, no lists, no headers)
+- Describe what the document is about, its purpose, and key topics
+- Mention important entities, laws, frameworks, or organizations naturally
+- Be self-contained so a reader understands the document's main idea
+
+Input document sections:
+{text}
+
+Write a single paragraph summary (max 120 words):""",
+    input_variables=["text"],
+)
+
+# =============================================================================
+# PDF SUMMARY PROMPTS
+# =============================================================================
+
+
 # =============================================================================
 # SUGGESTED QUERIES PROMPTS
 # =============================================================================
@@ -42,17 +65,24 @@ FALLBACK_SUGGESTED_QUERIES: List[str] = [
 # =============================================================================
 
 
-def query_classifier_system_prompt(query: str, pdf_summaries: str) -> str:
+def query_classifier_system_prompt(
+    query: str, pdf_summaries: str, previous_conversation: str = ""
+) -> str:
     """Classify a user query as conversational or RAG question.
 
     Args:
         query: The user's query
         pdf_summaries: Combined summaries of available documents
+        previous_conversation: Previous Q&A from chat history
 
     Returns:
         System prompt for the classifier LLM
     """
     summaries_text = pdf_summaries if pdf_summaries else "No documents available."
+    history_text = (
+        previous_conversation if previous_conversation else "No previous conversation."
+    )
+
     return f"""You are PolicyBot, a friendly and intelligent assistant for analyzing policy documents. Your job is to classify user queries and respond appropriately.
 
 ## About PolicyBot
@@ -69,15 +99,21 @@ def query_classifier_system_prompt(query: str, pdf_summaries: str) -> str:
 - Questions about the application ("how does this work", "what is PolicyBot")
 - General FAQ about features (upload, notebooks, chat history, how to use)
 - Small talk ("thanks", "great job", "awesome")
+- Questions that do NOT reference the documents OR previous conversation
 
 **RAG_QUESTION** - Requires document context:
 - Questions asking about specific content from uploaded PDFs
 - "What does the document say about...", "Explain the policy on...", "Summarize..."
 - Questions requiring facts, data, regulations, or specific information from documents
-- Anything that needs searching through the uploaded policy documents
+- Questions that reference the documents, previous answers, or ask for elaboration
+- Queries like "explain more", "format better", "get sources for that", "elaborate on X"
+- ANY question that needs to reference the loaded documents or previous conversation
 
 ## Document Context Available
 {summaries_text}
+
+## Previous Conversation
+{history_text}
 
 ## Response Guidelines
 
@@ -88,10 +124,12 @@ def query_classifier_system_prompt(query: str, pdf_summaries: str) -> str:
 - For "what can you do": Explain document upload, semantic search, and accurate Q&A capabilities
 - For "how to use": Explain upload → ask questions → get accurate answers workflow
 - Keep responses concise but helpful (2-3 sentences)
+- IMPORTANT: If the query references documents or previous conversation, it is RAG_QUESTION
 
 **If RAG_QUESTION:**
 - Set conversational_response to null
 - The system will handle document retrieval and answer generation
+- If query references or asks about anything in Document Context or Previous Conversation, mark as RAG_QUESTION
 
 ## Output Format
 Return strictly valid JSON:
@@ -219,4 +257,6 @@ RAG_CHAT_SYSTEM_MESSAGE: Tuple[str, str] = (
 """,
 )
 
-RAG_CHAT_USER_MESSAGE_TEMPLATE: str = "Context: {{context}}\n\nQuestion: {{question}}"
+RAG_CHAT_USER_MESSAGE_TEMPLATE: str = (
+    "{previous_conversation}\n\nContext: {context}\n\nQuestion: {question}"
+)

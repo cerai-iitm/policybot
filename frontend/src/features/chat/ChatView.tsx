@@ -85,6 +85,7 @@ const [sessionId] = useState(() => {
             isSummaryLoading={summaryState.isSummaryLoading}
             onSuggestedClick={handleSend}
             onSourcesClick={onOpenCitations}
+            onCitationsUpdate={onCitationsUpdate}
           />
 
           <ChatInput

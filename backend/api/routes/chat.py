@@ -3,7 +3,7 @@ import json
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -158,21 +158,28 @@ async def chat_query(
         )
         notebook = result.scalar_one_or_none()
 
-    stored_filenames, notebook = await get_notebook_pdfs(
-        request.notebook_id, user.id, request.stored_filenames, db
+    pdf_ids, notebook = await get_notebook_pdfs(
+        request.notebook_id, user.id, request.pdf_ids, db
     )
 
-    if not stored_filenames:
+    if not pdf_ids:
         raise HTTPException(
             status_code=400,
             detail="No completed PDFs found in the specified notebook",
         )
 
     # 2. Get PDF summaries for classification
-    pdf_summaries = await get_pdf_summaries(stored_filenames, db)
+    pdf_summaries = await get_pdf_summaries(pdf_ids, db)
 
-    # 3. Classify query (conversational vs RAG)
-    classification = await classify_query(request.query, pdf_summaries)
+    # 3. Get chat history for better classification
+    previous_conversation = ""
+    if not is_demo:
+        previous_conversation = await get_chat_history(session.id, db, max_turns=3)
+
+    # 4. Classify query (conversational vs RAG)
+    classification = await classify_query(
+        request.query, pdf_summaries, previous_conversation
+    )
 
     # 4. If conversational, stream response via SSE
     if (
@@ -227,7 +234,7 @@ async def chat_query(
     # 6. Retrieve chunks using RRF
     context_chunks = await retrieve_chunks(
         query=request.query,
-        stored_filenames=stored_filenames,
+        stored_filenames=pdf_ids,
         hyde_answer=hyde_result.hyde_answer,
         rewritten_queries=hyde_result.rewritten_queries,
         top_k=5,
@@ -262,14 +269,8 @@ async def chat_query(
         db.add(user_message)
         await db.commit()
 
-    # Use LangChain prompt with history
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            RAG_CHAT_SYSTEM_MESSAGE,
-            MessagesPlaceholder(variable_name="history"),
-            ("user", RAG_CHAT_USER_MESSAGE_TEMPLATE),
-        ]
-    )
+    # Use LangChain prompt with history string
+    prompt = ChatPromptTemplate.from_template(RAG_CHAT_USER_MESSAGE_TEMPLATE)
 
     async def generate():
         llm = get_llm()
@@ -279,7 +280,7 @@ async def chat_query(
         try:
             async for chunk in chain.astream(
                 {
-                    "history": history,
+                    "previous_conversation": history,
                     "context": context_text,
                     "question": request.query,
                 }
@@ -298,16 +299,6 @@ async def chat_query(
                     filename_map[c["stored_filename"]] = c["stored_filename"]
             else:
                 async with AsyncSessionLocal() as db_session:
-                    assistant_message = ChatMessage(
-                        user_id=user.id,
-                        notebook_id=notebook.id,
-                        session_id=session.id,
-                        role="assistant",
-                        content=full_response,
-                    )
-                    db_session.add(assistant_message)
-                    await db_session.commit()
-
                     if stored_filenames_list:
                         pdf_result = await db_session.execute(
                             select(PDF.stored_filename, PDF.original_filename).where(
@@ -315,6 +306,29 @@ async def chat_query(
                             )
                         )
                         filename_map = dict(pdf_result.all())
+
+                    source_chunks_for_db = [
+                        {
+                            "stored_filename": c["stored_filename"],
+                            "original_filename": filename_map.get(
+                                c["stored_filename"], c["stored_filename"]
+                            ),
+                            "page_number": c["page_number"],
+                            "text": c["text"],
+                        }
+                        for c in context_chunks
+                    ]
+
+                    assistant_message = ChatMessage(
+                        user_id=user.id,
+                        notebook_id=notebook.id,
+                        session_id=session.id,
+                        role="assistant",
+                        content=full_response,
+                        source_chunks=source_chunks_for_db,
+                    )
+                    db_session.add(assistant_message)
+                    await db_session.commit()
 
             context_for_client = [
                 {
@@ -374,6 +388,7 @@ async def get_chat_history_endpoint(
                 "id": m.id,
                 "role": m.role,
                 "content": m.content,
+                "source_chunks": m.source_chunks,
                 "created_at": m.created_at,
             }
             for m in messages

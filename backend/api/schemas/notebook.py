@@ -8,6 +8,10 @@ class NotebookCreate(BaseModel):
     description: str | None = None
 
 
+class NotebookTitle(BaseModel):
+    title: str
+
+
 class NotebookResponse(BaseModel):
     id: int
     notebook_id: str
