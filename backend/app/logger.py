@@ -5,15 +5,15 @@ import sys
 from pathlib import Path
 
 import structlog
-from structlog.processors import (
-    TimeStamper,
-    StackInfoRenderer,
-    format_exc_info,
-    add_log_level,
-)
-from structlog.stdlib import LoggerFactory, ProcessorFormatter, BoundLogger
-from structlog.processors import JSONRenderer
 from structlog.dev import ConsoleRenderer
+from structlog.processors import (
+    JSONRenderer,
+    StackInfoRenderer,
+    TimeStamper,
+    add_log_level,
+    format_exc_info,
+)
+from structlog.stdlib import BoundLogger, LoggerFactory, ProcessorFormatter
 
 
 def configure_logging(
@@ -21,7 +21,7 @@ def configure_logging(
     log_dir: str | Path = "logs",
     human_logfile: str = "app.log",
     structured_logfile: str = "app_structured.jsonl",
-    level: int = logging.INFO,
+    level: int = logging.DEBUG,
     console_colors: bool = True,
 ) -> None:
     log_dir = Path(log_dir)

@@ -32,6 +32,9 @@ def get_llm():
             model=config.default_model,
             base_url=url,
             client_kwargs=client_kwargs,
+            num_predict=config.num_predict,
+            num_ctx=config.num_ctx,
+            temperature=config.temperature,
         )
 
     elif provider == "gemini":

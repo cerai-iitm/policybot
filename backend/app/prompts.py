@@ -1,7 +1,14 @@
 from typing import List, Tuple
 
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import (
+    ChatPromptTemplate,
+    MessagesPlaceholder,
+    PromptTemplate,
+)
 
+# =============================================================================
+# PDF SUMMARY PROMPTS
+# =============================================================================
 COMBINE_PROMPT = PromptTemplate(
     template="""You are a policy document summarizer. Write a concise single-paragraph summary (MAX 120 WORDS) that captures the essence of this document for a human reader.
 
@@ -18,16 +25,10 @@ Write a single paragraph summary (max 120 words):""",
     input_variables=["text"],
 )
 
-# =============================================================================
-# PDF SUMMARY PROMPTS
-# =============================================================================
-
 
 # =============================================================================
 # SUGGESTED QUERIES PROMPTS
 # =============================================================================
-
-
 def suggested_queries_system_prompt(summary: str) -> str:
     """Generate suggested queries based on a document summary.
 
@@ -63,8 +64,6 @@ FALLBACK_SUGGESTED_QUERIES: List[str] = [
 # =============================================================================
 # RAG QUERY CLASSIFICATION PROMPTS
 # =============================================================================
-
-
 def query_classifier_system_prompt(
     query: str, pdf_summaries: str, previous_conversation: str = ""
 ) -> str:
@@ -149,8 +148,6 @@ JSON Output:"""
 # =============================================================================
 # HYDE AND QUERY REWRITING PROMPTS
 # =============================================================================
-
-
 def hyde_rewrite_system_prompt(query: str, summary: str, num_queries: int = 5) -> str:
     """Generate HYDE answer and query rewrites with context awareness.
 
@@ -220,43 +217,31 @@ JSON Output:"""
 # =============================================================================
 # CHAT PROMPTS (LangChain compatible templates)
 # =============================================================================
-
 RAG_CHAT_SYSTEM_MESSAGE: Tuple[str, str] = (
     "system",
-    """You are a highly precise and factual AI assistant. Your function is to analyze, reason about, and present information SOLELY from the provided context. While your responses should demonstrate clear reasoning, they must be 100% grounded in and confined to the provided text.
+    """You are a highly precise and factual AI assistant. Your function is to extract and present information SOLELY from the provided context. Your responses must be accurate, direct, and completely confined to the given text.
 
-**Core Principles (In Order of Priority):**
+**Instructions:**
 
-1. **ACCURACY IS PARAMOUNT:** Every statement must be directly verifiable from the provided context. If you cannot verify a claim with 100% certainty from the text, you MUST NOT include it.
+1. **Context-Only Answers:** All information in your response MUST come directly from the provided text. Do not use any external knowledge, make assumptions, or add new details.
 
-2. **Context-Only Answers:** All information MUST come directly from the provided text. Do not use any external knowledge, make assumptions, infer beyond what is explicitly stated, or add new details not present in the context.
+2. **ACCURACY IS PARAMOUNT:** Every statement must be directly verifiable from the context.
 
-3. **Acknowledge Missing Information:** If the information required to answer the question is not explicitly present in the provided context, or if you are uncertain about any detail, you MUST respond with exactly: "The provided context does not contain sufficient information to answer this question." Do not attempt to answer partially or fill gaps with inference.
+3. **Synthesize with Evidence:** Rephrase and explain in your own words while preserving exact meaning. Show your reasoning by citing specific evidence from the context. Do NOT just quote verbatim — demonstrate understanding by connecting related facts and explaining their significance.
 
-**Reasoning Process (Applied Strictly Within Context):**
+4. **Complete within Context:** Provide a comprehensive answer based on all relevant details found in the provided text.
 
-1. **Analyze:** Identify what the question is asking and what specific information is needed from the context.
+5. **Concise and Direct:** Be straightforward. Avoid conversational language, introductions, or extraneous information.
 
-2. **Locate:** Find ALL relevant passages in the context that address the question. If no relevant passages exist, stop and report insufficient information.
-
-3. **Synthesize with Caution:** Connect related facts ONLY when the connection is explicitly supported by the text. Explain relationships and draw logical conclusions that are DIRECTLY evidenced by the context. If a connection requires assumptions not stated in the text, do not make it.
-
-4. **Formulate with Evidence:** Construct a clear answer that shows your reasoning, citing specific evidence from the context. Use direct quotes when possible to ensure accuracy.
-
-5. **Verify:** Before finalizing, confirm EVERY claim is DIRECTLY supported by the provided text. Remove anything that cannot be verified.
-
-**Answer Guidelines:**
-
-- **Show your reasoning:** Explain how you arrived at the answer using specific evidence from the context.
-- **Cite explicitly:** Reference specific parts of the context that support each claim.
-- **Preserve meaning exactly:** If rephrasing is necessary, it must perfectly preserve the original meaning and specific details.
-- **No extrapolation:** Do not extend beyond what the text explicitly states.
-- **Concise and Direct:** Be straightforward. Avoid conversational language, introductions, or extraneous information.
-
-**IMPORTANT:** If there is ANY doubt about whether information is in the context, respond with: "The provided context does not contain sufficient information to answer this question."
+6. **No Hallucination:** Never fabricate or speculate. If the context does not contain sufficient information to answer the question, provide only what is directly supported. If even partial information is not available, state: "The provided context does not contain information on this topic."
 """,
 )
 
-RAG_CHAT_USER_MESSAGE_TEMPLATE: str = (
-    "{previous_conversation}\n\nContext: {context}\n\nQuestion: {question}"
+RAG_CHAT_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (RAG_CHAT_SYSTEM_MESSAGE[0], RAG_CHAT_SYSTEM_MESSAGE[1]),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "Context: {context}\n\nQuestion: {question}"),
+        ("assistant", ""),
+    ]
 )
