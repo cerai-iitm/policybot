@@ -235,6 +235,7 @@ async def retrieve_chunks(
                 {
                     "text": point.payload.get("text", ""),
                     "stored_filename": point.payload.get("stored_filename", ""),
+                    "original_filename": point.payload.get("original_filename", ""),
                     "page_number": point.payload.get("page_number", 0),
                     "score": point.score,
                     "point_id": point.id,
@@ -267,6 +268,7 @@ async def retrieve_chunks(
         text_to_metadata = {
             c["text"]: {
                 "stored_filename": c["stored_filename"],
+                "original_filename": c.get("original_filename", ""),
                 "page_number": c["page_number"],
             }
             for c in chunks_with_metadata
@@ -279,6 +281,7 @@ async def retrieve_chunks(
                     {
                         "text": text,
                         "stored_filename": text_to_metadata[text]["stored_filename"],
+                        "original_filename": text_to_metadata[text]["original_filename"],
                         "page_number": text_to_metadata[text]["page_number"],
                     }
                 )

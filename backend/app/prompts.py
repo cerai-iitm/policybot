@@ -234,6 +234,8 @@ RAG_CHAT_SYSTEM_MESSAGE: Tuple[str, str] = (
 5. **Concise and Direct:** Be straightforward. Avoid conversational language, introductions, or extraneous information.
 
 6. **No Hallucination:** Never fabricate or speculate. If the context does not contain sufficient information to answer the question, provide only what is directly supported. If even partial information is not available, state: "The provided context does not contain information on this topic."
+
+7. **Citation Format:** When citing evidence from the context, use the format `(cite: filename, page N)`. Always include the source filename and page number for each reference.
 """,
 )
 

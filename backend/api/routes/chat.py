@@ -279,7 +279,7 @@ async def chat_query(
     # Build context text
     context_text = "\n\n".join(
         [
-            f"[Source PDF: {chunk.get('stored_filename', 'unknown')} (page {chunk['page_number']})]\n{chunk['text']}"
+            f"[Source PDF: {chunk.get('original_filename') or chunk.get('stored_filename', 'unknown')} (page {chunk['page_number']})]\n{chunk['text']}"
             for chunk in context_chunks
         ]
     )

@@ -21,7 +21,7 @@ def configure_logging(
     log_dir: str | Path = "logs",
     human_logfile: str = "app.log",
     structured_logfile: str = "app_structured.jsonl",
-    level: int = logging.DEBUG,
+    level: int = logging.INFO,
     console_colors: bool = True,
 ) -> None:
     log_dir = Path(log_dir)

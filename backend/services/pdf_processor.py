@@ -106,7 +106,7 @@ class PDFProcessor:
                 yield "Embeddings saved"
             try:
                 await self._store_embeddings(
-                    split_docs, embeddings, pdf.stored_filename
+                    split_docs, embeddings, pdf.stored_filename, pdf.original_filename
                 )
             except Exception:
                 logger.exception(
@@ -266,7 +266,7 @@ class PDFProcessor:
             return None
 
     async def _store_embeddings(
-        self, docs: List[Document], embeddings: np.ndarray, stored_filename: str
+        self, docs: List[Document], embeddings: np.ndarray, stored_filename: str, original_filename: str
     ) -> None:
         client = get_qdrant_client()
         try:
@@ -287,6 +287,7 @@ class PDFProcessor:
                     payload={
                         "text": docs[i].page_content,
                         "stored_filename": stored_filename,
+                        "original_filename": original_filename,
                         "page_number": docs[i].metadata.get("page_number"),
                     },
                 )
