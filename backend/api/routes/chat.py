@@ -1,9 +1,11 @@
 # api/routes/chat.py
 import json
 import secrets
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import trim_messages
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +14,7 @@ from api.schemas.chat import ChatHistoryResponse, ChatQueryRequest
 from app.config import get_config
 from app.prompts import (
     RAG_CHAT_SYSTEM_MESSAGE,
-    RAG_CHAT_USER_MESSAGE_TEMPLATE,
+    RAG_CHAT_PROMPT,
 )
 from db.models.chat_message import ChatMessage
 from db.models.chat_session import ChatSession
@@ -32,6 +34,7 @@ from services.rag import (
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 config = get_config()
+logger = logging.getLogger(__name__)
 
 
 async def get_or_create_active_session(
@@ -174,7 +177,19 @@ async def chat_query(
     # 3. Get chat history for better classification
     previous_conversation = ""
     if not is_demo:
-        previous_conversation = await get_chat_history(session.id, db, max_turns=3)
+        history_msgs = await get_chat_history(session.id, db, max_turns=3)
+        # convert LangChain message objects to a formatted string for the classifier
+        if history_msgs:
+            formatted_parts = []
+            for msg in history_msgs:
+                cls_name = msg.__class__.__name__
+                if cls_name == "HumanMessage":
+                    formatted_parts.append(f"Q: {msg.content}")
+                else:
+                    formatted_parts.append(f"A: {msg.content}")
+
+            history_text = "\n".join(formatted_parts)
+            previous_conversation = f"Previous conversation:\n{history_text}"
 
     # 4. Classify query (conversational vs RAG)
     classification = await classify_query(
@@ -200,8 +215,26 @@ async def chat_query(
         response_text = classification.conversational_response
 
         async def generate():
+            # Stream conversational response defensively (preserve spacing between chunks)
+            full = ""
             for i in range(0, len(response_text), 10):
                 chunk = response_text[i : i + 10]
+
+                # Debug log
+                if getattr(config, "debug_stream_chunks", False):
+                    logger.debug("CONV CHUNK: %r", chunk)
+
+                # Prevent glue across boundaries
+                if (
+                    full
+                    and not full.endswith((" ", "\n"))
+                    and not chunk.startswith(
+                        (" ", "\n", ".", ",", ":", ";", "?", "!", '"', "'")
+                    )
+                ):
+                    full += " "
+
+                full += chunk
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
 
             if not is_demo:
@@ -211,7 +244,7 @@ async def chat_query(
                         notebook_id=notebook.id,
                         session_id=session.id,
                         role="assistant",
-                        content=response_text,
+                        content=full,
                     )
                     db_session.add(assistant_message)
                     await db_session.commit()
@@ -246,7 +279,7 @@ async def chat_query(
     # Build context text
     context_text = "\n\n".join(
         [
-            f"[Source PDF: {chunk.get('stored_filename', 'unknown')} (page {chunk['page_number']})]\n{chunk['text']}"
+            f"[Source PDF: {chunk.get('original_filename') or chunk.get('stored_filename', 'unknown')} (page {chunk['page_number']})]\n{chunk['text']}"
             for chunk in context_chunks
         ]
     )
@@ -269,25 +302,60 @@ async def chat_query(
         db.add(user_message)
         await db.commit()
 
-    # Use LangChain prompt with history string
-    prompt = ChatPromptTemplate.from_template(RAG_CHAT_USER_MESSAGE_TEMPLATE)
+    # Use the structured RAG prompt
+    prompt = RAG_CHAT_PROMPT
 
     async def generate():
         llm = get_llm()
+
+        # Trim history to a token budget to avoid pushing the model into truncation.
+        # Reserve ~40% for system + context + answer; use actual model context.
+        MODEL_TOKEN_WINDOW = config.num_ctx
+        RESERVED_FOR_CONTEXT_AND_ANSWER = int(config.num_ctx * 0.4)
+        token_budget_for_history = MODEL_TOKEN_WINDOW - RESERVED_FOR_CONTEXT_AND_ANSWER
+
+        try:
+            trimmed_history = trim_messages(
+                history,
+                max_tokens=token_budget_for_history,
+                strategy="last",
+                token_counter=llm,
+                include_system=True,
+            )
+        except Exception:
+            # Fallback: keep recent turns (each turn is one user+assistant pair)
+            trimmed_history = history[-(config.max_history_messages * 2) :]
+
         chain = prompt | llm
         full_response = ""
 
         try:
             async for chunk in chain.astream(
                 {
-                    "previous_conversation": history,
+                    "history": trimmed_history,
                     "context": context_text,
                     "question": request.query,
                 }
             ):
-                if chunk.content:
-                    full_response += chunk.content
-                    yield f"data: {json.dumps({'content': chunk.content})}\n\n"
+                content = chunk.content or ""
+
+                # Debug-log raw chunk content if enabled
+                if getattr(config, "debug_stream_chunks", False):
+                    logger.debug("STREAM CHUNK: %r", content)
+
+                # Defensive spacing to avoid accidental glue like "scores.The..."
+                if (
+                    full_response
+                    and not full_response.endswith((" ", "\n"))
+                    and not content.startswith(
+                        (" ", "\n", ".", ",", ":", ";", "?", "!", '"', "'")
+                    )
+                ):
+                    full_response += " "
+
+                if content:
+                    full_response += content
+                    yield f"data: {json.dumps({'content': content})}\n\n"
 
             stored_filenames_list = list(
                 set(c["stored_filename"] for c in context_chunks)

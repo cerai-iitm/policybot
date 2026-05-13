@@ -22,6 +22,9 @@ class Config(BaseSettings):
     vllm_llm_url: str = "http://localhost:8080/v1"
     gemini_api_key: str | None = None
     ollama_url: str = "http://localhost:11434"
+    num_predict: int = 8192
+    num_ctx: int = 32000
+    temperature: float = 0.2
 
     # Direct API Keys (optional)
     vllm_llm_api_key: str | None = None
@@ -67,6 +70,8 @@ class Config(BaseSettings):
     # RAG Settings
     num_rewritten_queries: int = 5
     max_history_messages: int = 3
+    # Debug streaming chunks (set True to log each received chunk at debug level)
+    debug_stream_chunks: bool = True
 
     # Deployment environment name. Recommended env var: ENVIRONMENT
     # Allowed values: "development" or "production"

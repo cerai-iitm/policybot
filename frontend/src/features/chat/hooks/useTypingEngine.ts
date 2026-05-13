@@ -59,8 +59,17 @@ export const useTypingEngine = (updateAIMessage: (id: string, v: string | ((p: s
   startTyping(messageId);
 };
 
+  const flushBuffer = (messageId: string) => {
+    if (bufferRef.current) {
+      queueRef.current.push(bufferRef.current);
+      bufferRef.current = "";
+      startTyping(messageId);
+    }
+  };
+
   const reset = () => {
     queueRef.current = [];
+    bufferRef.current = "";
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -69,6 +78,7 @@ export const useTypingEngine = (updateAIMessage: (id: string, v: string | ((p: s
 
   return {
     pushChunk,
+    flushBuffer,
     reset,
   };
 };

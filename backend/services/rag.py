@@ -110,16 +110,6 @@ Generate a title:"""
         # Fallback: use first 30 chars of summary
         return pdf_summary[:30].strip() + "..."
 
-    try:
-        structured_llm = llm.with_structured_output(QueryClassification)
-        result = await structured_llm.ainvoke(system_prompt)
-        return result
-    except Exception as e:
-        # Default to RAG on error
-        return QueryClassification(
-            query_type="rag_question", conversational_response=None
-        )
-
 
 async def generate_hyde_and_queries(
     query: str, pdf_summaries: str, num_queries: int = 5
@@ -245,6 +235,7 @@ async def retrieve_chunks(
                 {
                     "text": point.payload.get("text", ""),
                     "stored_filename": point.payload.get("stored_filename", ""),
+                    "original_filename": point.payload.get("original_filename", ""),
                     "page_number": point.payload.get("page_number", 0),
                     "score": point.score,
                     "point_id": point.id,
@@ -277,6 +268,7 @@ async def retrieve_chunks(
         text_to_metadata = {
             c["text"]: {
                 "stored_filename": c["stored_filename"],
+                "original_filename": c.get("original_filename", ""),
                 "page_number": c["page_number"],
             }
             for c in chunks_with_metadata
@@ -289,6 +281,7 @@ async def retrieve_chunks(
                     {
                         "text": text,
                         "stored_filename": text_to_metadata[text]["stored_filename"],
+                        "original_filename": text_to_metadata[text]["original_filename"],
                         "page_number": text_to_metadata[text]["page_number"],
                     }
                 )
@@ -299,10 +292,14 @@ async def retrieve_chunks(
         await client.close()
 
 
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+from langchain_core.messages import trim_messages
+
+
 async def get_chat_history(
     session_id: int, db: AsyncSession, max_turns: int = 3
-) -> str:
-    """Get formatted chat history as string for context."""
+) -> List[BaseMessage]:
+    """Get chat history as a list of LangChain message objects."""
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
@@ -312,14 +309,20 @@ async def get_chat_history(
     messages = result.scalars().all()
 
     if not messages:
-        return ""
+        return []
 
-    formatted_parts = []
+    history_objects = []
     for msg in messages:
         if msg.role == "user":
-            formatted_parts.append(f"Q: {msg.content}")
+            history_objects.append(HumanMessage(content=msg.content))
         else:
-            formatted_parts.append(f"A: {msg.content}")
+            history_objects.append(AIMessage(content=msg.content))
 
-    history_text = "\n".join(formatted_parts)
-    return f"Previous conversation:\n{history_text}"
+    # Also try to trim server-side if needed (defensive): keep last max_turns*2 entries
+    try:
+        trimmed = trim_messages(
+            history_objects, max_tokens=32000, strategy="last", include_system=True
+        )
+        return trimmed
+    except Exception:
+        return history_objects
