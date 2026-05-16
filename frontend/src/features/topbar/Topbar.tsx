@@ -1,9 +1,7 @@
 "use client";
 
-// FILE: D:\buddi\Policybot\frontend\src\features\topbar\Topbar.tsx
 import { useAuth } from "@/lib/hooks/useAuth";
-import Link from "next/link"; // ✅ needed for login redirect
-
+import Link from "next/link";
 
 import Header from "./components/Header";
 import TopBrandBar from "./components/TopBrandBar";
@@ -19,7 +17,7 @@ export default function Topbar() {
   return (
     <header
       className="
-        w-full 
+        w-full
         bg-[#F1F5F9]
         flex items-center justify-between
         px-12 py-2
@@ -33,15 +31,26 @@ export default function Topbar() {
       {/* Right side */}
       <div className="flex items-center gap-2">
         <TopBrandBar />
-       {isDemoUser ? (
-  <Link href="/login">
-    <button className="px-4 py-2 rounded-full border border-gray-400 text-sm font-medium hover:bg-gray-100 transition cursor-pointer">
-      Login
-    </button>
-  </Link>
-) : (
-  <ProfileDropdown />
-)}
+
+        {isDemoUser ? (
+          <Link
+            href="/login"
+            className="
+              inline-flex items-center justify-center
+              px-4 py-2
+              rounded-full
+              border border-gray-400
+              text-sm font-medium
+              hover:bg-gray-100
+              transition
+              cursor-pointer
+            "
+          >
+            Login
+          </Link>
+        ) : (
+          <ProfileDropdown />
+        )}
       </div>
     </header>
   );
