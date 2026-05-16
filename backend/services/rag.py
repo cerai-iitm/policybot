@@ -281,7 +281,9 @@ async def retrieve_chunks(
                     {
                         "text": text,
                         "stored_filename": text_to_metadata[text]["stored_filename"],
-                        "original_filename": text_to_metadata[text]["original_filename"],
+                        "original_filename": text_to_metadata[text][
+                            "original_filename"
+                        ],
                         "page_number": text_to_metadata[text]["page_number"],
                     }
                 )
