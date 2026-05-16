@@ -275,14 +275,6 @@ async def chat_query(
     if not context_chunks:
         raise HTTPException(status_code=400, detail="No relevant context found")
 
-    # Build context text
-    context_text = "\n\n".join(
-        [
-            f"[Source PDF: {chunk.get('original_filename') or chunk.get('stored_filename', 'unknown')} (page {chunk['page_number']})]\n{chunk['text']}"
-            for chunk in context_chunks
-        ]
-    )
-
     # Get chat history
     if is_demo:
         history = []
@@ -325,6 +317,28 @@ async def chat_query(
             # Fallback: keep recent turns (each turn is one user+assistant pair)
             trimmed_history = history[-(config.max_history_messages * 2) :]
 
+        # Query DB for original_filename map (source of truth)
+        stored_filenames_list = list(
+            set(c["stored_filename"] for c in context_chunks)
+        )
+        filename_map = {}
+        async with AsyncSessionLocal() as db_session:
+            if stored_filenames_list:
+                pdf_result = await db_session.execute(
+                    select(PDF.stored_filename, PDF.original_filename).where(
+                        PDF.stored_filename.in_(stored_filenames_list)
+                    )
+                )
+                filename_map = dict(pdf_result.all())
+
+        # Build context text with original filenames from DB
+        context_text = "\n\n".join(
+            [
+                f"[Source PDF: {filename_map.get(c['stored_filename'], c['stored_filename'])} (page {c['page_number']})]\n{c['text']}"
+                for c in context_chunks
+            ]
+        )
+
         chain = prompt | llm
         full_response = ""
 
@@ -356,36 +370,21 @@ async def chat_query(
                     full_response += content
                     yield f"data: {json.dumps({'content': content})}\n\n"
 
-            stored_filenames_list = list(
-                set(c["stored_filename"] for c in context_chunks)
-            )
-            filename_map = {}
+            # Persist assistant message with source chunks (non-demo only)
+            if not is_demo:
+                source_chunks_for_db = [
+                    {
+                        "stored_filename": c["stored_filename"],
+                        "original_filename": filename_map.get(
+                            c["stored_filename"], c["stored_filename"]
+                        ),
+                        "page_number": c["page_number"],
+                        "text": c["text"],
+                    }
+                    for c in context_chunks
+                ]
 
-            if is_demo:
-                for c in context_chunks:
-                    filename_map[c["stored_filename"]] = c["original_filename"]
-            else:
                 async with AsyncSessionLocal() as db_session:
-                    if stored_filenames_list:
-                        pdf_result = await db_session.execute(
-                            select(PDF.stored_filename, PDF.original_filename).where(
-                                PDF.stored_filename.in_(stored_filenames_list)
-                            )
-                        )
-                        filename_map = dict(pdf_result.all())
-
-                    source_chunks_for_db = [
-                        {
-                            "stored_filename": c["stored_filename"],
-                            "original_filename": filename_map.get(
-                                c["stored_filename"], c["stored_filename"]
-                            ),
-                            "page_number": c["page_number"],
-                            "text": c["text"],
-                        }
-                        for c in context_chunks
-                    ]
-
                     assistant_message = ChatMessage(
                         user_id=user.id,
                         notebook_id=notebook.id,
