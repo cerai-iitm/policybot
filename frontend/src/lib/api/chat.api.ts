@@ -6,8 +6,7 @@ import { getToken } from "@/lib/utils/token";
 export const sendQueryStream = async (
   data: ChatPayload,
   onMessage: (msg: string) => void,
-  onContext?: (chunks: any[]) => void,
-  onDone?: () => void
+  onContext?: (chunks: any[]) => void
 ) => {
   const token = getToken();
 
@@ -58,7 +57,6 @@ export const sendQueryStream = async (
 
         // ✅ HANDLE END
         if (parsed.done) {
-          onDone?.();
           return;
         }
 

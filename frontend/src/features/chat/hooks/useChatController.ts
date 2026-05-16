@@ -32,7 +32,7 @@ export const useChatController = ({
   onCitationsUpdate,
   hasStartedRef,
 }: ChatControllerProps) => {
-  const { pushChunk, flushBuffer, reset } = useTypingEngine(updateAIMessage);
+  const { pushChunk, reset } = useTypingEngine(updateAIMessage);
 
   const handleSend = async (overrideText?: string) => {
     onCitationsUpdate([]);
@@ -63,9 +63,6 @@ export const useChatController = ({
         (chunks) => {
           updateAIMessageChunks(aiId, chunks);
           onCitationsUpdate(chunks);
-        },
-        () => {
-          flushBuffer(aiId);
         }
       );
     } catch {
