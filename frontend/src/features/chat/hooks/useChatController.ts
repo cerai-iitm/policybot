@@ -11,13 +11,14 @@ type ChatControllerProps = {
   setInput: (v: string) => void;
   addUserMessage: (t: string) => void;
   addAILoadingMessage: () => string;
-  updateAIMessage: (id: string, v: string | ((p: string) => string)) => void;
+  updateAIMessage: (
+    id: string,
+    v: string | ((p: string) => string)
+  ) => void;
   updateAIMessageChunks: (id: string, chunks: any[]) => void;
   onCitationsUpdate: (chunks: any[]) => void;
   hasStartedRef: React.MutableRefObject<boolean>;
-  
 };
-
 
 export const useChatController = ({
   sessionId,
@@ -32,22 +33,30 @@ export const useChatController = ({
   onCitationsUpdate,
   hasStartedRef,
 }: ChatControllerProps) => {
-  const { pushChunk, reset } = useTypingEngine(updateAIMessage);
+  const { pushChunk, complete, reset } =
+    useTypingEngine(updateAIMessage);
 
   const handleSend = async (overrideText?: string) => {
     onCitationsUpdate([]);
 
     const text = overrideText ?? input;
+
     if (!text.trim()) return;
+
+    /**
+     * HARD RESET BEFORE NEW STREAM
+     */
+    reset();
 
     hasStartedRef.current = true;
 
     addUserMessage(text);
+
     const aiId = addAILoadingMessage();
 
-    if (!overrideText) setInput("");
-
-    reset();
+    if (!overrideText) {
+      setInput("");
+    }
 
     try {
       await sendQueryStream(
@@ -57,16 +66,38 @@ export const useChatController = ({
           notebook_id: notebookId,
           pdf_ids: selectedPdfIds,
         },
+
+        /**
+         * STREAM CHUNK
+         */
         (chunk: string) => {
           pushChunk(chunk, aiId);
         },
+
+        /**
+         * CONTEXT
+         */
         (chunks) => {
           updateAIMessageChunks(aiId, chunks);
           onCitationsUpdate(chunks);
+        },
+
+        /**
+         * STREAM COMPLETE
+         */
+        () => {
+          complete(aiId);
         }
       );
-    } catch {
-      updateAIMessage(aiId, "Error: Failed to get response.");
+    } catch (error) {
+      console.error(error);
+
+      reset();
+
+      updateAIMessage(
+        aiId,
+        "Error: Failed to get response."
+      );
     }
   };
 
