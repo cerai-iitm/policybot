@@ -74,17 +74,7 @@ const ProfileDropdown = () => {
         <div className="h-px bg-gray-100" />
 
         {/* Account Section */}
-        <div className="py-2">
-
-          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
-            My Profile
-          </button>
-
-          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
-            Account Settings
-          </button>
-
-        </div>
+       
 
         {/* Divider */}
         <div className="h-px bg-gray-100" />

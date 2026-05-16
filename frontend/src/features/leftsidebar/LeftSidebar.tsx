@@ -16,7 +16,7 @@ import FileUpload from "./components/fileupload/FileUpload";
 import SourceItem from "./components/SourceItem/SourceItem";
 import SelectAllRow from "./components/SelectAllRow";
 import Title from "./components/Title";
-
+import { useAuth } from "@/lib/hooks/useAuth";
 /* ---------------- TYPES ---------------- */
 import { SidebarProps } from "./types";
 
@@ -43,6 +43,8 @@ const LeftSidebar: React.FC<SidebarProps & {
   
 }) => {
   /* ---------------- DERIVED STATE ---------------- */
+
+  const { isDemoUser } = useAuth();
 
   const allIds = sources.map((s) => s.pdf_id);
 
@@ -85,13 +87,16 @@ const LeftSidebar: React.FC<SidebarProps & {
 )}
 
         {/* ---------- UPLOAD ---------- */}
-        <div className="px-6 pt-2">
-          <FileUpload
-            onFileSelect={onUploadPdf}
-            collapsed={collapsed}
-            autoOpen={autoOpenUpload}
-          />
-        </div>
+     {/* ---------- UPLOAD ---------- */}
+{!isDemoUser && (
+  <div className="px-6 pt-2">
+    <FileUpload
+      onFileSelect={onUploadPdf}
+      collapsed={collapsed}
+      autoOpen={autoOpenUpload}
+    />
+  </div>
+)}
 
         {/* ---------- SELECT ALL ---------- */}
         {!collapsed && sources.length > 0 && (
