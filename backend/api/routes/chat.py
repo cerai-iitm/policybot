@@ -1,19 +1,18 @@
 # api/routes/chat.py
 import json
-import secrets
 import logging
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import trim_messages
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.deps import get_current_user, get_strict_user
 from api.schemas.chat import ChatHistoryResponse, ChatQueryRequest
 from app.config import get_config
 from app.prompts import (
-    RAG_CHAT_SYSTEM_MESSAGE,
     RAG_CHAT_PROMPT,
 )
 from db.models.chat_message import ChatMessage
@@ -364,7 +363,7 @@ async def chat_query(
 
             if is_demo:
                 for c in context_chunks:
-                    filename_map[c["stored_filename"]] = c["stored_filename"]
+                    filename_map[c["stored_filename"]] = c["original_filename"]
             else:
                 async with AsyncSessionLocal() as db_session:
                     if stored_filenames_list:

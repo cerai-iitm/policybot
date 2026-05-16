@@ -25,10 +25,14 @@ def upgrade() -> None:
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), primary_key=True, index=True),
-        sa.Column("email", sa.String(length=255), nullable=False, unique=True, index=True),
+        sa.Column(
+            "email", sa.String(length=255), nullable=False, unique=True, index=True
+        ),
         sa.Column("hashed_password", sa.String(length=255), nullable=False),
         sa.Column("full_name", sa.String(length=255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
         sa.Column("is_active", sa.String(), server_default="true"),
     )
 
@@ -40,11 +44,15 @@ def upgrade() -> None:
         sa.Column("notebook_id", sa.String(length=36), nullable=False),
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
     )
     op.create_index(op.f("ix_notebooks_id"), "notebooks", ["id"], unique=False)
-    op.create_index(op.f("ix_notebooks_notebook_id"), "notebooks", ["notebook_id"], unique=True)
+    op.create_index(
+        op.f("ix_notebooks_notebook_id"), "notebooks", ["notebook_id"], unique=True
+    )
 
     # ---- chat_messages ----
     op.create_table(
@@ -55,12 +63,19 @@ def upgrade() -> None:
         sa.Column("session_id", sa.String(length=100), nullable=False),
         sa.Column("role", sa.String(length=20), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["notebook_id"], ["notebooks.id"]),
     )
     op.create_index(op.f("ix_chat_messages_id"), "chat_messages", ["id"], unique=False)
-    op.create_index(op.f("ix_chat_messages_session_id"), "chat_messages", ["session_id"], unique=False)
+    op.create_index(
+        op.f("ix_chat_messages_session_id"),
+        "chat_messages",
+        ["session_id"],
+        unique=False,
+    )
 
     # ---- pdfs ----
     op.create_table(
@@ -73,7 +88,9 @@ def upgrade() -> None:
         sa.Column("file_path", sa.String(length=500), nullable=False),
         sa.Column("processing_status", sa.String(length=50), nullable=True),
         sa.Column("summary", sa.Text(), nullable=True),
-        sa.Column("uploaded_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "uploaded_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["notebook_id"], ["notebooks.id"]),
         sa.UniqueConstraint("stored_filename"),

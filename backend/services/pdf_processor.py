@@ -266,7 +266,11 @@ class PDFProcessor:
             return None
 
     async def _store_embeddings(
-        self, docs: List[Document], embeddings: np.ndarray, stored_filename: str, original_filename: str
+        self,
+        docs: List[Document],
+        embeddings: np.ndarray,
+        stored_filename: str,
+        original_filename: str,
     ) -> None:
         client = get_qdrant_client()
         try:
