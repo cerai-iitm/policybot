@@ -27,11 +27,21 @@ const ProfileDropdown = () => {
   }, []);
 
   return (
-    <div className="relative group ml-2">
+    <div className="relative group ml-1 md:ml-2">
 
       {/* Avatar */}
       <button
-        className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-sm font-medium text-gray-700 hover:bg-gray-200 transition"
+        className="
+          w-8 h-8 md:w-10 md:h-10
+          rounded-full
+          bg-gray-300
+          flex items-center justify-center
+          text-xs md:text-sm
+          font-medium
+          text-gray-700
+          hover:bg-gray-200
+          transition
+        "
       >
         {user?.username?.charAt(0).toUpperCase() || "?"}
       </button>
@@ -39,7 +49,8 @@ const ProfileDropdown = () => {
       {/* Dropdown */}
       <div
         className="
-          absolute right-0 mt-3 w-64
+          absolute right-0 mt-2 md:mt-3
+          w-56 md:w-64
           bg-white rounded-xl
           shadow-lg shadow-black/10
           border border-gray-100
@@ -47,20 +58,24 @@ const ProfileDropdown = () => {
           group-hover:opacity-100 group-hover:visible
           transition-all duration-200
           overflow-hidden
+          z-50
         "
       >
 
         {/* Header */}
-        <div className="px-4 py-4">
+        <div className="px-4 py-3 md:py-4">
           {loadingUser ? (
-            <div className="text-sm text-gray-400">Loading...</div>
+            <div className="text-sm text-gray-400">
+              Loading...
+            </div>
           ) : user ? (
             <>
               <div className="text-sm font-semibold text-gray-900 truncate">
                 {user.full_name}
               </div>
+
               <div className="text-xs text-gray-500 mt-0.5 truncate">
-                @{user.username}
+                {user.username}
               </div>
             </>
           ) : (
@@ -73,9 +88,6 @@ const ProfileDropdown = () => {
         {/* Divider */}
         <div className="h-px bg-gray-100" />
 
-        {/* Account Section */}
-       
-
         {/* Divider */}
         <div className="h-px bg-gray-100" />
 
@@ -84,8 +96,11 @@ const ProfileDropdown = () => {
           <button
             onClick={logout}
             className="
-              w-full text-left px-4 py-2 text-sm
-              text-red-600 hover:bg-red-50
+              w-full text-left
+              px-4 py-2
+              text-sm
+              text-red-600
+              hover:bg-red-50
               transition
             "
           >

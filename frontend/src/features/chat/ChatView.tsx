@@ -69,15 +69,26 @@ const [sessionId] = useState(() => {
         title="Chat"
         showMobileHeader
         rightAction={
-          <ChatMenu
-            open={menuOpen}
-            onToggle={() => setMenuOpen((p) => !p)}
-            onClose={() => setMenuOpen(false)}
-            onDeleteChat={() => setShowDeleteModal(true)}
-          />
+         <ChatMenu
+  open={menuOpen}
+  onToggle={() => setMenuOpen((p) => !p)}
+  onClose={() => setMenuOpen(false)}
+  onDeleteChat={() => {
+    setMenuOpen(false);       // ✅ close dropdown first
+    setShowDeleteModal(true); // ✅ then open modal
+  }}
+/>
         }
       >
-        <div className="flex flex-col h-full">
+       <div
+  className="
+    flex
+    flex-col
+    h-full
+    min-h-0
+    overflow-hidden
+  "
+>
           <ChatBody
             messages={chatUI.messages}
             loading={isLoading}

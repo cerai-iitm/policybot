@@ -17,7 +17,7 @@ export default function SidebarHeader({ onCollapse }: Props) {
         <Image
           alt="Buddi logo"
           src={logo}
-          className="h-5 w-auto cursor-pointer"
+          className="h-4.5 md:h-5 w-auto cursor-pointer"
           priority
         />
       </Link>

@@ -20,13 +20,16 @@ interface Props {
   sourceChunks?: SourceChunk[];
   loadingType?: "thinking" | "summary";
   onSourcesClick?: () => void;
+
+  isStreaming?: boolean; // ✅ NEW
 }
 
 const AIMessage: React.FC<Props> = ({
   content,
   sourceChunks,
   loadingType,
-  onSourcesClick
+  onSourcesClick,
+  isStreaming = false,
 }) => {
   const [showChunks, setShowChunks] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -36,9 +39,24 @@ const AIMessage: React.FC<Props> = ({
   const sourceRef = useRef<HTMLDivElement>(null);
 
   const isError = content?.startsWith("Error:");
-  const isGenerating = !content;
-  const showActions = content && !isError && !isGenerating;
+/**
+ * TRUE only while:
+ * - initial loader
+ * - streaming chunks
+ * - typing animation draining
+ */
+const isGenerating =
+  loadingType === "thinking" ||
+  isStreaming;
 
+/**
+ * Actions/sources appear ONLY after
+ * stream + typing fully complete.
+ */
+const showActions =
+  !!content &&
+  !isError &&
+  !isStreaming;
   useEffect(() => {
     if (showChunks && sourceRef.current) {
       sourceRef.current.scrollIntoView({ behavior: "smooth" });
@@ -79,8 +97,9 @@ const handleCopy = async () => {
   return (
     <div className="w-full max-w-3xl px-3 my-4">
 
-      {!content && <MessageLoader type="thinking" />}
-
+      {isStreaming && !content && (
+  <MessageLoader type="thinking" />
+)}
       {content && isError && <MessageError content={content} />}
 
       {content && !isError && (

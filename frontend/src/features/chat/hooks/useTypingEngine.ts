@@ -5,46 +5,43 @@ import { TYPING_CONFIG } from "../config/typing.config";
 
 type UpdateFn = (
   id: string,
-  value: string | ((prev: string) => string)
+  value: string | ((prev: string) => string),
+  isStreaming?: boolean
 ) => void;
 
-export const useTypingEngine = (updateAIMessage: UpdateFn) => {
-  /**
-   * ACTIVE MESSAGE SESSION
-   * Prevents stale intervals from updating old/new messages.
-   */
-  const activeMessageIdRef = useRef<string | null>(null);
+export const useTypingEngine = (
+  updateAIMessage: UpdateFn
+) => {
+  const activeMessageIdRef =
+    useRef<string | null>(null);
 
-  /**
-   * Typing queue for current message.
-   */
   const queueRef = useRef<string[]>([]);
 
-  /**
-   * Buffer for incomplete words.
-   */
   const bufferRef = useRef("");
 
-  /**
-   * Interval instance.
-   */
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef =
+    useRef<NodeJS.Timeout | null>(null);
 
-  /**
-   * Session token.
-   * Incrementing invalidates previous typing loops.
-   */
   const sessionRef = useRef(0);
 
   /**
-   * FULL HARD RESET
+   * TRUE only after SSE stream finishes.
+   */
+  const isCompletingRef = useRef(false);
+
+  /**
+   * RESET
    */
   const reset = useCallback(() => {
     sessionRef.current += 1;
 
     queueRef.current = [];
+
     bufferRef.current = "";
+
     activeMessageIdRef.current = null;
+
+    isCompletingRef.current = false;
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -53,23 +50,21 @@ export const useTypingEngine = (updateAIMessage: UpdateFn) => {
   }, []);
 
   /**
-   * Flush remaining buffer safely.
+   * FLUSH REMAINING BUFFER
    */
   const flushBuffer = useCallback(() => {
-    if (!bufferRef.current.trim()) return;
+    if (!bufferRef.current) return;
 
     queueRef.current.push(bufferRef.current);
+
     bufferRef.current = "";
   }, []);
 
   /**
-   * Starts typing loop for a specific session.
+   * START TYPING LOOP
    */
   const startTyping = useCallback(
     (messageId: string) => {
-      /**
-       * Already running.
-       */
       if (intervalRef.current) return;
 
       activeMessageIdRef.current = messageId;
@@ -78,29 +73,49 @@ export const useTypingEngine = (updateAIMessage: UpdateFn) => {
 
       intervalRef.current = setInterval(() => {
         /**
-         * Session invalidated.
+         * SESSION INVALIDATED
          */
-        if (currentSession !== sessionRef.current) {
+        if (
+          currentSession !== sessionRef.current
+        ) {
           clearInterval(intervalRef.current!);
           intervalRef.current = null;
           return;
         }
 
         /**
-         * Message changed.
+         * MESSAGE CHANGED
          */
-        if (activeMessageIdRef.current !== messageId) {
+        if (
+          activeMessageIdRef.current !==
+          messageId
+        ) {
           clearInterval(intervalRef.current!);
           intervalRef.current = null;
           return;
         }
 
         /**
-         * Queue empty.
+         * QUEUE EMPTY
          */
         if (queueRef.current.length === 0) {
+          /**
+           * STREAM FULLY COMPLETE
+           */
+          if (isCompletingRef.current) {
+            updateAIMessage(
+              messageId,
+              (prev) => prev,
+              false
+            );
+
+            isCompletingRef.current = false;
+          }
+
           clearInterval(intervalRef.current!);
+
           intervalRef.current = null;
+
           return;
         }
 
@@ -108,23 +123,31 @@ export const useTypingEngine = (updateAIMessage: UpdateFn) => {
 
         if (!next) return;
 
-        updateAIMessage(messageId, (prev: string) => prev + next);
+        /**
+         * STILL STREAMING
+         */
+        updateAIMessage(
+          messageId,
+          (prev) => prev + next,
+          true
+        );
       }, TYPING_CONFIG.speed);
     },
     [updateAIMessage]
   );
 
   /**
-   * Push streamed chunk.
+   * PUSH CHUNK
    */
   const pushChunk = useCallback(
     (chunk: string, messageId: string) => {
       /**
-       * New message session detected.
+       * New session protection
        */
       if (
         activeMessageIdRef.current &&
-        activeMessageIdRef.current !== messageId
+        activeMessageIdRef.current !==
+          messageId
       ) {
         reset();
       }
@@ -136,7 +159,8 @@ export const useTypingEngine = (updateAIMessage: UpdateFn) => {
       let units: string[] = [];
 
       if (TYPING_CONFIG.mode === "word") {
-        const parts = bufferRef.current.split(/(\s+)/);
+        const parts =
+          bufferRef.current.split(/(\s+)/);
 
         const last = parts.pop();
 
@@ -145,6 +169,7 @@ export const useTypingEngine = (updateAIMessage: UpdateFn) => {
         bufferRef.current = last || "";
       } else {
         units = bufferRef.current.split("");
+
         bufferRef.current = "";
       }
 
@@ -156,22 +181,37 @@ export const useTypingEngine = (updateAIMessage: UpdateFn) => {
   );
 
   /**
-   * Finalize stream.
-   * Flushes incomplete remaining text.
+   * COMPLETE STREAM
    */
   const complete = useCallback(
     (messageId: string) => {
-      if (activeMessageIdRef.current !== messageId) return;
+      if (
+        activeMessageIdRef.current !==
+        messageId
+      ) {
+        return;
+      }
 
+      /**
+       * Mark stream ending.
+       */
+      isCompletingRef.current = true;
+
+      /**
+       * Flush final partial word.
+       */
       flushBuffer();
 
+      /**
+       * Ensure typing loop runs.
+       */
       startTyping(messageId);
     },
     [flushBuffer, startTyping]
   );
 
   /**
-   * Cleanup on unmount.
+   * CLEANUP
    */
   useEffect(() => {
     return () => {

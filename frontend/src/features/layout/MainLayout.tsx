@@ -17,9 +17,6 @@ import { usePdfManager } from "./hooks/usePdfManager";
 import { useProcessing } from "./hooks/useProcessing";
 import { usePdfModal } from "./hooks/usePdfModal";
 import { useNotebook } from "./hooks/useNotebook";
-import { useEffect } from "react";
-
-
 
 export default function MainLayout() {
   const pathname = usePathname();
@@ -32,7 +29,17 @@ export default function MainLayout() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(true);
 
-  const openRightSidebar = () => setRightCollapsed(false);
+  /* ✅ MOBILE TAB STATE */
+  const [mobileTab, setMobileTab] = useState<
+    "policies" | "chat" | "citations"
+  >("chat");
+
+  const openRightSidebar = () => {
+    setRightCollapsed(false);
+
+    // ✅ Auto switch to citations on mobile
+    setMobileTab("citations");
+  };
 
   /* 🔥 HOOKS */
   const pdf = usePdfManager(notebookId);
@@ -40,23 +47,22 @@ export default function MainLayout() {
   const notebookData = useNotebook(notebookId);
   const [citations, setCitations] = useState<any[]>([]);
 
-const autoOpenUpload =
-  pdf.hasFetched && pdf.sources.length === 0;
+  const autoOpenUpload =
+    pdf.hasFetched && pdf.sources.length === 0;
 
- const modal = usePdfModal(
-  async (id) => {
-    await pdf.handleDeletePdf(id);
-  },
-  async (id, name) => {
-    await pdf.handleRenamePdf(id, name); // ✅ CLEAN
-  }
-);
-
-
+  const modal = usePdfModal(
+    async (id) => {
+      await pdf.handleDeletePdf(id);
+    },
+    async (id, name) => {
+      await pdf.handleRenamePdf(id, name);
+    }
+  );
 
   /* 🔥 UPLOAD (same flow preserved) */
   const handleUpload = async (file: File) => {
     const res = await pdf.handleUploadPdf(file);
+
     if (!res) return;
 
     processing.startProcessing(
@@ -70,36 +76,60 @@ const autoOpenUpload =
   /* 🔥 EXACT SAME GRID LOGIC */
   const leftWidth = leftCollapsed ? "72px" : "285px";
   const rightWidth = rightCollapsed ? "72px" : "420px";
-  const gridTemplate = `${leftWidth} 1fr ${rightWidth}`;
 
-
-
+  const gridTemplate =
+    `${leftWidth} 1fr ${rightWidth}`;
 
   return (
     <AdminProvider isAdmin={isAdmin}>
-      {/* ✅ SAME WRAPPER (CRITICAL) */}
-      <div className="h-screen w-full bg-[#F1F5F9] flex flex-col overflow-hidden">
+      {/* ✅ SAME WRAPPER */}
+      <div
+  className="
+    fixed
+    inset-0
+    w-full
+    bg-[#F1F5F9]
+    flex
+    flex-col
+    overflow-hidden
+    overscroll-none
+  "
+>
 
         <Topbar />
 
-        {/* ✅ SAME MAIN WRAPPER */}
-        <main className="flex-1 px-6 pb-5 overflow-hidden">
+        {/* ===================================================== */}
+        {/* ================= DESKTOP LAYOUT ==================== */}
+        {/* ===================================================== */}
+
+        <main className="hidden md:block flex-1 px-6 pb-5 overflow-hidden">
           <div
             className="h-full grid gap-3 transition-all duration-300"
-            style={{ gridTemplateColumns: gridTemplate }}
+            style={{
+              gridTemplateColumns: gridTemplate,
+            }}
           >
 
             {/* LEFT */}
             <LeftSidebar
-            title={notebookData.notebook?.title || "Loading..."}
-            notebookId={notebookId || ""}
-            onUpdateTitle={notebookData.updateTitle}
+              title={
+                notebookData.notebook?.title ||
+                "Loading..."
+              }
+              notebookId={notebookId || ""}
+              onUpdateTitle={
+                notebookData.updateTitle
+              }
               collapsed={leftCollapsed}
-              onToggleCollapse={() => setLeftCollapsed((p) => !p)}
+              onToggleCollapse={() =>
+                setLeftCollapsed((p) => !p)
+              }
               sources={pdf.sources}
               checkedPdfs={pdf.checkedPdfs}
               onTogglePdf={pdf.handleTogglePdf}
-              onSelectPdf={pdf.setSelectedFilename}
+              onSelectPdf={
+                pdf.setSelectedFilename
+              }
               onDeletePdf={modal.openDelete}
               onRenamePdf={modal.openRename}
               onSelectAll={pdf.handleSelectAll}
@@ -109,68 +139,346 @@ const autoOpenUpload =
                   item.notebook_id,
                   item.pdf_id,
                   item.filename,
-                  () => pdf.setSelectedFilename(item.pdf_id)
+                  () =>
+                    pdf.setSelectedFilename(
+                      item.pdf_id
+                    )
                 )
               }
-
-              autoOpenUpload={autoOpenUpload}
+              autoOpenUpload={
+                autoOpenUpload
+              }
             />
 
             {/* CENTER */}
-         <ChatView
-  notebookId={notebookId || ""}
-  selectedPdfIds={pdf.checkedPdfs}
-  onCitationsUpdate={setCitations}
-  onOpenCitations={openRightSidebar}
-/>
-
+            <ChatView
+              notebookId={
+                notebookId || ""
+              }
+              selectedPdfIds={
+                pdf.checkedPdfs
+              }
+              onCitationsUpdate={
+                setCitations
+              }
+              onOpenCitations={
+                openRightSidebar
+              }
+            />
 
             {/* RIGHT */}
             <RightSidebar
-  collapsed={rightCollapsed}
-  onToggleCollapse={() => setRightCollapsed((p) => !p)}
-  citations={citations} // ✅ NEW
-  onOpen={openRightSidebar}
-/>
-
-            {/* ✅ SAME MODALS POSITION */}
-            <ProcessingModal
-              open={processing.processingOpen}
-              onClose={() => processing.setProcessingOpen(false)}
-              logs={processing.processingLogs}
-              filename={processing.processingFile || ""}
-            />
-
-            <CommonModal
-              isOpen={modal.modalOpen}
-              title={
-                modal.modalType === "delete"
-                  ? "Delete File"
-                  : "Rename File"
+              collapsed={rightCollapsed}
+              onToggleCollapse={() =>
+                setRightCollapsed(
+                  (p) => !p
+                )
               }
-              description={
-                modal.modalType === "delete"
-                  ? "Are you sure you want to delete this file? This action cannot be undone."
-                  : "Enter a new name for this file."
+              citations={citations}
+              onOpen={
+                openRightSidebar
               }
-              showInput={modal.modalType === "rename"}
-              inputValue={modal.renameValue}
-              onInputChange={modal.handleRenameChange}
-              confirmText={
-                modal.modalType === "delete" ? "Delete" : "Rename"
-              }
-              cancelText="Cancel"
-              isDanger={modal.modalType === "delete"}
-              isLoading={modal.loading}
-              onCancel={() => {
-                if (modal.loading) return;
-                modal.setModalOpen(false);
-              }}
-              onConfirm={modal.confirm}
             />
 
           </div>
         </main>
+
+        {/* ===================================================== */}
+        {/* ================== MOBILE LAYOUT ==================== */}
+        {/* ===================================================== */}
+
+       <main
+  className="
+    md:hidden
+    flex-1
+    min-h-0
+    overflow-hidden
+    flex
+    flex-col
+    relative
+  "
+>
+
+          {/* MOBILE TOP MENU */}
+          <div
+  className="
+    bg-white
+    border-b
+    border-[#E2E8F0]
+    shrink-0
+    z-20
+  "
+>
+            <div
+              className="
+                grid
+                grid-cols-3
+                gap-2
+              "
+            >
+
+              {/* POLICIES */}
+              <button
+                onClick={() =>
+                  setMobileTab(
+                    "policies"
+                  )
+                }
+                className={`
+                  h-12
+                  rounded-t-xl
+                  text-sm
+                  font-medium
+                  transition
+
+                  ${
+                    mobileTab ===
+                    "policies"
+                      ? "bg-[#F1F5F9] text-black"
+                      : "text-gray-600"
+                  }
+                `}
+              >
+                Policies
+              </button>
+
+              {/* CHAT */}
+              <button
+                onClick={() =>
+                  setMobileTab("chat")
+                }
+                className={`
+                  h-12
+                  rounded-t-xl
+                  text-sm
+                  font-medium
+                  transition
+
+                  ${
+                    mobileTab ===
+                    "chat"
+                      ? "bg-[#F1F5F9] text-black"
+                      : "text-gray-600"
+                  }
+                `}
+              >
+                Chat
+              </button>
+
+              {/* CITATIONS */}
+              <button
+                onClick={() =>
+                  setMobileTab(
+                    "citations"
+                  )
+                }
+                className={`
+                  h-12
+                  rounded-t-xl
+                  text-sm
+                  font-medium
+                  transition
+
+                  ${
+                    mobileTab ===
+                    "citations"
+                      ? "bg-[#F1F5F9] text-black"
+                      : "text-gray-600"
+                  }
+                `}
+              >
+                Citations
+              </button>
+
+            </div>
+          </div>
+
+          {/* MOBILE CONTENT */}
+         <div
+  className="
+    flex-1
+    min-h-0
+    overflow-hidden
+    relative
+  "
+>
+
+            {/* POLICIES */}
+            {mobileTab ===
+              "policies" && (
+              <div className="h-full overflow-hidden ">
+
+                <LeftSidebar
+                  title={
+                    notebookData
+                      .notebook
+                      ?.title ||
+                    "Loading..."
+                  }
+                  notebookId={
+                    notebookId || ""
+                  }
+                  onUpdateTitle={
+                    notebookData.updateTitle
+                  }
+                  collapsed={false}
+                  onToggleCollapse={() => {}}
+                  sources={pdf.sources}
+                  checkedPdfs={
+                    pdf.checkedPdfs
+                  }
+                  onTogglePdf={
+                    pdf.handleTogglePdf
+                  }
+                  onSelectPdf={
+                    pdf.setSelectedFilename
+                  }
+                  onDeletePdf={
+                    modal.openDelete
+                  }
+                  onRenamePdf={
+                    modal.openRename
+                  }
+                  onSelectAll={
+                    pdf.handleSelectAll
+                  }
+                  onUploadPdf={
+                    handleUpload
+                  }
+                  onOpenProcessing={(
+                    item
+                  ) =>
+                    processing.startProcessing(
+                      item.notebook_id,
+                      item.pdf_id,
+                      item.filename,
+                      () =>
+                        pdf.setSelectedFilename(
+                          item.pdf_id
+                        )
+                    )
+                  }
+                  autoOpenUpload={
+                    autoOpenUpload
+                  }
+                />
+
+              </div>
+            )}
+
+            {/* CHAT */}
+            {mobileTab === "chat" && (
+              <div className="h-full overflow-hidden ">
+
+                <ChatView
+                  notebookId={
+                    notebookId || ""
+                  }
+                  selectedPdfIds={
+                    pdf.checkedPdfs
+                  }
+                  onCitationsUpdate={
+                    setCitations
+                  }
+                  onOpenCitations={
+                    openRightSidebar
+                  }
+                />
+
+              </div>
+            )}
+
+            {/* CITATIONS */}
+            {mobileTab ===
+              "citations" && (
+              <div className="h-full overflow-hidden ">
+
+                <RightSidebar
+                  collapsed={false}
+                  onToggleCollapse={() => {}}
+                  citations={
+                    citations
+                  }
+                  onOpen={
+                    openRightSidebar
+                  }
+                />
+
+              </div>
+            )}
+
+          </div>
+        </main>
+
+        {/* ===================================================== */}
+        {/* ====================== MODALS ======================= */}
+        {/* ===================================================== */}
+
+        <ProcessingModal
+          open={
+            processing.processingOpen
+          }
+          onClose={() =>
+            processing.setProcessingOpen(
+              false
+            )
+          }
+          logs={
+            processing.processingLogs
+          }
+          filename={
+            processing.processingFile ||
+            ""
+          }
+        />
+
+        <CommonModal
+          isOpen={modal.modalOpen}
+          title={
+            modal.modalType ===
+            "delete"
+              ? "Delete File"
+              : "Rename File"
+          }
+          description={
+            modal.modalType ===
+            "delete"
+              ? "Are you sure you want to delete this file? This action cannot be undone."
+              : "Enter a new name for this file."
+          }
+          showInput={
+            modal.modalType ===
+            "rename"
+          }
+          inputValue={
+            modal.renameValue
+          }
+          onInputChange={
+            modal.handleRenameChange
+          }
+          confirmText={
+            modal.modalType ===
+            "delete"
+              ? "Delete"
+              : "Rename"
+          }
+          cancelText="Cancel"
+          isDanger={
+            modal.modalType ===
+            "delete"
+          }
+          isLoading={modal.loading}
+          onCancel={() => {
+            if (modal.loading)
+              return;
+
+            modal.setModalOpen(
+              false
+            );
+          }}
+          onConfirm={modal.confirm}
+        />
+
       </div>
     </AdminProvider>
   );

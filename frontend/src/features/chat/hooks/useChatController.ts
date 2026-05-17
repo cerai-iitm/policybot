@@ -13,7 +13,8 @@ type ChatControllerProps = {
   addAILoadingMessage: () => string;
   updateAIMessage: (
     id: string,
-    v: string | ((p: string) => string)
+    v: string | ((p: string) => string),
+    isStreaming?: boolean,
   ) => void;
   updateAIMessageChunks: (id: string, chunks: any[]) => void;
   onCitationsUpdate: (chunks: any[]) => void;
@@ -95,7 +96,11 @@ export const useChatController = ({
   } catch (error) {
     console.error(error);
     reset();
-    updateAIMessage(aiId, "Error: Failed to get response.");
+    updateAIMessage(
+  aiId,
+  "Error: Failed to get response.",
+  false
+);
   }
 };
 

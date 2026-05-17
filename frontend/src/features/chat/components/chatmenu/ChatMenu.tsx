@@ -37,7 +37,10 @@ if (isDemoUser) return null;
     {
       label: "Delete chat history",
       icon: <FiTrash2 size={16} />,
-      onClick: onDeleteChat,
+      onClick: () => {
+  onClose();
+  onDeleteChat();
+},
       className: "text-red-600 hover:bg-red-50",
     },
   ];

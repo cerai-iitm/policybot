@@ -1,9 +1,20 @@
 import { Message } from "./types/chat.types";
 
-export const mapHistoryToMessages = (apiMessages: any[]): Message[] => {
+export const mapHistoryToMessages = (
+  apiMessages: any[]
+): Message[] => {
   return apiMessages.map((msg) => ({
-    id: String(msg.id), // backend id → string
+    id: String(msg.id),
+
     type: msg.role === "user" ? "user" : "ai",
-    content: msg.content,
+
+    content: msg.content || "",
+
+    /**
+     * Historical messages are ALWAYS completed.
+     */
+    isStreaming: false,
+
+    loading: false,
   }));
 };
