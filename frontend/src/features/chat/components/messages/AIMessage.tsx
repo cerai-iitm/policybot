@@ -46,12 +46,35 @@ const AIMessage: React.FC<Props> = ({
   }, [showChunks]);
 
 const shouldShowChunks = showChunks && !isGenerating;
+const handleCopy = async () => {
+  try {
+    // Primary modern API
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(content);
+    } 
+    else {
+      // 🔥 Fallback for older / unsupported browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = content;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    }
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+
+    setTimeout(() => {
+      setCopied(false);
+    }, 2000);
+
+  } catch (err) {
+    console.error("Copy failed", err);
+  }
+};
 
   return (
     <div className="w-full max-w-3xl px-3 my-4">

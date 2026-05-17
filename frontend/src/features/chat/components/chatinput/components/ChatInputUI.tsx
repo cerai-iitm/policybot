@@ -30,41 +30,44 @@ const ChatInputUI: React.FC<Props> = ({
   placeholder,
   selectedCount,
 }) => {
-
-
   const noSources = selectedCount === 0;
-const noMessage = !value.trim();
+  const noMessage = !value.trim();
 
-const isDisabled = disabled || noSources || noMessage;
+  const isDisabled = disabled || noSources || noMessage;
 
-let tooltipText = "";
+  let tooltipText = "";
 
-if (noSources) {
-  tooltipText = "Select a source to continue";
-} else if (noMessage) {
-  tooltipText = "Type a message to send";
-} else {
-  tooltipText = "Send prompt";
-}
-
+  if (noSources) {
+    tooltipText = "Select a source to continue";
+  } else if (noMessage) {
+    tooltipText = "Type a message to send";
+  } else {
+    tooltipText = "Send prompt";
+  }
 
   return (
-    <div className="w-full flex justify-center px-4 pb-4">
+    <div className="w-full flex justify-center px-3 md:px-4 pb-3 md:pb-4">
       <div className="w-full md:w-[90%] max-w-4xl">
-        <div className="rounded-3xl border border-slate-200 bg-white px-3 py-2 transition-all duration-200 flex flex-col">
+        <div className="rounded-3xl border border-slate-200 bg-white px-3 md:px-3 py-2 transition-all duration-200 flex flex-col">
 
-          {/* 🔥 ROW 1 → TEXTAREA */}
-          <div className="mb-2">
+          {/* TEXTAREA */}
+          <div className="mb-1 md:mb-2">
             <textarea
               ref={textareaRef}
               value={value}
               onChange={onChange}
-              onKeyDown={onKeyDown}
+             onKeyDown={(e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    onSend();
+  }
+}}
               placeholder={placeholder}
               rows={1}
               className="
                 w-full
                 p-2
+                md:p-2
                 resize-none
                 bg-transparent
                 outline-none
@@ -79,7 +82,7 @@ if (noSources) {
             />
           </div>
 
-          {/* 🔥 ROW 2 → CONTROLS (ALWAYS FIXED POSITION) */}
+          {/* CONTROLS */}
           <div className="flex items-center justify-between">
             <SourceCount
               count={selectedCount}
@@ -91,10 +94,10 @@ if (noSources) {
             />
 
             <SendButton
-  onClick={onSend}
-  disabled={isDisabled}
-  tooltipText={tooltipText}
-/>
+              onClick={onSend}
+              disabled={isDisabled}
+              tooltipText={tooltipText}
+            />
           </div>
 
         </div>

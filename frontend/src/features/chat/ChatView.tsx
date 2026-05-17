@@ -67,6 +67,7 @@ const [sessionId] = useState(() => {
     <>
       <BaseSideContainer
         title="Chat"
+        showMobileHeader
         rightAction={
           <ChatMenu
             open={menuOpen}
