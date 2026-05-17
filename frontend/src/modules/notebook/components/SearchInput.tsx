@@ -7,20 +7,44 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+
+  // ✅ Added for mobile responsive control
+  onOpenChange?: (open: boolean) => void;
 };
 
 const SearchInput = ({
   value,
   onChange,
   placeholder = "Search workspaces...",
+  onOpenChange,
 }: Props) => {
   const [open, setOpen] = useState(false);
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 🔹 Auto focus when opened
   useEffect(() => {
-    if (open) inputRef.current?.focus();
+    if (open) {
+      inputRef.current?.focus();
+    }
   }, [open]);
+
+  // ✅ Notify parent
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
+
+  const handleOpen = () => {
+    if (!open) {
+      setOpen(true);
+    }
+  };
+
+  const handleClose = () => {
+    if (!value) {
+      setOpen(false);
+    }
+  };
 
   return (
     <div
@@ -31,16 +55,21 @@ const SearchInput = ({
         bg-white
         transition-all duration-300 ease-in-out
         px-3 py-2
-        
-        ${open ? "w-64 gap-3" : "w-11 justify-center cursor-pointer"}
-       
+        overflow-hidden
+
+        ${
+          open
+            ? "w-full max-w-[220px] md:w-64 md:max-w-none gap-3"
+            : "w-11 justify-center cursor-pointer"
+        }
       `}
-      onClick={() => {
-        if (!open) setOpen(true);
-      }}
+      onClick={handleOpen}
     >
       {/* 🔍 Icon */}
-      <Search size={18} className="text-gray-500 shrink-0" />
+      <Search
+        size={18}
+        className="text-gray-500 shrink-0"
+      />
 
       {/* 🔹 Input */}
       <input
@@ -49,28 +78,39 @@ const SearchInput = ({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onBlur={() => {
-          if (!value) setOpen(false);
-        }}
+        onBlur={handleClose}
         className={`
           bg-transparent outline-none
           text-sm text-gray-800 placeholder-gray-400
+          min-w-0
           w-full
           transition-all duration-200
-          ${open ? "opacity-100" : "opacity-0 w-0"}
+
+          ${
+            open
+              ? "opacity-100"
+              : "opacity-0 w-0"
+          }
         `}
       />
 
       {/* ❌ Clear Button */}
       {open && value && (
         <button
-        aria-label="button"
+          aria-label="button"
           onClick={(e) => {
             e.stopPropagation();
+
             onChange("");
+
             inputRef.current?.focus();
           }}
-          className="text-gray-400 hover:text-gray-600 transition"
+          className="
+            text-gray-400
+            hover:text-gray-600
+            transition
+            shrink-0
+          "
         >
           <X size={16} />
         </button>

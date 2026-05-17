@@ -43,7 +43,16 @@ export default function CommonModal({
 
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+ <div
+  className="
+    fixed inset-0 z-50
+    flex
+    items-start md:items-center
+    justify-center
+    overflow-y-auto
+    p-4
+  "
+>
 
       {/* 🔹 BACKDROP */}
       <div
@@ -52,7 +61,7 @@ export default function CommonModal({
       />
 
       {/* 🔹 MODAL */}
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl shadow-xl border border-gray-100 p-6 animate-in fade-in zoom-in-95">
+      <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl shadow-xl border border-gray-100 mt-24 md:mt-0 p-6 animate-in fade-in zoom-in-95">
 
         {/* HEADER */}
         <div className="flex items-start justify-between mb-4">
