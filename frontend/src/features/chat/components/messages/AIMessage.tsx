@@ -21,7 +21,8 @@ interface Props {
   sourceChunks?: SourceChunk[];
   loadingType?: "thinking" | "summary";
   onSourcesClick?: () => void;
-  onCitationsUpdate?: (chunks: SourceChunk[]) => void;
+
+  isStreaming?: boolean; // ✅ NEW
 }
 
 const AIMessage: React.FC<Props> = ({
@@ -29,7 +30,7 @@ const AIMessage: React.FC<Props> = ({
   sourceChunks,
   loadingType,
   onSourcesClick,
-  onCitationsUpdate
+  isStreaming = false,
 }) => {
   const [showChunks, setShowChunks] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -39,9 +40,24 @@ const AIMessage: React.FC<Props> = ({
   const sourceRef = useRef<HTMLDivElement>(null);
 
   const isError = content?.startsWith("Error:");
-  const isGenerating = !content;
-  const showActions = content && !isError && !isGenerating;
+/**
+ * TRUE only while:
+ * - initial loader
+ * - streaming chunks
+ * - typing animation draining
+ */
+const isGenerating =
+  loadingType === "thinking" ||
+  isStreaming;
 
+/**
+ * Actions/sources appear ONLY after
+ * stream + typing fully complete.
+ */
+const showActions =
+  !!content &&
+  !isError &&
+  !isStreaming;
   useEffect(() => {
     if (showChunks && sourceRef.current) {
       sourceRef.current.scrollIntoView({ behavior: "smooth" });
@@ -49,18 +65,42 @@ const AIMessage: React.FC<Props> = ({
   }, [showChunks]);
 
 const shouldShowChunks = showChunks && !isGenerating;
+const handleCopy = async () => {
+  try {
+    // Primary modern API
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(content);
+    } 
+    else {
+      // 🔥 Fallback for older / unsupported browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = content;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    }
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+
+    setTimeout(() => {
+      setCopied(false);
+    }, 2000);
+
+  } catch (err) {
+    console.error("Copy failed", err);
+  }
+};
 
   return (
     <div className="w-full max-w-3xl px-3 my-4">
 
-      {!content && <MessageLoader type="thinking" />}
-
+      {isStreaming && !content && (
+  <MessageLoader type="thinking" />
+)}
       {content && isError && <MessageError content={content} />}
 
       {content && !isError && (

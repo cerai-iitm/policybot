@@ -14,7 +14,6 @@ const ChatBody = ({
   isSummaryLoading,
   onSuggestedClick,
   onSourcesClick,
-  onCitationsUpdate,
 }: {
   messages: Message[];
   loading?: boolean;
@@ -23,7 +22,6 @@ const ChatBody = ({
   isSummaryLoading?: boolean;
   onSuggestedClick?: (q: string) => void;
   onSourcesClick?: () => void;
-  onCitationsUpdate?: (chunks: any[]) => void;
 }) => {
   const isInitialLoading = loading || isSummaryLoading;
 
@@ -31,27 +29,50 @@ const ChatBody = ({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, summary, suggestedQueries]); // ✅ include these
+  }, [messages, summary, suggestedQueries]);
 
   return (
-    <div className="flex-1 overflow-y-auto pt-4 custom-scrollbar">
-      <div className="w-full md:w-[90%] max-w-4xl mx-auto flex flex-col">
-        {!isInitialLoading && messages.length === 0 && !summary && (
-          <div className="flex flex-col items-center justify-center text-center mt-24 px-6">
-            <h2 className="text-lg font-semibold text-slate-800 mb-2">
-              Add a policy document to begin
-            </h2>
+    <div className="flex-1 overflow-x-hidden min-h-0 overscroll-contain overflow-y-auto pt-3 md:pt-4 custom-scrollbar">
+      <div className="w-full md:w-[90%] max-w-4xl mx-auto flex flex-col px-3 md:px-0">
 
-            <p className="text-sm text-slate-500 max-w-md">
-              Upload a policy file to start asking questions and receive answers
-              grounded in the original document with clear citations.
-            </p>
-          </div>
+        {/* ================= EMPTY STATE ================= */}
+        {!isInitialLoading &&
+          messages.length === 0 &&
+          !summary && (
+            <div className="
+              flex flex-col items-center justify-center text-center
+              mt-16 md:mt-24
+              px-4 md:px-6
+            ">
+              <h2 className="
+                text-base md:text-lg
+                font-semibold
+                text-slate-800
+                mb-2
+              ">
+                Add a policy document to begin
+              </h2>
+
+              <p className="
+                text-xs md:text-sm
+                text-slate-500
+                max-w-md
+              ">
+                Upload a policy file to start asking questions and receive answers grounded in the original document with clear citations.
+              </p>
+            </div>
         )}
 
-        {/* ================= HISTORY LOADING ================= */}
+        {/* ================= LOADING ================= */}
         {isInitialLoading && (
-          <div className="text-center mt-20 text-slate-500">Loading...</div>
+          <div className="
+            text-center
+            mt-16 md:mt-20
+            text-slate-500
+            text-sm md:text-base
+          ">
+            Loading...
+          </div>
         )}
 
         {/* ================= SUMMARY + SUGGESTIONS ================= */}
@@ -72,11 +93,13 @@ const ChatBody = ({
             {!isSummaryLoading &&
               Array.isArray(suggestedQueries) &&
               suggestedQueries.length > 0 && (
-                <SuggestedQuestions
-                  key={suggestedQueries.join("-")} // 🔥 critical fix
-                  questions={suggestedQueries}
-                  onSelect={(q) => onSuggestedClick?.(q)}
-                />
+                <div className="px-1 md:px-0">
+                  <SuggestedQuestions
+                    key={suggestedQueries.join("-")}
+                    questions={suggestedQueries}
+                    onSelect={(q) => onSuggestedClick?.(q)}
+                  />
+                </div>
               )}
           </>
         )}
@@ -92,12 +115,12 @@ const ChatBody = ({
             {m.type === "user" ? (
               <HumanMessage content={m.content} />
             ) : (
-              <AIMessage
-                content={m.content}
-                sourceChunks={m.sourceChunks}
-                onSourcesClick={onSourcesClick}
-                onCitationsUpdate={onCitationsUpdate}
-              />
+            <AIMessage
+  content={m.content}
+  sourceChunks={m.sourceChunks}
+  isStreaming={m.isStreaming}
+  onSourcesClick={onSourcesClick}
+/>
             )}
           </div>
         ))}
@@ -110,4 +133,3 @@ const ChatBody = ({
 };
 
 export default ChatBody;
-

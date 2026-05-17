@@ -24,10 +24,12 @@ const DropdownPortal: React.FC<Props> = ({
     if (open && anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect();
 
-      setPos({
-        top: rect.bottom + 6,
-        left: rect.left,
-      });
+      const DROPDOWN_WIDTH = 220;
+
+setPos({
+  top: rect.bottom + 6,
+  left: rect.right - DROPDOWN_WIDTH,
+});
     }
   }, [open, anchorRef]);
 

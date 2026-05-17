@@ -18,18 +18,30 @@ export default function Topbar() {
     <header
       className="
         w-full
-        bg-[#F1F5F9]
+
+        bg-white md:bg-[#F1F5F9]
+
         flex items-center justify-between
-        px-12 py-2
+
+        px-4 md:px-12
+        py-3 md:py-2
+
+        md:border-none
       "
     >
       {/* Left side - Logo / Brand */}
-      <div className="flex items-center">
+      <div className="flex items-center shrink-0">
         <Header onCollapse={handleCollapse} />
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-2">
+      <div
+        className="
+          flex items-center
+          gap-3 md:gap-2
+          shrink-0
+        "
+      >
         <TopBrandBar />
 
         {isDemoUser ? (
@@ -44,6 +56,7 @@ export default function Topbar() {
               hover:bg-gray-100
               transition
               cursor-pointer
+              whitespace-nowrap
             "
           >
             Login

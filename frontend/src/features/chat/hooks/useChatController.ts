@@ -13,7 +13,8 @@ type ChatControllerProps = {
   addAILoadingMessage: () => string;
   updateAIMessage: (
     id: string,
-    v: string | ((p: string) => string)
+    v: string | ((p: string) => string),
+    isStreaming?: boolean,
   ) => void;
   updateAIMessageChunks: (id: string, chunks: any[]) => void;
   onCitationsUpdate: (chunks: any[]) => void;
@@ -36,70 +37,72 @@ export const useChatController = ({
   const { pushChunk, complete, reset } =
     useTypingEngine(updateAIMessage);
 
-  const handleSend = async (overrideText?: string) => {
-    onCitationsUpdate([]);
+  const handleSend = async (
+  overrideText?: string | React.SyntheticEvent
+) => {
+  onCitationsUpdate([]);
 
-    const text = overrideText ?? input;
+  /**
+   * 🚫 HARD BLOCK: NO SOURCES SELECTED
+   * (This is now SOURCE OF TRUTH)
+   */
+  if (selectedPdfIds.length === 0) {
+    console.warn("Blocked: No sources selected");
+    return;
+  }
 
-    if (!text.trim()) return;
+  /**
+   * FORCE CLEAN TEXT ONLY
+   */
+  let text = "";
 
-    /**
-     * HARD RESET BEFORE NEW STREAM
-     */
+  if (typeof overrideText === "string") {
+    text = overrideText;
+  } else {
+    text = input;
+  }
+
+  text = String(text ?? "").trim();
+
+  if (!text) return;
+
+  reset();
+  hasStartedRef.current = true;
+
+  addUserMessage(text);
+
+  const aiId = addAILoadingMessage();
+
+  /**
+   * ALWAYS CLEAR INPUT
+   */
+  setInput("");
+
+  try {
+    await sendQueryStream(
+      {
+        query: text,
+        session_id: sessionId,
+        notebook_id: notebookId,
+        pdf_ids: selectedPdfIds,
+      },
+      (chunk) => pushChunk(chunk, aiId),
+      (chunks) => {
+        updateAIMessageChunks(aiId, chunks);
+        onCitationsUpdate(chunks);
+      },
+      () => complete(aiId)
+    );
+  } catch (error) {
+    console.error(error);
     reset();
-
-    hasStartedRef.current = true;
-
-    addUserMessage(text);
-
-    const aiId = addAILoadingMessage();
-
-    if (!overrideText) {
-      setInput("");
-    }
-
-    try {
-      await sendQueryStream(
-        {
-          query: text,
-          session_id: sessionId,
-          notebook_id: notebookId,
-          pdf_ids: selectedPdfIds,
-        },
-
-        /**
-         * STREAM CHUNK
-         */
-        (chunk: string) => {
-          pushChunk(chunk, aiId);
-        },
-
-        /**
-         * CONTEXT
-         */
-        (chunks) => {
-          updateAIMessageChunks(aiId, chunks);
-          onCitationsUpdate(chunks);
-        },
-
-        /**
-         * STREAM COMPLETE
-         */
-        () => {
-          complete(aiId);
-        }
-      );
-    } catch (error) {
-      console.error(error);
-
-      reset();
-
-      updateAIMessage(
-        aiId,
-        "Error: Failed to get response."
-      );
-    }
-  };
+    updateAIMessage(
+  aiId,
+  "Error: Failed to get response.",
+  false
+);
+  }
+};
 
   return { handleSend };
 };

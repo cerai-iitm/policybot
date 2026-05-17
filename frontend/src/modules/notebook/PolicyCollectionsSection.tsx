@@ -72,7 +72,17 @@ const filteredNotebooks = useMemo(() => {
 }, [searchQuery, localNotebooks]);
 
   return (
-    <div className="mt-10 mx-30">
+     <div
+      className="
+        mt-6
+        px-4
+        pb-6
+        md:mt-10
+        md:mx-30
+        md:px-0
+        md:pb-0
+      "
+    >
       <TopBar
         onCreateWorkspace={handleCreateWorkspace}
         searchQuery={searchQuery}

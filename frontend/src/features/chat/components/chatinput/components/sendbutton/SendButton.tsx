@@ -24,7 +24,10 @@ const SendButton: React.FC<Props> = ({ onClick, disabled, tooltipText }) => {
       >
         <button
           aria-label="Send prompt"
-          onClick={onClick}
+            onClick={(e) => {
+    e.preventDefault();
+    onClick();
+  }}
           disabled={disabled}
           className="cursor-pointer w-9 h-9 rounded-full flex items-center justify-center bg-indigo-100 hover:opacity-80 transition disabled:opacity-50"
         >

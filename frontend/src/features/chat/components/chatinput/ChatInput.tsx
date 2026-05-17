@@ -44,12 +44,17 @@ const ChatInput: React.FC<ChatInputProps> = ({
    
   }, [value]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      onSend();
-    }
-  };
+const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+
+    /**
+     * 🚫 DO NOT TRUST UI
+     * Controller will validate everything
+     */
+    onSend();
+  }
+};
 
   return (
     <ChatInputUI

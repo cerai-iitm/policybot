@@ -13,6 +13,7 @@ interface BaseSideContainerProps {
   onToggle?: () => void;        // ✅ NEW
 
   rightAction?: React.ReactNode;
+  showMobileHeader?: boolean;
 }
 
 const BaseSideContainer: React.FC<BaseSideContainerProps> = ({
@@ -23,23 +24,60 @@ const BaseSideContainer: React.FC<BaseSideContainerProps> = ({
   collapsed = false,
   onToggle,
   rightAction,
+  showMobileHeader = false,
 }) => {
   return (
     <section
-      className={`h-full rounded-2xl bg-white overflow-hidden flex flex-col transition-all duration-300 ${className}`}
+      className={`h-full md:rounded-2xl bg-white overflow-hidden flex flex-col transition-all duration-300 ${className}`}
     >
       {/* HEADER */}
       <div
         className={`
-          ${collapsed ? "h-14.5 justify-center px-2" : "h-14.5 px-6 justify-between"}
-          flex items-center border-b border-[#EEF1F4]
+          ${
+            showMobileHeader
+              ? "flex"
+              : "hidden"
+          }
+
+          md:flex
+
+         ${
+  collapsed
+    ? "h-14.5 justify-center px-2"
+    : `
+        
+        px-4 md:px-6
+
+        ${
+          showMobileHeader
+            ? "h-12 md:h-14.5 justify-end md:justify-between"
+            : " h-14.5 justify-between"
+        }
+      `
+}
+
+          items-center
+          border-b
+          border-[#EEF1F4]
         `}
       >
-        {!collapsed && (
-          <h2 className="text-[15px] font-medium text-[#1F2937]">
-            {title}
-          </h2>
-        )}
+      {!collapsed && (
+  <h2
+    className={`
+      text-[15px]
+      font-medium
+      text-[#1F2937]
+
+      ${
+        showMobileHeader
+          ? "hidden md:block"
+          : ""
+      }
+    `}
+  >
+    {title}
+  </h2>
+)}
 
         {/* RIGHT ACTION / TOGGLE */}
         {onToggle && icon && (
