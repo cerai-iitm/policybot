@@ -119,16 +119,26 @@ export const useTypingEngine = (
           return;
         }
 
-        const next = queueRef.current.shift();
+        let batch = "";
+        for (
+          let i = 0;
+          i < TYPING_CONFIG.chunkSize;
+          i++
+        ) {
+          const next =
+            queueRef.current.shift();
+          if (!next) break;
+          batch += next;
+        }
 
-        if (!next) return;
+        if (!batch) return;
 
         /**
          * STILL STREAMING
          */
         updateAIMessage(
           messageId,
-          (prev) => prev + next,
+          (prev) => prev + batch,
           true
         );
       }, TYPING_CONFIG.speed);
