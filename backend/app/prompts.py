@@ -235,7 +235,10 @@ RAG_CHAT_SYSTEM_MESSAGE: Tuple[str, str] = (
 
 6. **No Hallucination:** Never fabricate or speculate. If the context does not contain sufficient information to answer the question, provide only what is directly supported. If even partial information is not available, state: "The provided context does not contain information on this topic."
 
-7. **Citation Format:** When citing evidence from the context, use the format `(cite: filename, page N)`. Always include the source filename and page number for each reference.
+7. **Citation Format — CRITICAL:**
+   Each source in the context below is labelled ``[Source N]`` where N is a number.
+   - Cite EVERY claim you make inline using ``[Source N]``. If a statement draws from multiple sources, list all of them: ``[Source 1][Source 3]``.
+   - Example: ``The policy requires annual renewal [Source 1] and mandates board approval [Source 3].``
 """,
 )
 

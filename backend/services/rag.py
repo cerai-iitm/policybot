@@ -294,8 +294,38 @@ async def retrieve_chunks(
         await client.close()
 
 
+import re
+from typing import Set
+
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from langchain_core.messages import trim_messages
+
+
+def parse_cited_sources(full_response: str, max_source_num: int) -> Set[int]:
+    """Extract cited source numbers from the LLM response.
+
+    Looks for inline ``[Source N]`` citations throughout the text,
+    with ``(Source N)`` as a fallback pattern.
+
+    Numbers outside the valid range [1, max_source_num] are silently discarded.
+    Returns an empty set when no valid citations are found (caller should
+    fall back to showing all chunks).
+    """
+    cited: Set[int] = set()
+
+    # Primary: inline "[Source N]" citations (tolerates optional whitespace inside brackets)
+    for num_str in re.findall(r'\[\s*Source\s+(\d+)\s*\]', full_response, re.IGNORECASE):
+        num = int(num_str)
+        if 1 <= num <= max_source_num:
+            cited.add(num)
+
+    # Fallback: inline "(Source N)" citations (tolerates optional whitespace inside parens)
+    for num_str in re.findall(r'\(\s*Source\s+(\d+)\s*\)', full_response, re.IGNORECASE):
+        num = int(num_str)
+        if 1 <= num <= max_source_num:
+            cited.add(num)
+
+    return cited
 
 
 async def get_chat_history(

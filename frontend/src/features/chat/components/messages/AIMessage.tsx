@@ -21,8 +21,9 @@ interface Props {
   sourceChunks?: SourceChunk[];
   loadingType?: "thinking" | "summary";
   onSourcesClick?: () => void;
+  onCitationsUpdate?: (chunks: any[]) => void;
 
-  isStreaming?: boolean; // ✅ NEW
+  isStreaming?: boolean;
 }
 
 const AIMessage: React.FC<Props> = ({
@@ -30,6 +31,7 @@ const AIMessage: React.FC<Props> = ({
   sourceChunks,
   loadingType,
   onSourcesClick,
+  onCitationsUpdate,
   isStreaming = false,
 }) => {
   const [showChunks, setShowChunks] = useState(false);
