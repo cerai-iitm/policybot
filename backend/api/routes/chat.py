@@ -376,15 +376,6 @@ async def chat_query(
                 if getattr(config, "debug_stream_chunks", False):
                     logger.debug("STREAM CHUNK: %r", content)
 
-                if (
-                    full_response
-                    and not full_response.endswith((" ", "\n"))
-                    and not content.startswith(
-                        (" ", "\n", ".", ",", ":", ";", "?", "!", '"', "'")
-                    )
-                ):
-                    full_response += " "
-
                 if content:
                     full_response += content
                     yield f"data: {json.dumps({'content': content})}\n\n"
