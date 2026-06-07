@@ -74,11 +74,17 @@ export const useNotebook = (notebookId: string | null) => {
     [notebookId, notebook, fetchNotebook]
   );
 
+  /* ---------------- SET TITLE (local only, for SSE updates) ---------------- */
+  const setNotebookTitle = useCallback((title: string) => {
+    setNotebook((prev) => (prev ? { ...prev, title } : prev));
+  }, []);
+
   return {
     notebook,
     loading,
-    updating, // optional (for future UI)
+    updating,
     refetch: fetchNotebook,
-    updateTitle, // ✅ exposed
+    updateTitle,
+    setNotebookTitle,
   };
 };

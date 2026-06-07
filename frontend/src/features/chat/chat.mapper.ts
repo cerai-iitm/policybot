@@ -10,6 +10,8 @@ export const mapHistoryToMessages = (
 
     content: msg.content || "",
 
+    sourceChunks: msg.source_chunks || undefined,
+
     /**
      * Historical messages are ALWAYS completed.
      */

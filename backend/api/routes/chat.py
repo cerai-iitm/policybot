@@ -27,6 +27,7 @@ from services.rag import (
     generate_hyde_and_queries,
     get_chat_history,
     get_pdf_summaries,
+    parse_cited_sources,
     retrieve_chunks,
 )
 
@@ -331,12 +332,32 @@ async def chat_query(
                 )
                 filename_map = dict(pdf_result.all())
 
-        # Build context text with original filenames from DB
+        # Build numbered context text with source numbers
+        numbered_context_parts = []
+        for i, c in enumerate(context_chunks, start=1):
+            orig_name = filename_map.get(c["stored_filename"], c["stored_filename"])
+            numbered_context_parts.append(
+                {
+                    "source_number": i,
+                    "stored_filename": c["stored_filename"],
+                    "original_filename": orig_name,
+                    "page_number": c["page_number"],
+                    "text": c["text"],
+                }
+            )
+
         context_text = "\n\n".join(
             [
-                f"[Source PDF: {filename_map.get(c['stored_filename'], c['stored_filename'])} (page {c['page_number']})]\n{c['text']}"
-                for c in context_chunks
+                f"[Source {nc['source_number']}: {nc['original_filename']} (page {nc['page_number']})]\n{nc['text']}"
+                for nc in numbered_context_parts
             ]
+        )
+
+        source_numbers_in_context = [nc["source_number"] for nc in numbered_context_parts]
+        logger.debug(
+            "Sending %d numbered chunks to LLM: %s",
+            len(numbered_context_parts),
+            source_numbers_in_context,
         )
 
         chain = prompt | llm
@@ -352,25 +373,55 @@ async def chat_query(
             ):
                 content = chunk.content or ""
 
-                # Debug-log raw chunk content if enabled
                 if getattr(config, "debug_stream_chunks", False):
                     logger.debug("STREAM CHUNK: %r", content)
-
-                # Defensive spacing to avoid accidental glue like "scores.The..."
-                if (
-                    full_response
-                    and not full_response.endswith((" ", "\n"))
-                    and not content.startswith(
-                        (" ", "\n", ".", ",", ":", ";", "?", "!", '"', "'")
-                    )
-                ):
-                    full_response += " "
 
                 if content:
                     full_response += content
                     yield f"data: {json.dumps({'content': content})}\n\n"
 
-            # Persist assistant message with source chunks (non-demo only)
+            # --- Citation-aware chunk filtering ---
+            logger.debug(
+                "Full LLM response (first 500 chars): %.500s",
+                full_response,
+            )
+
+            cited_numbers = parse_cited_sources(full_response, len(context_chunks))
+
+            logger.debug(
+                "parse_cited_sources returned: %s (out of max %d)",
+                sorted(cited_numbers) if cited_numbers else "∅ (empty)",
+                len(context_chunks),
+            )
+
+            if cited_numbers:
+                cited_indices = {
+                    num - 1
+                    for num in cited_numbers
+                    if 1 <= num <= len(context_chunks)
+                }
+                filtered_chunks = [
+                    c for i, c in enumerate(context_chunks) if i in cited_indices
+                ]
+                logger.info(
+                    "Citation filter: kept %d/%d chunks — cited sources: %s",
+                    len(filtered_chunks),
+                    len(context_chunks),
+                    sorted(cited_numbers),
+                )
+            else:
+                filtered_chunks = context_chunks
+                logger.info(
+                    "Citation filter: no citations detected, fallback — sending all %d chunks",
+                    len(context_chunks),
+                )
+
+            logger.debug(
+                "Will yield %d context_chunks to frontend",
+                len(filtered_chunks),
+            )
+
+            # Persist assistant message with filtered source chunks (non-demo only)
             if not is_demo:
                 source_chunks_for_db = [
                     {
@@ -381,7 +432,7 @@ async def chat_query(
                         "page_number": c["page_number"],
                         "text": c["text"],
                     }
-                    for c in context_chunks
+                    for c in filtered_chunks
                 ]
 
                 async with AsyncSessionLocal() as db_session:
@@ -404,7 +455,7 @@ async def chat_query(
                     "page_number": c["page_number"],
                     "text": c["text"],
                 }
-                for c in context_chunks
+                for c in filtered_chunks
             ]
             yield f"data: {json.dumps({'context_chunks': context_for_client})}\n\n"
 

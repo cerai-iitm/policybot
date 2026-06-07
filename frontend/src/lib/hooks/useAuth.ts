@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loginUser, registerUser, loginDemoUser } from "@/lib/api/auth.api";
 import { LoginResponse, RegisterPayload } from "@/lib/types/auth";
@@ -7,8 +7,11 @@ import Cookies from "js-cookie";
 export const useAuth = () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [isDemoUser, setIsDemoUser] = useState(false);
 
-  const isDemoUser = Cookies.get("isDemoUser") === "true"; // ✅ CENTRAL FLAG
+  useEffect(() => {
+    setIsDemoUser(Cookies.get("isDemoUser") === "true");
+  }, []);
 
   const login = async (username: string, password: string) => {
     setLoading(true);

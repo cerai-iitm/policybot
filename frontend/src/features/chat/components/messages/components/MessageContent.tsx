@@ -1,6 +1,11 @@
 "use client";
 import React from "react";
-import MarkdownRenderer from "../../../markdown/Markdown";
+import dynamic from "next/dynamic";
+
+const MarkdownRenderer = dynamic(
+  () => import("../../../markdown/Markdown"),
+  { ssr: false }
+);
 
 interface Props {
   content: string;

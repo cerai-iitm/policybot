@@ -55,13 +55,20 @@ export const processPdfStream = async (
 
   const url = `${API_URL}/pdfs/process?notebook_id=${notebookId}&pdf_id=${pdfId}`;
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`, // ✅ NOW WORKS
-      Accept: "text/event-stream",      // important for SSE backend
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "text/event-stream",
+      },
+    });
+  } catch {
+    // Network error — fall back to polling
+    await pollPdfStatus(notebookId, pdfId, onMessage);
+    return;
+  }
 
   if (!response.ok) {
     throw new Error(`Stream failed: ${response.status}`);
@@ -76,32 +83,72 @@ export const processPdfStream = async (
 
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
 
-    if (done) break;
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
+      buffer += decoder.decode(value, { stream: true });
 
-    // 🔥 Split SSE messages
-    const parts = buffer.split("\n\n");
+      // 🔥 Split SSE messages
+      const parts = buffer.split("\n\n");
 
-    for (let i = 0; i < parts.length - 1; i++) {
-      const line = parts[i].trim();
+      for (let i = 0; i < parts.length - 1; i++) {
+        const line = parts[i].trim();
 
-      if (line.startsWith("data:")) {
-        const msg = line.replace("data:", "").trim();
+        // Skip SSE comments (keepalive)
+        if (line.startsWith(":")) continue;
 
-        console.log("STREAM:", msg);
+        if (line.startsWith("data:")) {
+          const msg = line.replace("data:", "").trim();
 
-        onMessage?.(msg);
+          console.log("STREAM:", msg);
 
-        if (msg === "done") {
-          return;
+          onMessage?.(msg);
+
+          if (msg === "done") {
+            return;
+          }
         }
       }
-    }
 
-    buffer = parts[parts.length - 1];
+      buffer = parts[parts.length - 1];
+    }
+  } catch {
+    // Stream error (timeout, connection drop) — fall back to polling
+    await pollPdfStatus(notebookId, pdfId, onMessage);
   }
+};
+
+const pollPdfStatus = async (
+  notebookId: string,
+  pdfId: string,
+  onMessage?: (msg: string) => void,
+  maxAttempts = 120
+): Promise<void> => {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+
+    try {
+      const res = await api.get(`/pdfs/?pdf_id=${pdfId}`);
+      const pdf = res.data;
+
+      if (pdf.processing_status === "complete") {
+        onMessage?.("Summary complete");
+        onMessage?.("done");
+        return;
+      }
+
+      if (pdf.processing_status === "error") {
+        onMessage?.("Error: Failed to process document");
+        onMessage?.("done");
+        return;
+      }
+    } catch {
+      // Ignore polling errors, keep trying
+    }
+  }
+
+  onMessage?.("done");
 };

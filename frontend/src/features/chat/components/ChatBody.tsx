@@ -14,6 +14,7 @@ const ChatBody = ({
   isSummaryLoading,
   onSuggestedClick,
   onSourcesClick,
+  onCitationsUpdate,
 }: {
   messages: Message[];
   loading?: boolean;
@@ -22,6 +23,7 @@ const ChatBody = ({
   isSummaryLoading?: boolean;
   onSuggestedClick?: (q: string) => void;
   onSourcesClick?: () => void;
+  onCitationsUpdate?: (chunks: any[]) => void;
 }) => {
   const isInitialLoading = loading || isSummaryLoading;
 
@@ -120,6 +122,7 @@ const ChatBody = ({
   sourceChunks={m.sourceChunks}
   isStreaming={m.isStreaming}
   onSourcesClick={onSourcesClick}
+  onCitationsUpdate={onCitationsUpdate}
 />
             )}
           </div>

@@ -43,8 +43,8 @@ export default function MainLayout() {
 
   /* 🔥 HOOKS */
   const pdf = usePdfManager(notebookId);
-  const processing = useProcessing(pdf.fetchPdfs);
   const notebookData = useNotebook(notebookId);
+  const processing = useProcessing(pdf.fetchPdfs, notebookData.refetch);
   const [citations, setCitations] = useState<any[]>([]);
 
   const autoOpenUpload =
@@ -69,6 +69,7 @@ export default function MainLayout() {
       res.notebook_id,
       res.stored_filename,
       res.original_filename,
+      notebookData.setNotebookTitle,
       () => pdf.setSelectedFilename(res.stored_filename)
     );
   };
@@ -304,108 +305,121 @@ export default function MainLayout() {
 >
 
             {/* POLICIES */}
-            {mobileTab ===
-              "policies" && (
-              <div className="h-full overflow-hidden ">
+            <div
+              className={
+                "h-full overflow-hidden " +
+                (mobileTab !== "policies"
+                  ? "hidden"
+                  : "")
+              }
+            >
 
-                <LeftSidebar
-                  title={
-                    notebookData
-                      .notebook
-                      ?.title ||
-                    "Loading..."
-                  }
-                  notebookId={
-                    notebookId || ""
-                  }
-                  onUpdateTitle={
-                    notebookData.updateTitle
-                  }
-                  collapsed={false}
-                  onToggleCollapse={() => {}}
-                  sources={pdf.sources}
-                  checkedPdfs={
-                    pdf.checkedPdfs
-                  }
-                  onTogglePdf={
-                    pdf.handleTogglePdf
-                  }
-                  onSelectPdf={
-                    pdf.setSelectedFilename
-                  }
-                  onDeletePdf={
-                    modal.openDelete
-                  }
-                  onRenamePdf={
-                    modal.openRename
-                  }
-                  onSelectAll={
-                    pdf.handleSelectAll
-                  }
-                  onUploadPdf={
-                    handleUpload
-                  }
-                  onOpenProcessing={(
-                    item
-                  ) =>
-                    processing.startProcessing(
-                      item.notebook_id,
-                      item.pdf_id,
-                      item.filename,
-                      () =>
-                        pdf.setSelectedFilename(
-                          item.pdf_id
-                        )
-                    )
-                  }
-                  autoOpenUpload={
-                    autoOpenUpload
-                  }
-                />
+              <LeftSidebar
+                title={
+                  notebookData
+                    .notebook
+                    ?.title ||
+                  "Loading..."
+                }
+                notebookId={
+                  notebookId || ""
+                }
+                onUpdateTitle={
+                  notebookData.updateTitle
+                }
+                collapsed={false}
+                onToggleCollapse={() => {}}
+                sources={pdf.sources}
+                checkedPdfs={
+                  pdf.checkedPdfs
+                }
+                onTogglePdf={
+                  pdf.handleTogglePdf
+                }
+                onSelectPdf={
+                  pdf.setSelectedFilename
+                }
+                onDeletePdf={
+                  modal.openDelete
+                }
+                onRenamePdf={
+                  modal.openRename
+                }
+                onSelectAll={
+                  pdf.handleSelectAll
+                }
+                onUploadPdf={
+                  handleUpload
+                }
+                onOpenProcessing={(
+                  item
+                ) =>
+                  processing.startProcessing(
+                    item.notebook_id,
+                    item.pdf_id,
+                    item.filename,
+                    () =>
+                      pdf.setSelectedFilename(
+                        item.pdf_id
+                      )
+                  )
+                }
+                autoOpenUpload={
+                  autoOpenUpload
+                }
+              />
 
-              </div>
-            )}
+            </div>
 
             {/* CHAT */}
-            {mobileTab === "chat" && (
-              <div className="h-full overflow-hidden ">
+            <div
+              className={
+                "h-full overflow-hidden " +
+                (mobileTab !== "chat"
+                  ? "hidden"
+                  : "")
+              }
+            >
 
-                <ChatView
-                  notebookId={
-                    notebookId || ""
-                  }
-                  selectedPdfIds={
-                    pdf.checkedPdfs
-                  }
-                  onCitationsUpdate={
-                    setCitations
-                  }
-                  onOpenCitations={
-                    openRightSidebar
-                  }
-                />
+              <ChatView
+                notebookId={
+                  notebookId || ""
+                }
+                selectedPdfIds={
+                  pdf.checkedPdfs
+                }
+                onCitationsUpdate={
+                  setCitations
+                }
+                onOpenCitations={
+                  openRightSidebar
+                }
+              />
 
-              </div>
-            )}
+            </div>
 
             {/* CITATIONS */}
-            {mobileTab ===
-              "citations" && (
-              <div className="h-full overflow-hidden ">
+            <div
+              className={
+                "h-full overflow-hidden " +
+                (mobileTab !== "citations"
+                  ? "hidden"
+                  : "")
+              }
+            >
 
-                <RightSidebar
-                  collapsed={false}
-                  onToggleCollapse={() => {}}
-                  citations={
-                    citations
-                  }
-                  onOpen={
-                    openRightSidebar
-                  }
-                />
+              <RightSidebar
+                collapsed={false}
+                onToggleCollapse={() => {}}
+                citations={
+                  citations
+                }
+                onOpen={
+                  openRightSidebar
+                }
+              />
 
-              </div>
-            )}
+            </div>
 
           </div>
         </main>

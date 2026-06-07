@@ -1,5 +1,6 @@
 # services/pdf_processor.py
 import asyncio
+import json
 import logging
 import os
 import uuid
@@ -145,7 +146,6 @@ class PDFProcessor:
 
         if summary_text:
             pdf.summary = summary_text
-            pdf.processing_status = "complete"
             db.add(pdf)
             await db.commit()
             yield "Summary complete"
@@ -155,7 +155,7 @@ class PDFProcessor:
                 check_result = await db.execute(
                     select(PDF).where(
                         PDF.notebook_id == pdf.notebook_id,
-                        PDF.processing_status == "complete",
+                        PDF.summary.isnot(None),
                     )
                 )
                 existing_pdfs = check_result.scalars().all()
@@ -169,7 +169,7 @@ class PDFProcessor:
                         new_title = await generate_notebook_title(pdf.summary)
                         notebook.title = new_title
                         await db.commit()
-                        yield f'data: {{"type": "notebook_title", "title": "{new_title}"}}\n\n'
+                        yield json.dumps({"type": "notebook_title", "title": new_title})
             except Exception as e:
                 logger.exception("Error generating notebook title")
 
@@ -182,8 +182,14 @@ class PDFProcessor:
                 yield "Suggestions ready"
             else:
                 yield "Suggestions ready"
+
+            pdf.processing_status = "complete"
+            db.add(pdf)
+            await db.commit()
         else:
-            # Summary failed; do not change processing_status so worker can retry
+            pdf.processing_status = "error"
+            db.add(pdf)
+            await db.commit()
             yield "Error: Failed to create summary"
             return
 
