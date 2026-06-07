@@ -66,12 +66,26 @@ async def process_pdf_background(pdf_id: int):
                     _processing_messages[pdf_id].append(update)
 
                 if isinstance(update, str) and update.startswith("Error:"):
-                    logger.exception(
+                    logger.error(
                         f"[bg:{pdf_id}] Error detected, stopping processing"
                     )
+                    # Mark as error in DB so SSE and fallback polling detect it
+                    pdf = await bg_db.get(PDF, pdf_id)
+                    if pdf:
+                        pdf.processing_status = "error"
+                        bg_db.add(pdf)
+                        await bg_db.commit()
                     break
         except Exception as e:
             logger.exception(f"Background processing failed for pdf_id {pdf_id}")
+            try:
+                pdf = await bg_db.get(PDF, pdf_id)
+                if pdf:
+                    pdf.processing_status = "error"
+                    bg_db.add(pdf)
+                    await bg_db.commit()
+            except Exception:
+                logger.exception("Failed to update processing_status to error")
         finally:
             # Cleanup: remove messages after processing
             _processing_messages.pop(pdf_id, None)
@@ -394,6 +408,7 @@ async def pdf_process_sse(
     async def generate():
         start_time = asyncio.get_event_loop().time()
         max_duration = 15 * 60  # 15 minutes
+        last_keepalive = start_time
 
         # Check if already complete
         if initial_status == "complete":
@@ -403,12 +418,18 @@ async def pdf_process_sse(
 
         try:
             while True:
-                elapsed = asyncio.get_event_loop().time() - start_time
+                now = asyncio.get_event_loop().time()
+                elapsed = now - start_time
                 if elapsed > max_duration:
                     logger.warning(f"Processing timeout for pdf_id={pdf_id}")
                     yield "data: error\n\n"
                     yield "data: done\n\n"
                     break
+
+                # Send keepalive comment every 15 seconds to prevent proxy timeouts
+                if now - last_keepalive >= 15:
+                    yield ": keepalive\n\n"
+                    last_keepalive = now
 
                 # Read messages from in-memory dict
                 messages = _processing_messages.get(pdf_internal_id, [])

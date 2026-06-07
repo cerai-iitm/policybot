@@ -183,7 +183,9 @@ class PDFProcessor:
             else:
                 yield "Suggestions ready"
         else:
-            # Summary failed; do not change processing_status so worker can retry
+            pdf.processing_status = "error"
+            db.add(pdf)
+            await db.commit()
             yield "Error: Failed to create summary"
             return
 
