@@ -43,8 +43,8 @@ export default function MainLayout() {
 
   /* 🔥 HOOKS */
   const pdf = usePdfManager(notebookId);
-  const processing = useProcessing(pdf.fetchPdfs);
   const notebookData = useNotebook(notebookId);
+  const processing = useProcessing(pdf.fetchPdfs, notebookData.refetch);
   const [citations, setCitations] = useState<any[]>([]);
 
   const autoOpenUpload =
@@ -69,6 +69,7 @@ export default function MainLayout() {
       res.notebook_id,
       res.stored_filename,
       res.original_filename,
+      notebookData.setNotebookTitle,
       () => pdf.setSelectedFilename(res.stored_filename)
     );
   };
