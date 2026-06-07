@@ -8,8 +8,9 @@ interface Props {
   subtitle?: string;
   pageNo: string;
   content: string;
-  collapsed?: boolean; // ✅ include here
-   onClick?: () => void;
+  collapsed?: boolean;
+  citationNumber?: number;
+  onClick?: () => void;
 }
 
 const CitationCard: React.FC<Props> = ({
@@ -18,6 +19,7 @@ const CitationCard: React.FC<Props> = ({
   pageNo,
   content,
   collapsed,
+  citationNumber,
   onClick
 }) => {
 
@@ -44,9 +46,9 @@ const CitationCard: React.FC<Props> = ({
           <h3 className="text-sm font-medium text-[#1F2937] leading-5">
             {title}
           </h3>
-          {subtitle && (
+          {(citationNumber || subtitle) && (
             <p className="text-xs text-[#4B5563] leading-5">
-              {subtitle}
+              {citationNumber ? `Source #${citationNumber}` : subtitle}
             </p>
           )}
         </div>

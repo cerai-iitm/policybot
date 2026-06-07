@@ -14,6 +14,7 @@ interface SourceChunk {
   source: string;
   page_number: number | null;
   original_filename?: string;
+  citation_number?: number;
 }
 
 interface Props {

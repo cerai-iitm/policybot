@@ -88,8 +88,9 @@ const RightSidebar: React.FC<Props> = ({
                 subtitle="Referenced document"
                 pageNo={item.page_number || "-"}
                 content={item.text}
+                citationNumber={item.citation_number}
                 collapsed={collapsed}
-                 onClick={onOpen}
+                onClick={onOpen}
               />
             ))}
           </div>

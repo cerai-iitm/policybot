@@ -395,13 +395,14 @@ async def chat_query(
             )
 
             if cited_numbers:
-                cited_indices = {
+                cited_indices = sorted(
                     num - 1
                     for num in cited_numbers
                     if 1 <= num <= len(context_chunks)
-                }
+                )
                 filtered_chunks = [
-                    c for i, c in enumerate(context_chunks) if i in cited_indices
+                    {**context_chunks[i], "citation_number": i + 1}
+                    for i in cited_indices
                 ]
                 logger.info(
                     "Citation filter: kept %d/%d chunks — cited sources: %s",
@@ -410,7 +411,10 @@ async def chat_query(
                     sorted(cited_numbers),
                 )
             else:
-                filtered_chunks = context_chunks
+                filtered_chunks = [
+                    {**c, "citation_number": i + 1}
+                    for i, c in enumerate(context_chunks)
+                ]
                 logger.info(
                     "Citation filter: no citations detected, fallback — sending all %d chunks",
                     len(context_chunks),
@@ -431,6 +435,7 @@ async def chat_query(
                         ),
                         "page_number": c["page_number"],
                         "text": c["text"],
+                        "citation_number": c["citation_number"],
                     }
                     for c in filtered_chunks
                 ]
@@ -454,6 +459,7 @@ async def chat_query(
                     ),
                     "page_number": c["page_number"],
                     "text": c["text"],
+                    "citation_number": c["citation_number"],
                 }
                 for c in filtered_chunks
             ]
